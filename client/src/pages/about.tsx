@@ -82,11 +82,13 @@ export default function About() {
       {/* Teams */}
       <section className="py-16 px-4 bg-stone-50">
         <div className="max-w-7xl mx-auto">
-          <h2 className="section-title text-center">Our Teams</h2>
+          <EditableSection page="about" section="teams_title" value={get("teams_title", "Our Teams")} label="Teams heading">
+            {(c) => <h2 className="section-title text-center">{c}</h2>}
+          </EditableSection>
           <div className="gold-bar mx-auto" />
-          <p className="section-subtitle text-center">
-            Competing across all divisions of Lacrosse WA. New players welcome at every level.
-          </p>
+          <EditableSection page="about" section="teams_subtitle" value={get("teams_subtitle", "Competing across all divisions of Lacrosse WA. New players welcome at every level.")} label="Teams subtitle">
+            {(c) => <p className="section-subtitle text-center">{c}</p>}
+          </EditableSection>
           <div className="grid md:grid-cols-3 gap-6 mt-8">
             {teams.map((t) => (
               <Card key={t.category} className="overflow-hidden">

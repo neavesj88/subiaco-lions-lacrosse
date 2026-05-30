@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
+import { usePageContent } from "@/hooks/use-page-content";
+import EditableSection from "@/components/editable-section";
 
 const LACROSSEWA_FIXTURES = "https://lacrossewa.com.au/fixtures-results/club-fixtures/";
 const GAMEDAY_CLUB = "https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0";
@@ -40,16 +42,19 @@ const teams = [
 ];
 
 export default function Fixtures() {
+  const { get } = usePageContent("fixtures");
   return (
     <>
       {/* Hero */}
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <Trophy className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <h1 className="text-4xl font-extrabold mb-4">Fixtures & Results</h1>
-          <p className="text-maroon-100 text-lg">
-            Game schedules and results for all Subiaco Lions teams, hosted by Lacrosse WA.
-          </p>
+          <EditableSection page="fixtures" section="hero_title" value={get("hero_title", "Fixtures & Results")} label="Hero heading">
+            {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
+          </EditableSection>
+          <EditableSection page="fixtures" section="hero_subtitle" value={get("hero_subtitle", "Game schedules and results for all Subiaco Lions teams, hosted by Lacrosse WA.")} label="Hero subtitle">
+            {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
+          </EditableSection>
         </div>
       </section>
 
@@ -127,10 +132,12 @@ export default function Fixtures() {
       <section className="py-10 px-4 bg-stone-50 border-t">
         <div className="max-w-3xl mx-auto text-center">
           <Calendar className="h-8 w-8 text-gold-500 mx-auto mb-3" />
-          <h2 className="text-xl font-bold text-stone-900 mb-2">Training Schedule</h2>
-          <p className="text-stone-500 mb-4">
-            Training times and non-fixture club events are managed in our club calendar.
-          </p>
+          <EditableSection page="fixtures" section="training_title" value={get("training_title", "Training Schedule")} label="Training heading">
+            {(c) => <h2 className="text-xl font-bold text-stone-900 mb-2">{c}</h2>}
+          </EditableSection>
+          <EditableSection page="fixtures" section="training_text" value={get("training_text", "Training times and non-fixture club events are managed in our club calendar.")} label="Training text">
+            {(c) => <p className="text-stone-500 mb-4">{c}</p>}
+          </EditableSection>
           <Link href="/calendar">
             <Button variant="outline">View Club Calendar</Button>
           </Link>

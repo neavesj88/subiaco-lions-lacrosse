@@ -4,6 +4,8 @@ import { ShoppingBag, ExternalLink, Mail, Star, Shield, Shirt } from "lucide-rea
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { usePageContent } from "@/hooks/use-page-content";
+import EditableSection from "@/components/editable-section";
 
 const apparel = [
   {
@@ -57,6 +59,7 @@ export default function Store() {
   });
 
   const storeUrl = settings?.store_url;
+  const { get } = usePageContent("store");
 
   return (
     <>
@@ -64,10 +67,12 @@ export default function Store() {
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <ShoppingBag className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <h1 className="text-4xl font-extrabold mb-4">Club Store</h1>
-          <p className="text-maroon-100 text-lg">
-            Official Subiaco Lions Lacrosse Club apparel and equipment.
-          </p>
+          <EditableSection page="store" section="hero_title" value={get("hero_title", "Club Store")} label="Hero heading">
+            {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
+          </EditableSection>
+          <EditableSection page="store" section="hero_subtitle" value={get("hero_subtitle", "Official Subiaco Lions Lacrosse Club apparel and equipment.")} label="Hero subtitle">
+            {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
+          </EditableSection>
           {storeUrl && (
             <a href={storeUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-6">
               <Button size="lg" variant="gold" className="gap-2">
