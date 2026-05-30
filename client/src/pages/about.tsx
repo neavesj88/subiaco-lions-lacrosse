@@ -1,6 +1,9 @@
 import { Users, Trophy, MapPin, Mail, Shield } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { usePageContent } from "@/hooks/use-page-content";
+import EditableSection from "@/components/editable-section";
+import { RichTextDisplay } from "@/components/rich-text-editor";
 
 const teams = [
   {
@@ -20,14 +23,28 @@ const teams = [
   },
 ];
 
+// Default text — used until an admin edits a section. Stored in DB once edited.
+const DEFAULTS = {
+  hero_title: "About the Club",
+  hero_subtitle: "Perth's longest-running lacrosse club — over 80 years of Lions pride.",
+  history_title: "Our History",
+  history_body: `<p>Subiaco Lacrosse Club was formed in 1940 by Mr J.L. Carden, drawing from the foundations of the Nedlands Lacrosse Club established in 1930. After World War II, Nedlands fielded only senior men while Subiaco had a large group of junior boys graduating to senior lacrosse — the two clubs merged to create the strong, unified club we know today.</p><p>Based at Rosalie Park in Shenton Park, the Lions have been a cornerstone of lacrosse in Western Australia for over eight decades. The club is known for its ANZAC Day lacrosse traditions and has consistently developed players who go on to represent at national and international level.</p><p>Today, Subiaco fields teams and develops players across all levels of the Women's and Men's competitions, including Modcrosse — fostering a love for lacrosse through inclusivity, sportsmanship and community.</p>`,
+};
+
 export default function About() {
+  const { get } = usePageContent("about");
+
   return (
     <>
       {/* Hero */}
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-extrabold mb-4">About the Club</h1>
-          <p className="text-maroon-100 text-lg">Perth's longest-running lacrosse club — over 80 years of Lions pride.</p>
+          <EditableSection page="about" section="hero_title" value={get("hero_title", DEFAULTS.hero_title)} label="Hero heading">
+            {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
+          </EditableSection>
+          <EditableSection page="about" section="hero_subtitle" value={get("hero_subtitle", DEFAULTS.hero_subtitle)} label="Hero subtitle">
+            {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
+          </EditableSection>
         </div>
       </section>
 
@@ -36,19 +53,13 @@ export default function About() {
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="section-title">Our History</h2>
+              <EditableSection page="about" section="history_title" value={get("history_title", DEFAULTS.history_title)} label="History heading">
+                {(c) => <h2 className="section-title">{c}</h2>}
+              </EditableSection>
               <div className="gold-bar" />
-              <div className="space-y-4 text-stone-600 leading-relaxed">
-                <p>
-                  Subiaco Lacrosse Club was formed in 1940 by Mr J.L. Carden, drawing from the foundations of the Nedlands Lacrosse Club established in 1930. After World War II, Nedlands fielded only senior men while Subiaco had a large group of junior boys graduating to senior lacrosse — the two clubs merged to create the strong, unified club we know today.
-                </p>
-                <p>
-                  Based at Rosalie Park in Shenton Park, the Lions have been a cornerstone of lacrosse in Western Australia for over eight decades. The club is known for its ANZAC Day lacrosse traditions and has consistently developed players who go on to represent at national and international level.
-                </p>
-                <p>
-                  Today, Subiaco fields teams and develops players across all levels of the Women's and Men's competitions, including Modcrosse — fostering a love for lacrosse through inclusivity, sportsmanship and community.
-                </p>
-              </div>
+              <EditableSection page="about" section="history_body" value={get("history_body", DEFAULTS.history_body)} label="History text" richText>
+                {(c) => <RichTextDisplay html={c} className="space-y-4 text-stone-600 leading-relaxed" />}
+              </EditableSection>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {[

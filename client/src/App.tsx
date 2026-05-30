@@ -4,6 +4,7 @@ import { queryClient } from "@/lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import Navigation from "@/components/navigation";
 import Footer from "@/components/footer";
+import EditModeBanner from "@/components/edit-mode-banner";
 import Home from "@/pages/home";
 import About from "@/pages/about";
 import Calendar from "@/pages/calendar";
@@ -39,6 +40,7 @@ function Router() {
       </main>
       <Footer />
       <Toaster />
+      <EditModeBanner />
     </div>
   );
 }

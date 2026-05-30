@@ -122,5 +122,20 @@ addSetting('nav_show_results',   'true');   // Recent results on home page
 addSetting('nav_show_sponsors',  'true');   // Sponsor strip on home page
 addSetting('nav_show_newsletter','true');   // Newsletter subscribe widget
 
+// ── v4: page_content CMS table + logo setting ─────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS page_content (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    page TEXT NOT NULL,
+    section TEXT NOT NULL,
+    content TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by INTEGER REFERENCES users(id),
+    UNIQUE(page, section)
+  )
+`);
+
+addSetting('club_logo_url', '');  // Upload a logo in Media Library, paste URL here
+
 db.close();
 console.log('Migration complete.');

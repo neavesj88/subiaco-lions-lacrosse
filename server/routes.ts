@@ -42,7 +42,7 @@ import { db } from "./db";
 import {
   users, events, registrations, announcements, juniorsContent,
   mediaUploads, siteSettings, contactMessages,
-  sponsors, matchResults, newsletterSubscribers,
+  sponsors, matchResults, newsletterSubscribers, pageContent,
   insertEventSchema, insertRegistrationSchema, insertAnnouncementSchema,
   insertSponsorSchema, insertMatchResultSchema,
   loginSchema, createUserSchema,
@@ -539,6 +539,44 @@ export async function registerRoutes(app: Express) {
       .set({ isActive: false })
       .where(eq(newsletterSubscribers.id, parseInt(req.params.id)));
     res.json({ ok: true });
+  });
+
+  // ── Page Content (CMS) ──────────────────────────────────────────────
+  // GET /api/page-content/:page  — public, returns all sections for a page as {section: content}
+  // PUT /api/page-content/:page/:section — content_manager+ to save a section
+  //
+  // Pages: home, about, contact, fixtures, store, gallery
+  // Sections: any string key (hero_title, hero_subtitle, history_1, etc.)
+  // If no row exists the frontend falls back to its hardcoded default text.
+  app.get("/api/page-content/:page", async (req: Request, res: Response) => {
+    const rows = await db.select().from(pageContent)
+      .where(eq(pageContent.page, req.params.page));
+    const map: Record<string, string> = {};
+    for (const row of rows) map[row.section] = row.content;
+    res.json(map);
+  });
+
+  app.put("/api/page-content/:page/:section", requireAuth, requireRole("content_manager"), async (req: Request, res: Response) => {
+    const { page, section } = req.params;
+    const { content } = req.body;
+    if (!content && content !== "") return res.status(400).json({ message: "content is required" });
+
+    // Upsert — insert if new, update if exists
+    const existing = await db.select().from(pageContent)
+      .where(and(eq(pageContent.page, page), eq(pageContent.section, section)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const [row] = await db.update(pageContent)
+        .set({ content, updatedAt: new Date().toISOString(), updatedBy: req.session.userId })
+        .where(and(eq(pageContent.page, page), eq(pageContent.section, section)))
+        .returning();
+      return res.json(row);
+    }
+    const [row] = await db.insert(pageContent)
+      .values({ page, section, content, updatedBy: req.session.userId })
+      .returning();
+    res.status(201).json(row);
   });
 
   // ── Media caption update ─────────────────────────────────────────────

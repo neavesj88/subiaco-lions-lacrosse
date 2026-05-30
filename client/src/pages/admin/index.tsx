@@ -1133,7 +1133,8 @@ export default function AdminDashboard() {
               <Card>
                 <CardContent className="pt-6 space-y-4">
                   {[
-                    { key: "hero_image_url", label: "Hero Background Image URL", help: "Upload in Media tab, copy URL, paste here. Appears as the home page hero background with a maroon overlay." },
+                    { key: "club_logo_url", label: "Club Logo URL", help: "Upload your club crest/logo in the Media tab, copy the URL, paste here. Replaces the 'L' placeholder in the navigation and home hero. Leave blank to use the default." },
+                  { key: "hero_image_url", label: "Hero Background Image URL", help: "Upload in Media tab, copy URL, paste here. Appears as the home page hero background with a maroon overlay." },
                   { key: "google_calendar_embed_url", label: "Google Calendar Embed URL", help: "In Google Calendar → Settings → your calendar → 'Integrate calendar' → copy the Embed URL (starts with https://calendar.google.com/calendar/embed?...)." },
                     { key: "behold_feed_id", label: "Behold.so Feed ID (Instagram)", help: "Create a free feed at behold.so, connect @subiacolacrosse_official, then paste the Feed ID here." },
                     { key: "store_url", label: "Online Store URL", help: "Link to your online merch store (e.g. Shopify, Redbubble, PrintFul). Leave blank to show the 'coming soon' message." },

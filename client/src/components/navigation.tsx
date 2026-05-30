@@ -11,7 +11,7 @@ export default function Navigation() {
   const [open, setOpen] = useState(false);
   const [clubOpen, setClubOpen] = useState(false);
   const { user } = useAuth();
-  const { pageEnabled } = useSettings();
+  const { pageEnabled, settings } = useSettings();
 
   // "Club" dropdown — only shows items that are enabled in Admin → Settings
   const clubItems = [
@@ -31,9 +31,13 @@ export default function Navigation() {
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group shrink-0">
-            <div className="w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-maroon-900 font-bold text-lg shadow-md">
-              L
-            </div>
+            {settings?.club_logo_url ? (
+              <img src={settings.club_logo_url} alt="Subiaco Lions" className="w-10 h-10 object-contain" />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-maroon-900 font-bold text-lg shadow-md">
+                L
+              </div>
+            )}
             <div className="leading-tight hidden sm:block">
               <div className="font-bold text-sm">Subiaco Lions</div>
               <div className="text-gold-300 text-xs">Lacrosse Club</div>

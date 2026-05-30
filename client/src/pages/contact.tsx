@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mail, MapPin, Facebook, Instagram, CheckCircle, Clock } from "lucide-react";
+import { usePageContent } from "@/hooks/use-page-content";
+import EditableSection from "@/components/editable-section";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -23,6 +25,7 @@ type FormData = z.infer<typeof schema>;
 
 export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
+  const { get } = usePageContent("contact");
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -43,10 +46,12 @@ export default function Contact() {
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <Mail className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <h1 className="text-4xl font-extrabold mb-4">Contact Us</h1>
-          <p className="text-maroon-100 text-lg">
-            Questions about joining, junior programs, sponsorship or anything else — we'd love to hear from you.
-          </p>
+          <EditableSection page="contact" section="hero_title" value={get("hero_title", "Contact Us")} label="Hero heading">
+            {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
+          </EditableSection>
+          <EditableSection page="contact" section="hero_subtitle" value={get("hero_subtitle", "Questions about joining, junior programs, sponsorship or anything else — we'd love to hear from you.")} label="Hero subtitle">
+            {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
+          </EditableSection>
         </div>
       </section>
 

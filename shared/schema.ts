@@ -206,6 +206,21 @@ export const newsletterSubscribers = sqliteTable("newsletter_subscribers", {
   subscribedAt: text("subscribed_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// ── Page Content (CMS) ────────────────────────────────────────────────────────
+// Every editable text block on every public page is stored here.
+// page + section together are unique (e.g. page="about", section="history_1").
+// Admins edit these via inline edit buttons that appear when logged in,
+// or via Admin → Pages tab.
+// If no DB row exists, the page falls back to the default hardcoded text.
+export const pageContent = sqliteTable("page_content", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  page: text("page").notNull(),      // e.g. "home", "about", "contact"
+  section: text("section").notNull(),// e.g. "hero_title", "history_1"
+  content: text("content").notNull(),// HTML (from TipTap) or plain text
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedBy: integer("updated_by").references(() => users.id),
+});
+
 // ── Zod validation schemas (used in routes for input validation) ───────────────
 export const insertEventSchema = createInsertSchema(events).omit({ id: true, createdAt: true });
 export const insertRegistrationSchema = createInsertSchema(registrations).omit({ id: true, createdAt: true, status: true });
@@ -238,3 +253,4 @@ export type MediaUpload = typeof mediaUploads.$inferSelect;
 export type Sponsor = typeof sponsors.$inferSelect;
 export type MatchResult = typeof matchResults.$inferSelect;
 export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
+export type PageContent = typeof pageContent.$inferSelect;

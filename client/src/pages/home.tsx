@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import InstagramFeed from "@/components/instagram-feed";
 import { RichTextDisplay } from "@/components/rich-text-editor";
+import { usePageContent } from "@/hooks/use-page-content";
+import EditableSection from "@/components/editable-section";
 import { formatDate, formatDateShort } from "@/lib/utils";
 import { CalendarDays, UserPlus, MapPin, Megaphone, Trophy, Mail } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
@@ -40,6 +42,11 @@ export default function Home() {
   const [subName, setSubName] = useState("");
   const [subDone, setSubDone] = useState(false);
   const { settings, pageEnabled } = useSettings();
+  const { get } = usePageContent("home");
+
+  // Default hero text — editable by admins, saved to DB once changed
+  const HERO_TITLE = "Subiaco Lions";
+  const HERO_TAGLINE = "Perth's home of lacrosse since 1940. Men's, Women's and Junior teams competing across all divisions at Rosalie Park, Shenton Park.";
 
   const { data: announcements = [] } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements"],
@@ -88,14 +95,22 @@ export default function Home() {
           <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-gold-300" />
         </div>
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gold-500 text-maroon-900 font-black text-4xl shadow-xl mb-6">L</div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight">
-            Subiaco Lions<br />
-            <span className="text-gold-400">Lacrosse Club</span>
-          </h1>
-          <p className="text-lg sm:text-xl text-maroon-100 mb-8 max-w-2xl mx-auto">
-            Perth's home of lacrosse since 1940. Men's, Women's and Junior teams competing across all divisions at Rosalie Park, Shenton Park.
-          </p>
+          {settings?.club_logo_url ? (
+            <img src={settings.club_logo_url} alt="Club logo" className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-xl" />
+          ) : (
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gold-500 text-maroon-900 font-black text-4xl shadow-xl mb-6">L</div>
+          )}
+          <EditableSection page="home" section="hero_title" value={get("hero_title", HERO_TITLE)} label="Hero club name">
+            {(c) => (
+              <h1 className="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight">
+                {c}<br />
+                <span className="text-gold-400">Lacrosse Club</span>
+              </h1>
+            )}
+          </EditableSection>
+          <EditableSection page="home" section="hero_tagline" value={get("hero_tagline", HERO_TAGLINE)} label="Hero tagline">
+            {(c) => <p className="text-lg sm:text-xl text-maroon-100 mb-8 max-w-2xl mx-auto">{c}</p>}
+          </EditableSection>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link href="/sign-up">
               <Button size="lg" variant="gold" className="shadow-lg">
