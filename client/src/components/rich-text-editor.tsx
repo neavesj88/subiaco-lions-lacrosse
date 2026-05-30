@@ -1,11 +1,13 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
+import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import {
   Bold, Italic, List, ListOrdered, Link2, Link2Off,
-  Heading2, Heading3, Minus, Undo, Redo,
+  Heading2, Heading3, Minus, Undo, Redo, ImagePlus,
 } from "lucide-react";
+import { useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useEffect, useCallback } from "react";
 
@@ -53,12 +55,17 @@ export default function RichTextEditor({
   className,
   minHeight = "120px",
 }: RichTextEditorProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: { class: "text-maroon-600 underline hover:text-maroon-800" },
+      }),
+      Image.configure({
+        HTMLAttributes: { class: "rounded-lg max-w-full h-auto my-2" },
       }),
       Placeholder.configure({ placeholder }),
     ],
@@ -91,6 +98,20 @@ export default function RichTextEditor({
     }
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }, [editor]);
+
+  const handleImageUpload = async (file: File) => {
+    if (!editor) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json() as { url: string };
+      editor.chain().focus().setImage({ src: url }).run();
+    } catch {
+      alert("Image upload failed. Please try again.");
+    }
+  };
 
   if (!editor) return null;
 
@@ -148,6 +169,24 @@ export default function RichTextEditor({
         <ToolbarButton onClick={() => editor.chain().focus().redo().run()} title="Redo">
           <Redo className="h-4 w-4" />
         </ToolbarButton>
+
+        <div className="w-px h-4 bg-stone-300 mx-1" />
+
+        {/* Image upload */}
+        <ToolbarButton onClick={() => fileInputRef.current?.click()} title="Insert image">
+          <ImagePlus className="h-4 w-4" />
+        </ToolbarButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleImageUpload(file);
+            e.target.value = "";
+          }}
+        />
       </div>
 
       {/* Editor area */}

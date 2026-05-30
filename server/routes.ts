@@ -5,6 +5,9 @@ import ConnectSqlite3 from "connect-sqlite3";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import bcrypt from "bcrypt";
+import multer from "multer";
+import path from "path";
+import { mkdirSync } from "fs";
 import { eq, desc, gte, and } from "drizzle-orm";
 import { db } from "./db";
 import {
@@ -13,6 +16,7 @@ import {
   registrations,
   announcements,
   juniorsContent,
+  mediaUploads,
   siteSettings,
   contactMessages,
   insertEventSchema,
@@ -76,8 +80,33 @@ function setupPassport() {
   }
 }
 
+// ── Multer (file uploads) ───────────────────────────────────────────────────
+const uploadDir = path.resolve("public/uploads");
+mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const safe = path.basename(file.originalname, ext).replace(/[^a-z0-9]/gi, "-").toLowerCase();
+    cb(null, `${safe}-${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) return cb(null, true);
+    cb(new Error("Only image files are allowed"));
+  },
+});
+
 export async function registerRoutes(app: Express) {
   const server = createServer(app);
+
+  // Serve uploaded files
+  app.use("/uploads", (await import("express")).default.static(uploadDir));
 
   // Session
   app.use(
@@ -193,7 +222,8 @@ export async function registerRoutes(app: Express) {
   app.get("/api/announcements", async (_req: Request, res: Response) => {
     const rows = await db.select().from(announcements)
       .where(eq(announcements.isPublished, true))
-      .orderBy(desc(announcements.createdAt)).limit(10);
+      .orderBy(desc(announcements.isPinned), desc(announcements.createdAt))
+      .limit(10);
     res.json(rows);
   });
 
@@ -284,6 +314,40 @@ export async function registerRoutes(app: Express) {
     }
     const [row] = await db.insert(juniorsContent).values({ section, title, content, updatedBy: req.session.userId }).returning();
     res.status(201).json(row);
+  });
+
+  // ── Media Uploads ───────────────────────────────────────────────────
+  app.post("/api/upload", requireAuth, requireRole("content_manager"),
+    upload.single("file"),
+    async (req: Request, res: Response) => {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const url = `/uploads/${req.file.filename}`;
+      const [row] = await db.insert(mediaUploads).values({
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        url,
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size,
+        uploadedBy: req.session.userId,
+      }).returning();
+      res.json({ url, id: row.id });
+    }
+  );
+
+  app.get("/api/media", requireAuth, requireRole("content_manager"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(mediaUploads).orderBy(desc(mediaUploads.createdAt)).limit(200);
+    res.json(rows);
+  });
+
+  app.delete("/api/media/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const [row] = await db.select().from(mediaUploads).where(eq(mediaUploads.id, id)).limit(1);
+    if (row) {
+      const { unlink } = await import("fs/promises");
+      await unlink(path.join(uploadDir, row.filename)).catch(() => {});
+      await db.delete(mediaUploads).where(eq(mediaUploads.id, id));
+    }
+    res.json({ ok: true });
   });
 
   // ── Site Settings ───────────────────────────────────────────────────

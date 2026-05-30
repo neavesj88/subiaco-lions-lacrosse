@@ -40,7 +40,13 @@ export default function Home() {
   return (
     <>
       {/* Hero */}
-      <section className="hero-gradient text-white py-24 px-4 relative overflow-hidden">
+      <section
+        className="hero-gradient text-white py-24 px-4 relative overflow-hidden"
+        style={settings?.hero_image_url
+          ? { backgroundImage: `linear-gradient(rgba(123,30,50,0.82),rgba(58,12,23,0.88)), url(${settings.hero_image_url})`, backgroundSize: "cover", backgroundPosition: "center" }
+          : undefined
+        }
+      >
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -top-20 -right-20 w-96 h-96 rounded-full bg-gold-400" />
           <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-gold-300" />
@@ -97,8 +103,28 @@ export default function Home() {
             </div>
             <div className="grid md:grid-cols-3 gap-6">
               {latestAnnouncements.map((a) => (
-                <Card key={a.id} className="border-l-4 border-l-maroon-700">
-                  <CardHeader>
+                <Card
+                  key={a.id}
+                  className={a.isPinned
+                    ? "border-2 border-gold-400 shadow-md"
+                    : "border-l-4 border-l-maroon-700"
+                  }
+                >
+                  {a.featuredImageUrl && (
+                    <div className="overflow-hidden rounded-t-xl">
+                      <img
+                        src={a.featuredImageUrl}
+                        alt={a.title}
+                        className="w-full h-40 object-cover"
+                      />
+                    </div>
+                  )}
+                  <CardHeader className={a.featuredImageUrl ? "pt-4" : undefined}>
+                    {a.isPinned && (
+                      <span className="text-xs font-semibold text-gold-600 flex items-center gap-1 mb-1">
+                        📌 Pinned
+                      </span>
+                    )}
                     <CardTitle className="text-base">{a.title}</CardTitle>
                     <p className="text-xs text-stone-400">{formatDate(a.createdAt)}</p>
                   </CardHeader>

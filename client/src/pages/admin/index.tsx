@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RichTextEditor from "@/components/rich-text-editor";
+import ImageUploader from "@/components/image-uploader";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,9 +19,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatDate } from "@/lib/utils";
 import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
-  ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye
+  ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
+  Pin, ImageIcon
 } from "lucide-react";
-import type { Event, Announcement, Registration, JuniorsContent, ContactMessage } from "@shared/schema";
+import type { Event, Announcement, Registration, JuniorsContent, ContactMessage, MediaUpload } from "@shared/schema";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +156,8 @@ function AnnouncementForm({ ann, onDone }: { ann?: Announcement; onDone: () => v
   const qc = useQueryClient();
   const [title, setTitle] = useState(ann?.title ?? "");
   const [content, setContent] = useState(ann?.content ?? "");
+  const [featuredImageUrl, setFeaturedImageUrl] = useState<string | undefined>(ann?.featuredImageUrl ?? undefined);
+  const [isPinned, setIsPinned] = useState(ann?.isPinned ?? false);
   const [isPublished, setIsPublished] = useState(ann?.isPublished ?? true);
 
   const mutation = useMutation({
@@ -176,7 +180,7 @@ function AnnouncementForm({ ann, onDone }: { ann?: Announcement; onDone: () => v
       toast({ title: "Title and content are required", variant: "destructive" });
       return;
     }
-    mutation.mutate({ title, content, isPublished });
+    mutation.mutate({ title, content, featuredImageUrl: featuredImageUrl ?? null, isPinned, isPublished });
   };
 
   return (
@@ -195,17 +199,38 @@ function AnnouncementForm({ ann, onDone }: { ann?: Announcement; onDone: () => v
           minHeight="160px"
         />
       </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="ann-published"
-          checked={isPublished}
-          onChange={(e) => setIsPublished(e.target.checked)}
-          className="rounded"
-        />
-        <Label htmlFor="ann-published" className="cursor-pointer font-normal">
-          Publish immediately (uncheck to save as draft)
-        </Label>
+      <ImageUploader
+        label="Featured Image (optional)"
+        value={featuredImageUrl}
+        onChange={setFeaturedImageUrl}
+        hint="Shows as the post thumbnail on the homepage. Recommended: 1200×630px."
+      />
+
+      <div className="flex flex-col gap-2 p-3 bg-stone-50 rounded-lg border">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="ann-pinned"
+            checked={isPinned}
+            onChange={(e) => setIsPinned(e.target.checked)}
+            className="rounded"
+          />
+          <Label htmlFor="ann-pinned" className="cursor-pointer font-normal">
+            📌 Pin this post (shows first, highlighted in gold)
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="ann-published"
+            checked={isPublished}
+            onChange={(e) => setIsPublished(e.target.checked)}
+            className="rounded"
+          />
+          <Label htmlFor="ann-published" className="cursor-pointer font-normal">
+            Publish immediately (uncheck to save as draft)
+          </Label>
+        </div>
       </div>
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={mutation.isPending} className="flex-1">
@@ -316,6 +341,12 @@ export default function AdminDashboard() {
     queryKey: ["/api/users"],
     queryFn: () => apiRequest("GET", "/api/users"),
     enabled: hasRole("super_admin"),
+  });
+
+  const { data: mediaItems = [] } = useQuery<MediaUpload[]>({
+    queryKey: ["/api/media"],
+    queryFn: () => apiRequest("GET", "/api/media"),
+    enabled: hasRole("content_manager"),
   });
 
   const { data: contactMsgs = [] } = useQuery<ContactMessage[]>({
@@ -469,6 +500,7 @@ export default function AdminDashboard() {
                 {unreadMsgs > 0 && <span className="ml-1 bg-maroon-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">{unreadMsgs}</span>}
               </TabsTrigger>
             )}
+            {hasRole("content_manager") && <TabsTrigger value="media"><ImageIcon className="h-4 w-4 mr-1" />Media</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" />Settings</TabsTrigger>}
           </TabsList>
@@ -546,12 +578,16 @@ export default function AdminDashboard() {
                   <Card key={a.id}>
                     <CardContent className="pt-4 pb-4 flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          {a.isPinned && <Badge variant="gold" className="text-xs">📌 Pinned</Badge>}
                           {a.isPublished
                             ? <Badge variant="default" className="text-xs">Published</Badge>
                             : <Badge variant="secondary" className="text-xs">Draft</Badge>}
                           <span className="text-xs text-stone-400">{formatDate(a.createdAt)}</span>
                         </div>
+                        {a.featuredImageUrl && (
+                          <img src={a.featuredImageUrl} alt="" className="w-16 h-10 object-cover rounded mb-1" />
+                        )}
                         <p className="font-medium text-stone-900">{a.title}</p>
                         <p className="text-sm text-stone-500 line-clamp-2 mt-0.5">{a.content}</p>
                       </div>
@@ -673,6 +709,66 @@ export default function AdminDashboard() {
             </TabsContent>
           )}
 
+          {/* ── Media Library ── */}
+          {hasRole("content_manager") && (
+            <TabsContent value="media">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Media Library</h2>
+                <span className="text-sm text-stone-500">{mediaItems.length} files uploaded</span>
+              </div>
+              <div className="mb-4 p-4 bg-stone-50 border rounded-xl">
+                <p className="text-sm font-medium text-stone-700 mb-2">Upload new image</p>
+                <ImageUploader
+                  onChange={async (url) => {
+                    if (url) qc.invalidateQueries({ queryKey: ["/api/media"] });
+                  }}
+                  hint="Drag & drop or click to upload. Images appear in the grid below and can be inserted into posts."
+                />
+              </div>
+              {mediaItems.length === 0 ? (
+                <p className="text-stone-400 text-center py-8">No images uploaded yet.</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {mediaItems.map((m) => (
+                    <div key={m.id} className="group relative rounded-lg overflow-hidden border bg-stone-50 aspect-video">
+                      <img src={m.url} alt={m.originalName} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                        <p className="text-white text-xs text-center line-clamp-2">{m.originalName}</p>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs bg-white"
+                            onClick={() => {
+                              navigator.clipboard.writeText(window.location.origin + m.url);
+                              toast({ title: "URL copied to clipboard" });
+                            }}
+                          >
+                            Copy URL
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              if (confirm("Delete this image?")) {
+                                apiRequest("DELETE", `/api/media/${m.id}`)
+                                  .then(() => qc.invalidateQueries({ queryKey: ["/api/media"] }))
+                                  .catch((e) => toast({ title: "Error", description: e.message, variant: "destructive" }));
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          )}
+
           {/* ── Contact Messages ── */}
           {hasRole("club_admin") && (
             <TabsContent value="messages">
@@ -769,7 +865,8 @@ export default function AdminDashboard() {
               <Card>
                 <CardContent className="pt-6 space-y-4">
                   {[
-                    { key: "google_calendar_embed_url", label: "Google Calendar Embed URL", help: "In Google Calendar → Settings → your calendar → 'Integrate calendar' → copy the Embed URL (starts with https://calendar.google.com/calendar/embed?...)." },
+                    { key: "hero_image_url", label: "Hero Background Image URL", help: "Paste a URL from the Media Library (upload there first, then Copy URL). Appears as the home page hero background." },
+                  { key: "google_calendar_embed_url", label: "Google Calendar Embed URL", help: "In Google Calendar → Settings → your calendar → 'Integrate calendar' → copy the Embed URL (starts with https://calendar.google.com/calendar/embed?...)." },
                     { key: "behold_feed_id", label: "Behold.so Feed ID (Instagram)", help: "Create a free feed at behold.so, connect @subiacolacrosse_official, then paste the Feed ID here." },
                     { key: "store_url", label: "Online Store URL", help: "Link to your online merch store (e.g. Shopify, Redbubble, PrintFul). Leave blank to show the 'coming soon' message." },
                     { key: "instagram_handle", label: "Instagram Handle" },
