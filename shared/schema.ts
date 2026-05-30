@@ -1,3 +1,33 @@
+// =============================================================================
+// DATABASE SCHEMA — shared/schema.ts
+// =============================================================================
+// What this file does:
+//   Defines every database table used by the app using Drizzle ORM.
+//   Shared between the server (reads/writes data) and is the source of truth
+//   for TypeScript types throughout the codebase.
+//
+// Tables:
+//   users            Admin users with roles (super_admin → content_manager)
+//   events           Club calendar events
+//   registrations    Sign-up enquiries from the public form
+//   announcements    News/posts with rich text, featured images, and pinning
+//   juniors_content  Editable text sections on the Juniors page
+//   site_settings    Key-value store for configurable settings (Instagram, store URL etc.)
+//   contact_messages Messages from the Contact page
+//   media_uploads    Tracks every image uploaded via the admin Media Library
+//
+// How to add a new column:
+//   1. Add it to the table definition below
+//   2. Add a line to scripts/migrate.mjs to ALTER TABLE
+//   3. Run: node scripts/migrate.mjs
+//   (We use manual migration instead of drizzle-kit push to avoid SQLite index conflicts)
+//
+// How to add a new table:
+//   1. Define it here with sqliteTable(...)
+//   2. Add CREATE TABLE IF NOT EXISTS to scripts/migrate.mjs
+//   3. Run: node scripts/migrate.mjs
+// =============================================================================
+
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";

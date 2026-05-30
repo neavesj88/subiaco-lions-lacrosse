@@ -1,3 +1,32 @@
+// =============================================================================
+// API ROUTES — server/routes.ts
+// =============================================================================
+// What this file does:
+//   Defines every API endpoint the React frontend calls (/api/*).
+//   Also sets up session handling and Google OAuth.
+//
+// Route groups:
+//   /api/auth/*          Login, logout, Google OAuth, "who am I?"
+//   /api/events/*        Club calendar events (CRUD)
+//   /api/announcements/* News/posts (CRUD, with pinning + featured images)
+//   /api/registrations/* Sign-up enquiries from the public Sign Up page
+//   /api/contact/*       Contact form messages
+//   /api/upload          Image upload endpoint (multer)
+//   /api/media/*         Media library (list + delete uploaded images)
+//   /api/juniors-content Juniors page section text (editable by juniors coordinator)
+//   /api/settings        Site settings like Instagram feed ID, store URL, hero image
+//   /api/users/*         Admin user management (super_admin only)
+//
+// Sessions:
+//   Logged-in state is stored in a session cookie backed by SQLite.
+//   Sessions last 7 days. The secret is set via SESSION_SECRET in .env.
+//
+// Google OAuth:
+//   Needs GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in .env.
+//   If those are missing the /api/auth/google routes exist but passport won't
+//   have a strategy registered, and the frontend hides the Google button.
+// =============================================================================
+
 import { type Express, type Request, type Response } from "express";
 import { createServer } from "http";
 import session from "express-session";
@@ -26,6 +55,7 @@ import {
   createUserSchema,
 } from "@shared/schema";
 import { requireAuth, requireRole } from "./middleware";
+import { notifyContactMessage, notifyNewRegistration } from "./email";
 
 const SQLiteStore = ConnectSqlite3(session);
 
@@ -254,10 +284,33 @@ export async function registerRoutes(app: Express) {
   });
 
   // ── Registrations ───────────────────────────────────────────────────
+  // ── Sign-up submission ──────────────────────────────────────────────
+  // Saves to DB, emails the club (full details), and sends a confirmation
+  // auto-reply to the person who registered (or their parent if it's a junior).
+  // Requires CONTACT_EMAIL_USER + CONTACT_EMAIL_PASS in .env for emails to fire.
   app.post("/api/registrations", async (req: Request, res: Response) => {
     const parsed = insertRegistrationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+
+    // Save to database — happens regardless of email success
     const [row] = await db.insert(registrations).values(parsed.data).returning();
+
+    // Fire both emails in background: club notification + registrant auto-reply
+    notifyNewRegistration({
+      firstName: row.firstName,
+      lastName: row.lastName,
+      email: row.email,
+      phone: row.phone,
+      isJunior: row.isJunior ?? false,
+      parentName: row.parentName,
+      parentEmail: row.parentEmail,
+      teamPreference: row.teamPreference,
+      experienceLevel: row.experienceLevel,
+      kidsportEligible: row.kidsportEligible ?? false,
+      howHeard: row.howHeard,
+      message: row.message,
+    }).catch(() => {});
+
     res.status(201).json({ ok: true, id: row.id });
   });
 
@@ -277,11 +330,20 @@ export async function registerRoutes(app: Express) {
   });
 
   // ── Contact messages ────────────────────────────────────────────────
+  // Saves to DB AND emails the club — same pattern as neaves.au.
+  // Email requires CONTACT_EMAIL_USER + CONTACT_EMAIL_PASS in .env.
+  // If email isn't configured the message is still saved to the database.
   app.post("/api/contact", async (req: Request, res: Response) => {
     const { name, email, subject, message } = req.body;
     if (!name || !email || !subject || !message)
       return res.status(400).json({ message: "All fields are required" });
+
+    // Always save to DB first — never lose a message even if email fails
     const [row] = await db.insert(contactMessages).values({ name, email, subject, message }).returning();
+
+    // Email notification fires in background — response is instant regardless
+    notifyContactMessage({ name, email, subject, message }).catch(() => {});
+
     res.status(201).json({ ok: true, id: row.id });
   });
 
