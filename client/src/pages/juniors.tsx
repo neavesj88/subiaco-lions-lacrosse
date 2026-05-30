@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Star, Shield, Heart, Mail, UserPlus } from "lucide-react";
+import { RichTextDisplay } from "@/components/rich-text-editor";
 import type { JuniorsContent } from "@shared/schema";
 
 export default function Juniors() {
@@ -96,9 +97,10 @@ export default function Juniors() {
             <CardContent className="pt-6">
               <Shield className="h-8 w-8 text-gold-500 mb-3" />
               <h3 className="font-bold text-stone-900 mb-2">{kidsport?.title ?? "KidSport"}</h3>
-              <p className="text-sm text-stone-500 leading-relaxed">
-                {kidsport?.content ?? "Registered KidSport provider — WA Government financial assistance up to $200/year for eligible junior members."}
-              </p>
+              <RichTextDisplay
+                html={kidsport?.content ?? "<p>Registered KidSport provider — WA Government financial assistance up to $200/year for eligible junior members.</p>"}
+                className="text-sm text-stone-500"
+              />
             </CardContent>
           </Card>
 
@@ -106,9 +108,10 @@ export default function Juniors() {
             <CardContent className="pt-6">
               <Heart className="h-8 w-8 text-maroon-700 mb-3" />
               <h3 className="font-bold text-stone-900 mb-2">{equipment?.title ?? "What to Bring"}</h3>
-              <p className="text-sm text-stone-500 leading-relaxed">
-                {equipment?.content ?? "New players don't need to buy equipment straight away. The club provides loan sticks and helmets. Just bring runners and a water bottle!"}
-              </p>
+              <RichTextDisplay
+                html={equipment?.content ?? "<p>New players don't need to buy equipment straight away. The club provides loan sticks and helmets. Just bring runners and a water bottle!</p>"}
+                className="text-sm text-stone-500"
+              />
             </CardContent>
           </Card>
 
@@ -116,9 +119,10 @@ export default function Juniors() {
             <CardContent className="pt-6">
               <Mail className="h-8 w-8 text-green-600 mb-3" />
               <h3 className="font-bold text-stone-900 mb-2">{contact?.title ?? "Get in Touch"}</h3>
-              <p className="text-sm text-stone-500 leading-relaxed">
-                {contact?.content ?? "For all junior enquiries, email us at subiacolacrosseclub@outlook.com and our Juniors Coordinator will be in touch within 48 hours."}
-              </p>
+              <RichTextDisplay
+                html={contact?.content ?? "<p>For all junior enquiries, email us at subiacolacrosseclub@outlook.com and our Juniors Coordinator will be in touch within 48 hours.</p>"}
+                className="text-sm text-stone-500"
+              />
               <a
                 href="mailto:subiacolacrosseclub@outlook.com"
                 className="inline-block mt-3 text-sm text-maroon-600 hover:text-maroon-800 font-medium"

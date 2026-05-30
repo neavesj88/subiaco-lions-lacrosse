@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import InstagramFeed from "@/components/instagram-feed";
 import { formatDate } from "@/lib/utils";
 import { CalendarDays, UserPlus, MapPin, Megaphone } from "lucide-react";
+import { RichTextDisplay } from "@/components/rich-text-editor";
 import type { Announcement, Event, SiteSetting } from "@shared/schema";
 
 const categoryBadge: Record<string, "game" | "training" | "social" | "meeting" | "other"> = {
@@ -102,7 +103,7 @@ export default function Home() {
                     <p className="text-xs text-stone-400">{formatDate(a.createdAt)}</p>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-stone-600 line-clamp-4">{a.content}</p>
+                    <RichTextDisplay html={a.content} className="text-sm text-stone-600 line-clamp-4 [&_*]:text-sm" />
                   </CardContent>
                 </Card>
               ))}

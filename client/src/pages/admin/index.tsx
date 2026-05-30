@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import RichTextEditor from "@/components/rich-text-editor";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,9 +152,9 @@ function EventForm({ event, onDone }: { event?: Event; onDone: () => void }) {
 
 function AnnouncementForm({ ann, onDone }: { ann?: Announcement; onDone: () => void }) {
   const qc = useQueryClient();
-  const { register, handleSubmit } = useForm({
-    defaultValues: { title: ann?.title ?? "", content: ann?.content ?? "", isPublished: ann?.isPublished ?? true },
-  });
+  const [title, setTitle] = useState(ann?.title ?? "");
+  const [content, setContent] = useState(ann?.content ?? "");
+  const [isPublished, setIsPublished] = useState(ann?.isPublished ?? true);
 
   const mutation = useMutation({
     mutationFn: (data: unknown) =>
@@ -163,25 +164,52 @@ function AnnouncementForm({ ann, onDone }: { ann?: Announcement; onDone: () => v
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/announcements"] });
       qc.invalidateQueries({ queryKey: ["/api/announcements/all"] });
-      toast({ title: ann ? "Updated" : "Announcement posted" });
+      toast({ title: ann ? "Announcement updated" : "Announcement posted" });
       onDone();
     },
     onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !content.trim() || content === "<p></p>") {
+      toast({ title: "Title and content are required", variant: "destructive" });
+      return;
+    }
+    mutation.mutate({ title, content, isPublished });
+  };
+
   return (
-    <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
         <Label>Title *</Label>
-        <Input {...register("title", { required: true })} />
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Season kick-off Saturday!" />
       </div>
       <div className="space-y-1.5">
         <Label>Content *</Label>
-        <Textarea rows={5} {...register("content", { required: true })} />
+        <p className="text-xs text-stone-400 -mt-1">Use the toolbar to add formatting — bold, bullet points, links etc.</p>
+        <RichTextEditor
+          value={content}
+          onChange={setContent}
+          placeholder="Write your announcement here..."
+          minHeight="160px"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="ann-published"
+          checked={isPublished}
+          onChange={(e) => setIsPublished(e.target.checked)}
+          className="rounded"
+        />
+        <Label htmlFor="ann-published" className="cursor-pointer font-normal">
+          Publish immediately (uncheck to save as draft)
+        </Label>
       </div>
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={mutation.isPending} className="flex-1">
-          {mutation.isPending ? "Saving..." : ann ? "Update" : "Post Announcement"}
+          {mutation.isPending ? "Saving..." : ann ? "Update Announcement" : "Post Announcement"}
         </Button>
         <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
       </div>
@@ -620,7 +648,7 @@ export default function AdminDashboard() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="space-y-1.5">
-                        <Label>Title</Label>
+                        <Label>Heading</Label>
                         <Input
                           value={juniorsEdit[section]?.title ?? ""}
                           onChange={(ev) => setJuniorsEdit((p) => ({ ...p, [section]: { ...p[section], title: ev.target.value } }))}
@@ -628,10 +656,11 @@ export default function AdminDashboard() {
                       </div>
                       <div className="space-y-1.5">
                         <Label>Content</Label>
-                        <Textarea
-                          rows={3}
+                        <RichTextEditor
                           value={juniorsEdit[section]?.content ?? ""}
-                          onChange={(ev) => setJuniorsEdit((p) => ({ ...p, [section]: { ...p[section], content: ev.target.value } }))}
+                          onChange={(html) => setJuniorsEdit((p) => ({ ...p, [section]: { ...p[section], content: html } }))}
+                          placeholder={`Content for the ${section} section...`}
+                          minHeight="100px"
                         />
                       </div>
                       <Button size="sm" onClick={() => saveJuniors(section)} disabled={savingJuniors}>

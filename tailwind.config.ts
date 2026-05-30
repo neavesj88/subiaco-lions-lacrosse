@@ -35,7 +35,16 @@ export default {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
       },
+      typography: {
+        stone: {
+          css: {
+            "--tw-prose-links": "#7B1E32",
+            "--tw-prose-bold": "#1c1917",
+            "--tw-prose-headings": "#1c1917",
+          },
+        },
+      },
     },
   },
-  plugins: [],
+  plugins: [require("@tailwindcss/typography")],
 } satisfies Config;
