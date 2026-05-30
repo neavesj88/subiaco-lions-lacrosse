@@ -20,9 +20,100 @@ import { formatDate } from "@/lib/utils";
 import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
   ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
-  Pin, ImageIcon
+  Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft
 } from "lucide-react";
-import type { Event, Announcement, Registration, JuniorsContent, ContactMessage, MediaUpload } from "@shared/schema";
+import { Switch } from "@/components/ui/switch";
+import type { Event, Announcement, Registration, JuniorsContent, ContactMessage, MediaUpload, Sponsor, MatchResult, NewsletterSubscriber } from "@shared/schema";
+
+// ── Result form ────────────────────────────────────────────────────────────────
+function ResultForm({ onDone }: { onDone: () => void }) {
+  const qc = useQueryClient();
+  const { register, handleSubmit, setValue } = useForm({
+    defaultValues: { matchDate: "", opposition: "", ourScore: "", theirScore: "", teamCategory: "mens", division: "", venue: "", isHome: true, notes: "", isPublished: true },
+  });
+  const mutation = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/results", { ...d, ourScore: d.ourScore !== "" ? parseInt(d.ourScore) : null, theirScore: d.theirScore !== "" ? parseInt(d.theirScore) : null }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/results/all"] }); qc.invalidateQueries({ queryKey: ["/api/results"] }); toast({ title: "Result added" }); onDone(); },
+    onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+  return (
+    <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1"><Label>Date *</Label><Input type="date" {...register("matchDate", { required: true })} /></div>
+        <div className="space-y-1">
+          <Label>Team</Label>
+          <Select onValueChange={(v) => setValue("teamCategory", v)} defaultValue="mens">
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mens">Men's</SelectItem>
+              <SelectItem value="womens">Women's</SelectItem>
+              <SelectItem value="juniors">Juniors</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-1"><Label>Opposition *</Label><Input placeholder="e.g. Wembley LC" {...register("opposition", { required: true })} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1"><Label>Our Score</Label><Input type="number" min="0" {...register("ourScore")} /></div>
+        <div className="space-y-1"><Label>Their Score</Label><Input type="number" min="0" {...register("theirScore")} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1"><Label>Division</Label><Input placeholder="e.g. State League" {...register("division")} /></div>
+        <div className="space-y-1"><Label>Venue</Label><Input placeholder="e.g. Rosalie Park" {...register("venue")} /></div>
+      </div>
+      <div className="space-y-1"><Label>Notes</Label><Input placeholder="Optional notes or summary" {...register("notes")} /></div>
+      <div className="flex gap-2 pt-1">
+        <Button type="submit" disabled={mutation.isPending} className="flex-1">{mutation.isPending ? "Saving..." : "Add Result"}</Button>
+        <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
+      </div>
+    </form>
+  );
+}
+
+// ── Sponsor form ───────────────────────────────────────────────────────────────
+function SponsorForm({ onDone }: { onDone: () => void }) {
+  const qc = useQueryClient();
+  const [logoUrl, setLogoUrl] = useState<string | undefined>();
+  const { register, handleSubmit, setValue } = useForm({
+    defaultValues: { name: "", websiteUrl: "", tier: "partner", sortOrder: 0 },
+  });
+  const mutation = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/sponsors", { ...d, logoUrl: logoUrl ?? null }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sponsors/all"] }); qc.invalidateQueries({ queryKey: ["/api/sponsors"] }); toast({ title: "Sponsor added" }); onDone(); },
+    onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+  return (
+    <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-3">
+      <div className="space-y-1"><Label>Sponsor Name *</Label><Input placeholder="e.g. Acme Pty Ltd" {...register("name", { required: true })} /></div>
+      <div className="space-y-1"><Label>Website URL</Label><Input placeholder="https://..." {...register("websiteUrl")} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Tier</Label>
+          <Select onValueChange={(v) => setValue("tier", v)} defaultValue="partner">
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gold">Gold (largest)</SelectItem>
+              <SelectItem value="silver">Silver</SelectItem>
+              <SelectItem value="bronze">Bronze</SelectItem>
+              <SelectItem value="partner">Partner (smallest)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1"><Label>Sort order</Label><Input type="number" min="0" {...register("sortOrder")} /></div>
+      </div>
+      <div>
+        <Label className="mb-1.5 block">Logo</Label>
+        <p className="text-xs text-stone-400 mb-2">Upload via Media tab first, then paste the URL — or drag & drop here.</p>
+        <Input placeholder="Paste /uploads/filename.png" value={logoUrl ?? ""} onChange={(e) => setLogoUrl(e.target.value || undefined)} />
+        {logoUrl && <img src={logoUrl} alt="preview" className="h-12 mt-2 object-contain rounded" />}
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button type="submit" disabled={mutation.isPending} className="flex-1">{mutation.isPending ? "Saving..." : "Add Sponsor"}</Button>
+        <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
+      </div>
+    </form>
+  );
+}
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -349,6 +440,24 @@ export default function AdminDashboard() {
     enabled: hasRole("content_manager"),
   });
 
+  const { data: sponsorList = [] } = useQuery<Sponsor[]>({
+    queryKey: ["/api/sponsors/all"],
+    queryFn: () => apiRequest("GET", "/api/sponsors/all"),
+    enabled: hasRole("club_admin"),
+  });
+
+  const { data: resultList = [] } = useQuery<MatchResult[]>({
+    queryKey: ["/api/results/all"],
+    queryFn: () => apiRequest("GET", "/api/results/all"),
+    enabled: hasRole("club_admin"),
+  });
+
+  const { data: subscribers = [] } = useQuery<NewsletterSubscriber[]>({
+    queryKey: ["/api/newsletter/subscribers"],
+    queryFn: () => apiRequest("GET", "/api/newsletter/subscribers"),
+    enabled: hasRole("club_admin"),
+  });
+
   const { data: contactMsgs = [] } = useQuery<ContactMessage[]>({
     queryKey: ["/api/contact"],
     queryFn: () => apiRequest("GET", "/api/contact"),
@@ -389,6 +498,21 @@ export default function AdminDashboard() {
       qc.invalidateQueries({ queryKey: ["/api/settings"] });
       toast({ title: "Settings saved" });
     },
+  });
+
+  const deleteSponsor = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/sponsors/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sponsors/all"] }); toast({ title: "Sponsor removed" }); },
+  });
+
+  const deleteResult = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/results/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/results/all"] }); toast({ title: "Result deleted" }); },
+  });
+
+  const unsubscribe = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/newsletter/subscribers/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/newsletter/subscribers"] }),
   });
 
   const markContactRead = useMutation({
@@ -500,6 +624,9 @@ export default function AdminDashboard() {
                 {unreadMsgs > 0 && <span className="ml-1 bg-maroon-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">{unreadMsgs}</span>}
               </TabsTrigger>
             )}
+            {hasRole("club_admin") && <TabsTrigger value="results"><Trophy className="h-4 w-4 mr-1" />Results</TabsTrigger>}
+            {hasRole("club_admin") && <TabsTrigger value="sponsors"><Heart className="h-4 w-4 mr-1" />Sponsors</TabsTrigger>}
+            {hasRole("club_admin") && <TabsTrigger value="newsletter"><Mail className="h-4 w-4 mr-1" />Newsletter</TabsTrigger>}
             {hasRole("content_manager") && <TabsTrigger value="media"><ImageIcon className="h-4 w-4 mr-1" />Media</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" />Settings</TabsTrigger>}
@@ -709,6 +836,147 @@ export default function AdminDashboard() {
             </TabsContent>
           )}
 
+          {/* ── Match Results ── */}
+          {hasRole("club_admin") && (
+            <TabsContent value="results">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold">Match Results</h2>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm"><Plus className="h-4 w-4" />Add Result</Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>Add Match Result</DialogTitle></DialogHeader>
+                    <ResultForm onDone={() => {}} />
+                  </DialogContent>
+                </Dialog>
+              </div>
+              <div className="space-y-3">
+                {resultList.map((r) => {
+                  const win = r.ourScore != null && r.theirScore != null && r.ourScore > r.theirScore;
+                  const loss = r.ourScore != null && r.theirScore != null && r.ourScore < r.theirScore;
+                  return (
+                    <Card key={r.id}>
+                      <CardContent className="pt-4 pb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <Badge variant="secondary" className="text-xs capitalize">{r.teamCategory}</Badge>
+                            {r.division && <Badge variant="secondary" className="text-xs">{r.division}</Badge>}
+                            {!r.isPublished && <Badge variant="outline" className="text-xs">Draft</Badge>}
+                            <span className="text-xs text-stone-400">{r.matchDate}</span>
+                          </div>
+                          <p className="font-semibold text-stone-900">{r.isHome ? "vs" : "@"} {r.opposition}</p>
+                          {r.ourScore != null && r.theirScore != null && (
+                            <p className={`text-sm font-bold ${win ? "text-green-700" : loss ? "text-red-600" : "text-stone-600"}`}>
+                              {r.ourScore} – {r.theirScore} {win ? "Win" : loss ? "Loss" : "Draw"}
+                            </p>
+                          )}
+                          {r.notes && <p className="text-xs text-stone-400 italic mt-0.5">{r.notes}</p>}
+                        </div>
+                        <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) deleteResult.mutate(r.id); }}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+                {resultList.length === 0 && <p className="text-stone-400 text-center py-8">No results yet. Add one above.</p>}
+              </div>
+            </TabsContent>
+          )}
+
+          {/* ── Sponsors ── */}
+          {hasRole("club_admin") && (
+            <TabsContent value="sponsors">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold">Sponsors</h2>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm"><Plus className="h-4 w-4" />Add Sponsor</Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>Add Sponsor</DialogTitle></DialogHeader>
+                    <SponsorForm onDone={() => {}} />
+                  </DialogContent>
+                </Dialog>
+              </div>
+              <div className="space-y-3">
+                {sponsorList.map((s) => (
+                  <Card key={s.id}>
+                    <CardContent className="pt-4 pb-4 flex items-center gap-4">
+                      {s.logoUrl
+                        ? <img src={s.logoUrl} alt={s.name} className="h-10 w-20 object-contain rounded" />
+                        : <div className="h-10 w-20 bg-stone-100 rounded flex items-center justify-center text-xs text-stone-400">No logo</div>
+                      }
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-semibold text-stone-900">{s.name}</span>
+                          <Badge variant="gold" className="text-xs capitalize">{s.tier}</Badge>
+                          {!s.isActive && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                        </div>
+                        {s.websiteUrl && <p className="text-xs text-maroon-600 hover:underline"><a href={s.websiteUrl} target="_blank" rel="noopener noreferrer">{s.websiteUrl}</a></p>}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => {
+                          apiRequest("PUT", `/api/sponsors/${s.id}`, { isActive: !s.isActive })
+                            .then(() => qc.invalidateQueries({ queryKey: ["/api/sponsors/all"] }));
+                        }}>
+                          <Eye className="h-4 w-4 text-stone-400" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Remove ${s.name}?`)) deleteSponsor.mutate(s.id); }}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {sponsorList.length === 0 && (
+                  <div className="text-center py-8 text-stone-400">
+                    <p>No sponsors yet.</p>
+                    <p className="text-xs mt-1">Upload logos via the Media tab, copy the URL, then add sponsors here.</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          )}
+
+          {/* ── Newsletter ── */}
+          {hasRole("club_admin") && (
+            <TabsContent value="newsletter">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Newsletter Subscribers</h2>
+                <div className="flex gap-2">
+                  <span className="text-sm text-stone-500">{subscribers.length} active</span>
+                  <Button size="sm" variant="outline" asChild>
+                    <a href="/api/newsletter/export" download>
+                      <Download className="h-4 w-4" />Export CSV
+                    </a>
+                  </Button>
+                </div>
+              </div>
+              <Card className="mb-4 bg-stone-50">
+                <CardContent className="pt-4 pb-4 text-sm text-stone-600">
+                  <p>Subscribers opt in via the newsletter widget on the home page. Export to CSV to import into Mailchimp or any email platform.</p>
+                </CardContent>
+              </Card>
+              <div className="space-y-2">
+                {subscribers.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between px-4 py-2.5 rounded-lg border bg-white">
+                    <div>
+                      <span className="font-medium text-stone-900 text-sm">{s.name || s.email}</span>
+                      {s.name && <span className="text-xs text-stone-400 ml-2">{s.email}</span>}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-stone-400">{s.subscribedAt?.split("T")[0]}</span>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" onClick={() => unsubscribe.mutate(s.id)}>Remove</Button>
+                    </div>
+                  </div>
+                ))}
+                {subscribers.length === 0 && <p className="text-stone-400 text-center py-8">No subscribers yet.</p>}
+              </div>
+            </TabsContent>
+          )}
+
           {/* ── Media Library ── */}
           {hasRole("content_manager") && (
             <TabsContent value="media">
@@ -865,7 +1133,7 @@ export default function AdminDashboard() {
               <Card>
                 <CardContent className="pt-6 space-y-4">
                   {[
-                    { key: "hero_image_url", label: "Hero Background Image URL", help: "Paste a URL from the Media Library (upload there first, then Copy URL). Appears as the home page hero background." },
+                    { key: "hero_image_url", label: "Hero Background Image URL", help: "Upload in Media tab, copy URL, paste here. Appears as the home page hero background with a maroon overlay." },
                   { key: "google_calendar_embed_url", label: "Google Calendar Embed URL", help: "In Google Calendar → Settings → your calendar → 'Integrate calendar' → copy the Embed URL (starts with https://calendar.google.com/calendar/embed?...)." },
                     { key: "behold_feed_id", label: "Behold.so Feed ID (Instagram)", help: "Create a free feed at behold.so, connect @subiacolacrosse_official, then paste the Feed ID here." },
                     { key: "store_url", label: "Online Store URL", help: "Link to your online merch store (e.g. Shopify, Redbubble, PrintFul). Leave blank to show the 'coming soon' message." },
@@ -884,12 +1152,50 @@ export default function AdminDashboard() {
                       {help && <p className="text-xs text-stone-400">{help}</p>}
                     </div>
                   ))}
-                  <Button
-                    onClick={() => saveSettings.mutate(settingsForm)}
-                    disabled={saveSettings.isPending}
-                  >
+                  <Button onClick={() => saveSettings.mutate(settingsForm)} disabled={saveSettings.isPending}>
                     {saveSettings.isPending ? "Saving..." : "Save Settings"}
                   </Button>
+                </CardContent>
+              </Card>
+
+              {/* ── Page Visibility ── */}
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ToggleLeft className="h-5 w-5 text-maroon-700" />
+                    Page Visibility
+                  </CardTitle>
+                  <p className="text-sm text-stone-500">
+                    Toggle pages on or off. When off, the page is hidden from the navigation and shows a 404 to visitors.
+                    Changes take effect instantly — no rebuild needed.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[
+                    { key: "nav_show_gallery",    label: "Photo Gallery",    desc: "The /gallery page showing uploaded photos" },
+                    { key: "nav_show_fixtures",   label: "Fixtures",         desc: "The /fixtures page linking to LacrosseWA & GameDay" },
+                    { key: "nav_show_store",      label: "Club Store",       desc: "The /store merchandise page" },
+                    { key: "nav_show_results",    label: "Recent Results",   desc: "Match results section on the home page" },
+                    { key: "nav_show_sponsors",   label: "Sponsor Strip",    desc: "Sponsor logos shown at the bottom of the home page" },
+                    { key: "nav_show_newsletter", label: "Newsletter Widget",desc: "Email subscribe form on the home page" },
+                    { key: "nav_show_juniors",    label: "Juniors Page",     desc: "The /juniors page in the navigation" },
+                  ].map(({ key, label, desc }) => (
+                    <div key={key} className="flex items-start justify-between gap-4 py-2 border-b last:border-0">
+                      <div>
+                        <p className="font-medium text-stone-800 text-sm">{label}</p>
+                        <p className="text-xs text-stone-400">{desc}</p>
+                      </div>
+                      <Switch
+                        checked={settingsForm[key] !== "false"}
+                        onCheckedChange={(checked) => {
+                          const updated = { ...settingsForm, [key]: checked ? "true" : "false" };
+                          setSettingsForm(updated);
+                          saveSettings.mutate(updated);
+                        }}
+                      />
+                    </div>
+                  ))}
+                <div className="pt-2 text-xs text-stone-400">Tip: You can always re-enable a page here if you want to add it back later.</div>
                 </CardContent>
               </Card>
             </TabsContent>

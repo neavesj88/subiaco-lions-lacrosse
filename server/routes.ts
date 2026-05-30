@@ -40,19 +40,12 @@ import { mkdirSync } from "fs";
 import { eq, desc, gte, and } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users,
-  events,
-  registrations,
-  announcements,
-  juniorsContent,
-  mediaUploads,
-  siteSettings,
-  contactMessages,
-  insertEventSchema,
-  insertRegistrationSchema,
-  insertAnnouncementSchema,
-  loginSchema,
-  createUserSchema,
+  users, events, registrations, announcements, juniorsContent,
+  mediaUploads, siteSettings, contactMessages,
+  sponsors, matchResults, newsletterSubscribers,
+  insertEventSchema, insertRegistrationSchema, insertAnnouncementSchema,
+  insertSponsorSchema, insertMatchResultSchema,
+  loginSchema, createUserSchema,
 } from "@shared/schema";
 import { requireAuth, requireRole } from "./middleware";
 import { notifyContactMessage, notifyNewRegistration } from "./email";
@@ -431,6 +424,129 @@ export async function registerRoutes(app: Express) {
       }
     }
     res.json({ ok: true });
+  });
+
+  // ── Sponsors ────────────────────────────────────────────────────────
+  // Public: GET /api/sponsors (active only, sorted)
+  // Admin: full CRUD (club_admin+)
+  app.get("/api/sponsors", async (_req: Request, res: Response) => {
+    const rows = await db.select().from(sponsors)
+      .where(eq(sponsors.isActive, true))
+      .orderBy(sponsors.sortOrder, sponsors.tier);
+    res.json(rows);
+  });
+
+  app.get("/api/sponsors/all", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(sponsors).orderBy(sponsors.sortOrder);
+    res.json(rows);
+  });
+
+  app.post("/api/sponsors", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const parsed = insertSponsorSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
+    const [row] = await db.insert(sponsors).values(parsed.data).returning();
+    res.status(201).json(row);
+  });
+
+  app.put("/api/sponsors/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const parsed = insertSponsorSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
+    const [row] = await db.update(sponsors).set(parsed.data).where(eq(sponsors.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/sponsors/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    await db.delete(sponsors).where(eq(sponsors.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  });
+
+  // ── Match Results ────────────────────────────────────────────────────
+  // Public: GET /api/results (recent published results)
+  // Admin: full CRUD (club_admin+)
+  app.get("/api/results", async (_req: Request, res: Response) => {
+    const rows = await db.select().from(matchResults)
+      .where(eq(matchResults.isPublished, true))
+      .orderBy(desc(matchResults.matchDate))
+      .limit(20);
+    res.json(rows);
+  });
+
+  app.get("/api/results/all", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(matchResults).orderBy(desc(matchResults.matchDate)).limit(200);
+    res.json(rows);
+  });
+
+  app.post("/api/results", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const parsed = insertMatchResultSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+    const [row] = await db.insert(matchResults).values(parsed.data).returning();
+    res.status(201).json(row);
+  });
+
+  app.put("/api/results/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const parsed = insertMatchResultSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
+    const [row] = await db.update(matchResults).set(parsed.data).where(eq(matchResults.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/results/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    await db.delete(matchResults).where(eq(matchResults.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  });
+
+  // ── Newsletter Subscribers ───────────────────────────────────────────
+  // Public: POST /api/newsletter/subscribe
+  // Admin: GET list + CSV export (club_admin+)
+  app.post("/api/newsletter/subscribe", async (req: Request, res: Response) => {
+    const { email, name } = req.body;
+    if (!email || !/\S+@\S+\.\S+/.test(email))
+      return res.status(400).json({ message: "Valid email required" });
+    try {
+      await db.insert(newsletterSubscribers).values({ email: email.toLowerCase().trim(), name }).onConflictDoNothing();
+      res.json({ ok: true });
+    } catch {
+      res.json({ ok: true }); // Silently ignore duplicate subscriptions
+    }
+  });
+
+  app.get("/api/newsletter/subscribers", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(newsletterSubscribers)
+      .where(eq(newsletterSubscribers.isActive, true))
+      .orderBy(desc(newsletterSubscribers.subscribedAt));
+    res.json(rows);
+  });
+
+  // CSV export — download the full subscriber list
+  app.get("/api/newsletter/export", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(newsletterSubscribers)
+      .where(eq(newsletterSubscribers.isActive, true))
+      .orderBy(newsletterSubscribers.subscribedAt);
+    const csv = ["name,email,subscribed_at",
+      ...rows.map((r) => `"${r.name ?? ""}","${r.email}","${r.subscribedAt}"`)
+    ].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="lions-newsletter-${new Date().toISOString().split("T")[0]}.csv"`);
+    res.send(csv);
+  });
+
+  app.delete("/api/newsletter/subscribers/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    await db.update(newsletterSubscribers)
+      .set({ isActive: false })
+      .where(eq(newsletterSubscribers.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  });
+
+  // ── Media caption update ─────────────────────────────────────────────
+  app.put("/api/media/:id/caption", requireAuth, requireRole("content_manager"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const { caption } = req.body;
+    const [row] = await db.update(mediaUploads).set({ caption }).where(eq(mediaUploads.id, id)).returning();
+    res.json(row);
   });
 
   // ── Users ───────────────────────────────────────────────────────────
