@@ -17,7 +17,7 @@ async function seed() {
       email: "subiacolacrosseclub@outlook.com",
       role: "super_admin",
     });
-    console.log("Created default admin user: admin / lions2024!");
+    console.log("Created default admin: admin / lions2024!");
     console.log("IMPORTANT: Change the admin password immediately after first login.");
   }
 
@@ -29,6 +29,8 @@ async function seed() {
     { key: "contact_email", value: "subiacolacrosseclub@outlook.com" },
     { key: "location", value: "Rosalie Park, Shenton Park WA 6008" },
     { key: "gameday_registration_url", value: "https://membership.mygameday.app/regoform.cgi?formID=101320" },
+    { key: "google_calendar_embed_url", value: "" },
+    { key: "store_url", value: "" },
   ];
 
   for (const setting of defaultSettings) {

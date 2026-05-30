@@ -6,7 +6,8 @@ import { z } from "zod";
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash").notNull().default(""),
+  googleId: text("google_id").unique(),
   name: text("name").notNull(),
   email: text("email").notNull(),
   role: text("role", {
@@ -107,22 +108,22 @@ export const siteSettings = sqliteTable("site_settings", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-// Zod schemas for validation
-export const insertEventSchema = createInsertSchema(events).omit({
-  id: true,
-  createdAt: true,
+export const contactMessages = sqliteTable("contact_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  isRead: integer("is_read", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const insertRegistrationSchema = createInsertSchema(registrations).omit({
-  id: true,
-  createdAt: true,
-  status: true,
-});
-
-export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
-  id: true,
-  createdAt: true,
-});
+// Zod schemas
+export const insertEventSchema = createInsertSchema(events).omit({ id: true, createdAt: true });
+export const insertRegistrationSchema = createInsertSchema(registrations).omit({ id: true, createdAt: true, status: true });
+export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, createdAt: true });
 
 export const loginSchema = z.object({
   username: z.string().min(1),
@@ -131,7 +132,7 @@ export const loginSchema = z.object({
 
 export const createUserSchema = z.object({
   username: z.string().min(3).max(50),
-  password: z.string().min(8),
+  password: z.string().min(8).optional(),
   name: z.string().min(1),
   email: z.string().email(),
   role: z.enum(["super_admin", "club_admin", "juniors_coordinator", "content_manager"]),
@@ -148,3 +149,4 @@ export type Announcement = typeof announcements.$inferSelect;
 export type InsertAnnouncement = typeof announcements.$inferInsert;
 export type JuniorsContent = typeof juniorsContent.$inferSelect;
 export type SiteSetting = typeof siteSettings.$inferSelect;
+export type ContactMessage = typeof contactMessages.$inferSelect;

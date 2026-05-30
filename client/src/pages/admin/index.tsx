@@ -17,9 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatDate } from "@/lib/utils";
 import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
-  ClipboardList, Star, CheckCircle, Phone, Mail, User
+  ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye
 } from "lucide-react";
-import type { Event, Announcement, Registration, JuniorsContent } from "@shared/schema";
+import type { Event, Announcement, Registration, JuniorsContent, ContactMessage } from "@shared/schema";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -290,6 +290,12 @@ export default function AdminDashboard() {
     enabled: hasRole("super_admin"),
   });
 
+  const { data: contactMsgs = [] } = useQuery<ContactMessage[]>({
+    queryKey: ["/api/contact"],
+    queryFn: () => apiRequest("GET", "/api/contact"),
+    enabled: hasRole("club_admin"),
+  });
+
   const { data: settings } = useQuery<Record<string, string>>({
     queryKey: ["/api/settings"],
     queryFn: () => apiRequest("GET", "/api/settings"),
@@ -324,6 +330,11 @@ export default function AdminDashboard() {
       qc.invalidateQueries({ queryKey: ["/api/settings"] });
       toast({ title: "Settings saved" });
     },
+  });
+
+  const markContactRead = useMutation({
+    mutationFn: (id: number) => apiRequest("PUT", `/api/contact/${id}/read`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/contact"] }),
   });
 
   const deleteUser = useMutation({
@@ -367,6 +378,7 @@ export default function AdminDashboard() {
   if (!user) return null;
 
   const newRegs = registrations.filter((r) => r.status === "new").length;
+  const unreadMsgs = contactMsgs.filter((m) => !m.isRead).length;
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -396,6 +408,7 @@ export default function AdminDashboard() {
             { label: "Announcements", value: announcements.filter((a) => a.isPublished).length, icon: Megaphone, show: hasRole("content_manager") },
             { label: "New Sign-Ups", value: newRegs, icon: ClipboardList, show: hasRole("club_admin") },
             { label: "Admin Users", value: adminUsers.length, icon: Users, show: hasRole("super_admin") },
+            { label: "Unread Messages", value: unreadMsgs, icon: MessageSquare, show: hasRole("club_admin") },
           ]
             .filter((s) => s.show)
             .map((s) => (
@@ -422,6 +435,12 @@ export default function AdminDashboard() {
               </TabsTrigger>
             )}
             {hasRole("juniors_coordinator") && <TabsTrigger value="juniors"><Star className="h-4 w-4 mr-1" />Juniors</TabsTrigger>}
+              {hasRole("club_admin") && (
+              <TabsTrigger value="messages">
+                <MessageSquare className="h-4 w-4 mr-1" />Messages
+                {unreadMsgs > 0 && <span className="ml-1 bg-maroon-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">{unreadMsgs}</span>}
+              </TabsTrigger>
+            )}
             {hasRole("super_admin") && <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" />Settings</TabsTrigger>}
           </TabsList>
@@ -625,6 +644,52 @@ export default function AdminDashboard() {
             </TabsContent>
           )}
 
+          {/* ── Contact Messages ── */}
+          {hasRole("club_admin") && (
+            <TabsContent value="messages">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Contact Messages</h2>
+                <span className="text-sm text-stone-500">{contactMsgs.length} total · {unreadMsgs} unread</span>
+              </div>
+              <div className="space-y-3">
+                {contactMsgs.map((m) => (
+                  <Card key={m.id} className={m.isRead ? "opacity-70" : "border-maroon-200"}>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-semibold text-stone-900">{m.name}</span>
+                            {!m.isRead && <Badge variant="default" className="text-xs">New</Badge>}
+                            <span className="text-xs text-stone-400">{formatDate(m.createdAt)}</span>
+                          </div>
+                          <p className="text-xs text-stone-400 flex items-center gap-1 mb-1">
+                            <Mail className="h-3 w-3" />{m.email}
+                          </p>
+                          <p className="text-sm font-medium text-stone-700 mb-1">{m.subject}</p>
+                          <p className="text-sm text-stone-500">{m.message}</p>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          {!m.isRead && (
+                            <Button size="icon" variant="ghost" title="Mark as read"
+                              onClick={() => markContactRead.mutate(m.id)}>
+                              <Eye className="h-4 w-4 text-stone-400" />
+                            </Button>
+                          )}
+                          <a href={`mailto:${m.email}?subject=Re: ${m.subject}`}>
+                            <Button size="icon" variant="ghost" title="Reply by email">
+                              <Mail className="h-4 w-4 text-maroon-600" />
+                            </Button>
+                          </a>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {contactMsgs.length === 0 && <p className="text-stone-400 text-center py-8">No contact messages yet.</p>}
+              </div>
+            </TabsContent>
+          )}
+
           {/* ── Users ── */}
           {hasRole("super_admin") && (
             <TabsContent value="users">
@@ -675,7 +740,9 @@ export default function AdminDashboard() {
               <Card>
                 <CardContent className="pt-6 space-y-4">
                   {[
-                    { key: "behold_feed_id", label: "Behold.so Feed ID", help: "Create a free feed at behold.so, connect your Instagram (@subiacolacrosse_official), then paste the Feed ID here." },
+                    { key: "google_calendar_embed_url", label: "Google Calendar Embed URL", help: "In Google Calendar → Settings → your calendar → 'Integrate calendar' → copy the Embed URL (starts with https://calendar.google.com/calendar/embed?...)." },
+                    { key: "behold_feed_id", label: "Behold.so Feed ID (Instagram)", help: "Create a free feed at behold.so, connect @subiacolacrosse_official, then paste the Feed ID here." },
+                    { key: "store_url", label: "Online Store URL", help: "Link to your online merch store (e.g. Shopify, Redbubble, PrintFul). Leave blank to show the 'coming soon' message." },
                     { key: "instagram_handle", label: "Instagram Handle" },
                     { key: "facebook_url", label: "Facebook URL" },
                     { key: "contact_email", label: "Contact Email" },
