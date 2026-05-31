@@ -1198,7 +1198,9 @@ export default function AdminDashboard() {
                     { key: "facebook_url", label: "Facebook URL" },
                     { key: "contact_email", label: "Contact Email" },
                     { key: "location", label: "Club Location" },
-                    { key: "gameday_registration_url", label: "GameDay Registration URL" },
+                    { key: "gameday_registration_url", label: "GameDay Registration URL", help: "The GameDay form players use to register/pay." },
+                    { key: "gameday_url", label: "GameDay Fixtures & Results URL", help: "The club's GameDay page — powers the main Fixtures & Results links across the site." },
+                    { key: "lacrossewa_fixtures_url", label: "Lacrosse WA Fixtures URL", help: "League-wide fixtures page on the Lacrosse WA website." },
                   ].map(({ key, label, help }) => (
                     <div key={key} className="space-y-1.5">
                       <Label>{label}</Label>

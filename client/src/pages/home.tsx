@@ -217,7 +217,14 @@ export default function Home() {
                 </div>
                 <div className="gold-bar" />
               </div>
-              <Link href="/fixtures" className="text-sm text-maroon-600 hover:text-maroon-800 font-medium">All fixtures →</Link>
+              <a
+                href={settings?.gameday_url || "https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-maroon-600 hover:text-maroon-800 font-medium"
+              >
+                All fixtures on GameDay →
+              </a>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {recentResults.map((r) => (

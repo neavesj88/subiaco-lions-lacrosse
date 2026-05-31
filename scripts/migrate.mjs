@@ -136,6 +136,10 @@ db.exec(`
 `);
 
 addSetting('club_logo_url', '');  // Upload a logo in Media Library, paste URL here
+// GameDay is the third-party that hosts the club's fixtures & results.
+// Admins can update this in Admin → Settings if the club ID ever changes.
+addSetting('gameday_url', 'https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0');
+addSetting('lacrossewa_fixtures_url', 'https://lacrossewa.com.au/fixtures-results/club-fixtures/');
 
 // ── v5: list_items table (team divisions, store apparel, juniors FAQ) ─────────
 db.exec(`

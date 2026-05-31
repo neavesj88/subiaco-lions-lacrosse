@@ -3,12 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { usePageContent } from "@/hooks/use-page-content";
 import { useListItems } from "@/hooks/use-list-items";
 import EditableSection from "@/components/editable-section";
 
-const LACROSSEWA_FIXTURES = "https://lacrossewa.com.au/fixtures-results/club-fixtures/";
-const GAMEDAY_CLUB = "https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0";
+// Fallback URLs if the settings haven't been configured yet
+const DEFAULT_GAMEDAY = "https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0";
+const DEFAULT_LACROSSEWA = "https://lacrossewa.com.au/fixtures-results/club-fixtures/";
 
 // Colour per team group (key matches the "group" stored in list_items)
 const teamColors: Record<string, string> = {
@@ -21,13 +24,22 @@ export default function Fixtures() {
   const { get } = usePageContent("fixtures");
   const { items: divisions } = useListItems("team_division");
 
-  // Group division rows by their team (group field), preserving order
+  // GameDay is the third-party host for fixtures & results — editable in Settings
+  const { data: settings } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+    queryFn: () => apiRequest("GET", "/api/settings"),
+  });
+  const gamedayUrl = settings?.gameday_url || DEFAULT_GAMEDAY;
+  const lacrosseWaUrl = settings?.lacrossewa_fixtures_url || DEFAULT_LACROSSEWA;
+
+  // Group division rows by their team (group field), preserving order.
+  // Each division links to GameDay by default (or its own custom link if set).
   const teamGroups: { category: string; divisions: { name: string; url: string }[] }[] = [];
   for (const d of divisions) {
     const cat = d.group ?? "Teams";
     let grp = teamGroups.find((g) => g.category === cat);
     if (!grp) { grp = { category: cat, divisions: [] }; teamGroups.push(grp); }
-    grp.divisions.push({ name: d.title, url: d.url || LACROSSEWA_FIXTURES });
+    grp.divisions.push({ name: d.title, url: d.url || gamedayUrl });
   }
 
   return (
@@ -39,7 +51,7 @@ export default function Fixtures() {
           <EditableSection page="fixtures" section="hero_title" value={get("hero_title", "Fixtures & Results")} label="Hero heading">
             {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
           </EditableSection>
-          <EditableSection page="fixtures" section="hero_subtitle" value={get("hero_subtitle", "Game schedules and results for all Subiaco Lions teams, hosted by Lacrosse WA.")} label="Hero subtitle">
+          <EditableSection page="fixtures" section="hero_subtitle" value={get("hero_subtitle", "Game schedules and results for all Subiaco Lions teams, hosted on GameDay.")} label="Hero subtitle">
             {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
           </EditableSection>
         </div>
@@ -49,31 +61,31 @@ export default function Fixtures() {
       <section className="py-12 px-4 bg-white">
         <div className="max-w-4xl mx-auto">
           <div className="grid sm:grid-cols-2 gap-4 mb-12">
-            <a href={LACROSSEWA_FIXTURES} target="_blank" rel="noopener noreferrer" className="block">
+            <a href={gamedayUrl} target="_blank" rel="noopener noreferrer" className="block">
               <Card className="border-2 border-maroon-200 hover:border-maroon-500 hover:shadow-lg transition-all h-full group">
                 <CardContent className="pt-6 pb-6 text-center">
                   <div className="w-14 h-14 bg-maroon-700 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-maroon-800 transition-colors">
                     <Trophy className="h-7 w-7 text-white" />
                   </div>
-                  <h3 className="font-bold text-stone-900 text-lg mb-1">Lacrosse WA Fixtures</h3>
-                  <p className="text-stone-500 text-sm mb-4">Official fixtures and results for all Lacrosse WA competitions</p>
+                  <h3 className="font-bold text-stone-900 text-lg mb-1">Fixtures & Results on GameDay</h3>
+                  <p className="text-stone-500 text-sm mb-4">Live game schedules, scores and ladders for all Subiaco Lions teams</p>
                   <Button variant="default" size="sm" className="gap-1.5">
-                    View Fixtures <ExternalLink className="h-3.5 w-3.5" />
+                    View on GameDay <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
                 </CardContent>
               </Card>
             </a>
 
-            <a href={GAMEDAY_CLUB} target="_blank" rel="noopener noreferrer" className="block">
+            <a href={lacrosseWaUrl} target="_blank" rel="noopener noreferrer" className="block">
               <Card className="border-2 border-gold-200 hover:border-gold-500 hover:shadow-lg transition-all h-full group">
                 <CardContent className="pt-6 pb-6 text-center">
                   <div className="w-14 h-14 bg-gold-500 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-gold-600 transition-colors">
                     <Users className="h-7 w-7 text-white" />
                   </div>
-                  <h3 className="font-bold text-stone-900 text-lg mb-1">GameDay — Subiaco</h3>
-                  <p className="text-stone-500 text-sm mb-4">Club profile, team rosters and season fixtures on GameDay</p>
+                  <h3 className="font-bold text-stone-900 text-lg mb-1">Lacrosse WA</h3>
+                  <p className="text-stone-500 text-sm mb-4">League-wide fixtures, results and competition info</p>
                   <Button variant="gold" size="sm" className="gap-1.5">
-                    View on GameDay <ExternalLink className="h-3.5 w-3.5" />
+                    View Lacrosse WA <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
                 </CardContent>
               </Card>
@@ -83,7 +95,7 @@ export default function Fixtures() {
           {/* Teams breakdown */}
           <h2 className="section-title">Our Teams</h2>
           <div className="gold-bar" />
-          <p className="section-subtitle">Click your team to view its fixtures on the Lacrosse WA website.</p>
+          <p className="section-subtitle">Click your team to view its fixtures and results on GameDay.</p>
 
           <div className="grid md:grid-cols-3 gap-6">
             {teamGroups.map((team) => (

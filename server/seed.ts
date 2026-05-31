@@ -29,6 +29,8 @@ async function seed() {
     { key: "contact_email", value: "subiacolacrosseclub@outlook.com" },
     { key: "location", value: "Rosalie Park, Shenton Park WA 6008" },
     { key: "gameday_registration_url", value: "https://membership.mygameday.app/regoform.cgi?formID=101320" },
+    { key: "gameday_url", value: "https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0" },
+    { key: "lacrossewa_fixtures_url", value: "https://lacrossewa.com.au/fixtures-results/club-fixtures/" },
     { key: "google_calendar_embed_url", value: "" },
     { key: "store_url", value: "" },
   ];
