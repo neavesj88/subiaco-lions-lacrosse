@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RichTextEditor from "@/components/rich-text-editor";
 import ImageUploader from "@/components/image-uploader";
+import ImagePicker from "@/components/image-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,12 +102,12 @@ function SponsorForm({ onDone }: { onDone: () => void }) {
         </div>
         <div className="space-y-1"><Label>Sort order</Label><Input type="number" min="0" {...register("sortOrder")} /></div>
       </div>
-      <div>
-        <Label className="mb-1.5 block">Logo</Label>
-        <p className="text-xs text-stone-400 mb-2">Upload via Media tab first, then paste the URL — or drag & drop here.</p>
-        <Input placeholder="Paste /uploads/filename.png" value={logoUrl ?? ""} onChange={(e) => setLogoUrl(e.target.value || undefined)} />
-        {logoUrl && <img src={logoUrl} alt="preview" className="h-12 mt-2 object-contain rounded" />}
-      </div>
+      <ImagePicker
+        label="Sponsor Logo"
+        value={logoUrl}
+        onChange={setLogoUrl}
+        hint="Upload a new logo or pick one from your media library."
+      />
       <div className="flex gap-2 pt-1">
         <Button type="submit" disabled={mutation.isPending} className="flex-1">{mutation.isPending ? "Saving..." : "Add Sponsor"}</Button>
         <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
@@ -290,11 +291,11 @@ function AnnouncementForm({ ann, onDone }: { ann?: Announcement; onDone: () => v
           minHeight="160px"
         />
       </div>
-      <ImageUploader
+      <ImagePicker
         label="Featured Image (optional)"
         value={featuredImageUrl}
         onChange={setFeaturedImageUrl}
-        hint="Shows as the post thumbnail on the homepage. Recommended: 1200×630px."
+        hint="Shows as the post thumbnail on the homepage. Pick from your library or upload. Recommended: 1200×630px."
       />
 
       <div className="flex flex-col gap-2 p-3 bg-stone-50 rounded-lg border">
@@ -998,37 +999,40 @@ export default function AdminDashboard() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {mediaItems.map((m) => (
-                    <div key={m.id} className="group relative rounded-lg overflow-hidden border bg-stone-50 aspect-video">
-                      <img src={m.url} alt={m.originalName} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
-                        <p className="text-white text-xs text-center line-clamp-2">{m.originalName}</p>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs bg-white"
-                            onClick={() => {
-                              navigator.clipboard.writeText(window.location.origin + m.url);
-                              toast({ title: "URL copied to clipboard" });
-                            }}
-                          >
-                            Copy URL
-                          </Button>
+                    <div key={m.id} className="rounded-lg overflow-hidden border bg-white">
+                      <div className="group relative aspect-video bg-stone-50">
+                        <img src={m.url} alt={m.originalName} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
                           <Button
                             size="sm"
                             variant="destructive"
                             className="h-7 text-xs"
                             onClick={() => {
-                              if (confirm("Delete this image?")) {
+                              if (confirm("Delete this image? It will disappear from the gallery and any posts using it.")) {
                                 apiRequest("DELETE", `/api/media/${m.id}`)
                                   .then(() => qc.invalidateQueries({ queryKey: ["/api/media"] }))
                                   .catch((e) => toast({ title: "Error", description: e.message, variant: "destructive" }));
                               }
                             }}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-3 w-3" /> Delete
                           </Button>
                         </div>
+                      </div>
+                      {/* Caption — shown under the photo in the public gallery */}
+                      <div className="p-2">
+                        <Input
+                          placeholder="Add a caption…"
+                          defaultValue={m.caption ?? ""}
+                          className="h-8 text-xs"
+                          onBlur={(e) => {
+                            if (e.target.value !== (m.caption ?? "")) {
+                              apiRequest("PUT", `/api/media/${m.id}/caption`, { caption: e.target.value })
+                                .then(() => { qc.invalidateQueries({ queryKey: ["/api/media"] }); toast({ title: "Caption saved" }); })
+                                .catch((err) => toast({ title: "Error", description: err.message, variant: "destructive" }));
+                            }
+                          }}
+                        />
                       </div>
                     </div>
                   ))}
@@ -1132,10 +1136,23 @@ export default function AdminDashboard() {
               <h2 className="text-lg font-semibold mb-4">Site Settings</h2>
               <Card>
                 <CardContent className="pt-6 space-y-4">
+                  {/* Image settings — click to pick from the media library (no URL pasting) */}
+                  <ImagePicker
+                    label="Club Logo"
+                    value={settingsForm.club_logo_url || undefined}
+                    onChange={(url) => setSettingsForm((p) => ({ ...p, club_logo_url: url ?? "" }))}
+                    hint="Replaces the 'L' placeholder in the navigation and home hero. Leave blank to use the default."
+                  />
+                  <ImagePicker
+                    label="Hero Background Image"
+                    value={settingsForm.hero_image_url || undefined}
+                    onChange={(url) => setSettingsForm((p) => ({ ...p, hero_image_url: url ?? "" }))}
+                    hint="Appears as the home page hero background with a maroon overlay."
+                  />
+
+                  {/* Text settings */}
                   {[
-                    { key: "club_logo_url", label: "Club Logo URL", help: "Upload your club crest/logo in the Media tab, copy the URL, paste here. Replaces the 'L' placeholder in the navigation and home hero. Leave blank to use the default." },
-                  { key: "hero_image_url", label: "Hero Background Image URL", help: "Upload in Media tab, copy URL, paste here. Appears as the home page hero background with a maroon overlay." },
-                  { key: "google_calendar_embed_url", label: "Google Calendar Embed URL", help: "In Google Calendar → Settings → your calendar → 'Integrate calendar' → copy the Embed URL (starts with https://calendar.google.com/calendar/embed?...)." },
+                    { key: "google_calendar_embed_url", label: "Google Calendar Embed URL", help: "In Google Calendar → Settings → your calendar → 'Integrate calendar' → copy the Embed URL (starts with https://calendar.google.com/calendar/embed?...)." },
                     { key: "behold_feed_id", label: "Behold.so Feed ID (Instagram)", help: "Create a free feed at behold.so, connect @subiacolacrosse_official, then paste the Feed ID here." },
                     { key: "store_url", label: "Online Store URL", help: "Link to your online merch store (e.g. Shopify, Redbubble, PrintFul). Leave blank to show the 'coming soon' message." },
                     { key: "instagram_handle", label: "Instagram Handle" },
