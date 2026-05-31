@@ -137,5 +137,64 @@ db.exec(`
 
 addSetting('club_logo_url', '');  // Upload a logo in Media Library, paste URL here
 
+// ── v5: list_items table (team divisions, store apparel, juniors FAQ) ─────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS list_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    list_type TEXT NOT NULL,
+    "group" TEXT,
+    title TEXT NOT NULL,
+    body TEXT,
+    label TEXT,
+    url TEXT,
+    icon TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// Seed the list_items table once (only if completely empty) so admins start
+// with the existing content already populated and editable.
+const listCount = db.prepare('SELECT COUNT(*) AS n FROM list_items').get().n;
+if (listCount === 0) {
+  const ins = db.prepare(
+    'INSERT INTO list_items (list_type, "group", title, body, label, url, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  );
+
+  const LWA = 'https://lacrossewa.com.au/fixtures-results/club-fixtures/';
+
+  // Team divisions (group = team, title = division name)
+  const divisions = [
+    ["Men's", "State League"], ["Men's", "Division 1"], ["Men's", "Division 2"], ["Men's", "Division 3"],
+    ["Women's", "State League"], ["Women's", "Division 1"], ["Women's", "Division 2"],
+    ["Juniors", "Under 11"], ["Juniors", "Under 13"], ["Juniors", "Under 15"], ["Juniors", "Under 17"],
+  ];
+  divisions.forEach(([group, name], i) => ins.run("team_division", group, name, null, null, LWA, i));
+
+  // Store apparel items (title = name, body = description, label = badge)
+  const apparel = [
+    ["Club Playing Jersey", "Official maroon and gold match jersey. Available in men's, women's and junior sizes.", "Playing Kit"],
+    ["Training Singlet", "Lightweight training singlet in club colours. Perfect for pre-season and training sessions.", "Training"],
+    ["Club Hoodie", "Premium fleece hoodie with embroidered Lions crest. Great for sideline days.", "Casual Wear"],
+    ["Supporter Cap", "Structured cap in maroon with gold Lions embroidery.", "Supporter Gear"],
+    ["Junior Playing Kit", "Full junior playing kit including jersey and shorts. Sized for U11-U17 divisions.", "Juniors"],
+    ["Lacrosse Stick Bag", "Club-branded stick bag fits up to 3 sticks. Perfect for training days.", "Equipment"],
+  ];
+  apparel.forEach(([title, body, label], i) => ins.run("store_item", null, title, body, label, null, i));
+
+  // Juniors FAQ (title = question, body = answer)
+  const faqs = [
+    ["What age can my child start?", "We welcome players from age 8 upwards. Our U11 program is designed as a gentle introduction with modified rules."],
+    ["Do they need to know how to play?", "Not at all! Most of our junior players start as complete beginners. Our coaches will teach everything from scratch."],
+    ["Is lacrosse safe?", "Field lacrosse is a contact sport for older age groups, but junior divisions use modified, non-contact rules. All players wear helmets and protective equipment."],
+    ["What about KidSport?", "We're a registered KidSport club. Eligible WA families can receive up to $200 per child per year to help cover registration fees. Ask us at sign-up."],
+    ["When is training?", "Training schedules vary by division. Check the Club Calendar for current sessions, or ask us when you register."],
+  ];
+  faqs.forEach(([title, body], i) => ins.run("faq", null, title, body, null, null, i));
+
+  console.log("  Seeded list_items (divisions, apparel, FAQ)");
+}
+
 db.close();
 console.log('Migration complete.');

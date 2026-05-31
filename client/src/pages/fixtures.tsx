@@ -4,45 +4,32 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { usePageContent } from "@/hooks/use-page-content";
+import { useListItems } from "@/hooks/use-list-items";
 import EditableSection from "@/components/editable-section";
 
 const LACROSSEWA_FIXTURES = "https://lacrossewa.com.au/fixtures-results/club-fixtures/";
 const GAMEDAY_CLUB = "https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0";
 
-const teams = [
-  {
-    category: "Men's",
-    color: "bg-blue-600",
-    divisions: [
-      { name: "State League", url: LACROSSEWA_FIXTURES },
-      { name: "Division 1", url: LACROSSEWA_FIXTURES },
-      { name: "Division 2", url: LACROSSEWA_FIXTURES },
-      { name: "Division 3", url: LACROSSEWA_FIXTURES },
-    ],
-  },
-  {
-    category: "Women's",
-    color: "bg-purple-600",
-    divisions: [
-      { name: "State League", url: LACROSSEWA_FIXTURES },
-      { name: "Division 1", url: LACROSSEWA_FIXTURES },
-      { name: "Division 2", url: LACROSSEWA_FIXTURES },
-    ],
-  },
-  {
-    category: "Juniors",
-    color: "bg-green-600",
-    divisions: [
-      { name: "Under 11", url: LACROSSEWA_FIXTURES },
-      { name: "Under 13", url: LACROSSEWA_FIXTURES },
-      { name: "Under 15", url: LACROSSEWA_FIXTURES },
-      { name: "Under 17", url: LACROSSEWA_FIXTURES },
-    ],
-  },
-];
+// Colour per team group (key matches the "group" stored in list_items)
+const teamColors: Record<string, string> = {
+  "Men's": "bg-blue-600",
+  "Women's": "bg-purple-600",
+  "Juniors": "bg-green-600",
+};
 
 export default function Fixtures() {
   const { get } = usePageContent("fixtures");
+  const { items: divisions } = useListItems("team_division");
+
+  // Group division rows by their team (group field), preserving order
+  const teamGroups: { category: string; divisions: { name: string; url: string }[] }[] = [];
+  for (const d of divisions) {
+    const cat = d.group ?? "Teams";
+    let grp = teamGroups.find((g) => g.category === cat);
+    if (!grp) { grp = { category: cat, divisions: [] }; teamGroups.push(grp); }
+    grp.divisions.push({ name: d.title, url: d.url || LACROSSEWA_FIXTURES });
+  }
+
   return (
     <>
       {/* Hero */}
@@ -99,9 +86,9 @@ export default function Fixtures() {
           <p className="section-subtitle">Click your team to view its fixtures on the Lacrosse WA website.</p>
 
           <div className="grid md:grid-cols-3 gap-6">
-            {teams.map((team) => (
+            {teamGroups.map((team) => (
               <Card key={team.category} className="overflow-hidden">
-                <div className={`${team.color} h-2`} />
+                <div className={`${teamColors[team.category] ?? "bg-maroon-600"} h-2`} />
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Users className="h-4 w-4 text-maroon-700" />

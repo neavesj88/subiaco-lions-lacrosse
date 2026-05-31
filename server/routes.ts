@@ -42,7 +42,7 @@ import { db } from "./db";
 import {
   users, events, registrations, announcements, juniorsContent,
   mediaUploads, siteSettings, contactMessages,
-  sponsors, matchResults, newsletterSubscribers, pageContent,
+  sponsors, matchResults, newsletterSubscribers, pageContent, listItems,
   insertEventSchema, insertRegistrationSchema, insertAnnouncementSchema,
   insertSponsorSchema, insertMatchResultSchema,
   loginSchema, createUserSchema,
@@ -585,6 +585,44 @@ export async function registerRoutes(app: Express) {
     const { caption } = req.body;
     const [row] = await db.update(mediaUploads).set({ caption }).where(eq(mediaUploads.id, id)).returning();
     res.json(row);
+  });
+
+  // ── List Items (team divisions, store apparel, juniors FAQ) ──────────
+  // GET /api/list-items/:type — public, returns active rows sorted
+  // Admin CRUD requires club_admin+ (so the right people manage structured lists)
+  app.get("/api/list-items/:type", async (req: Request, res: Response) => {
+    const rows = await db.select().from(listItems)
+      .where(and(eq(listItems.listType, req.params.type), eq(listItems.isActive, true)))
+      .orderBy(listItems.sortOrder);
+    res.json(rows);
+  });
+
+  app.get("/api/list-items/:type/all", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const rows = await db.select().from(listItems)
+      .where(eq(listItems.listType, req.params.type))
+      .orderBy(listItems.sortOrder);
+    res.json(rows);
+  });
+
+  app.post("/api/list-items", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const parsed = insertListItemSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+    const [row] = await db.insert(listItems).values(parsed.data).returning();
+    res.status(201).json(row);
+  });
+
+  app.put("/api/list-items/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const parsed = insertListItemSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
+    const [row] = await db.update(listItems).set(parsed.data).where(eq(listItems.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/list-items/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    await db.delete(listItems).where(eq(listItems.id, parseInt(req.params.id)));
+    res.json({ ok: true });
   });
 
   // ── Users ───────────────────────────────────────────────────────────

@@ -1,56 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingBag, ExternalLink, Mail, Star, Shield, Shirt } from "lucide-react";
+import { ShoppingBag, ExternalLink, Mail, Shirt } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePageContent } from "@/hooks/use-page-content";
+import { useListItems } from "@/hooks/use-list-items";
 import EditableSection from "@/components/editable-section";
-
-const apparel = [
-  {
-    name: "Club Playing Jersey",
-    description: "Official maroon and gold match jersey. Available in men's, women's and junior sizes.",
-    icon: Shirt,
-    badge: "Playing Kit",
-    badgeVariant: "default" as const,
-  },
-  {
-    name: "Training Singlet",
-    description: "Lightweight training singlet in club colours. Perfect for pre-season and training sessions.",
-    icon: Shirt,
-    badge: "Training",
-    badgeVariant: "secondary" as const,
-  },
-  {
-    name: "Club Hoodie",
-    description: "Premium fleece hoodie with embroidered Lions crest. Great for sideline days.",
-    icon: Shirt,
-    badge: "Casual Wear",
-    badgeVariant: "outline" as const,
-  },
-  {
-    name: "Supporter Cap",
-    description: "Structured cap in maroon with gold Lions embroidery.",
-    icon: Star,
-    badge: "Supporter Gear",
-    badgeVariant: "gold" as const,
-  },
-  {
-    name: "Junior Playing Kit",
-    description: "Full junior playing kit including jersey and shorts. Sized for U11–U17 divisions.",
-    icon: Shield,
-    badge: "Juniors",
-    badgeVariant: "secondary" as const,
-  },
-  {
-    name: "Lacrosse Stick Bag",
-    description: "Club-branded stick bag fits up to 3 sticks. Perfect for training days.",
-    icon: ShoppingBag,
-    badge: "Equipment",
-    badgeVariant: "outline" as const,
-  },
-];
 
 export default function Store() {
   const { data: settings } = useQuery<Record<string, string>>({
@@ -60,6 +16,7 @@ export default function Store() {
 
   const storeUrl = settings?.store_url;
   const { get } = usePageContent("store");
+  const { items: apparel } = useListItems("store_item"); // title=name, body=description, label=badge
 
   return (
     <>
@@ -112,18 +69,18 @@ export default function Store() {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {apparel.map((item) => (
-              <Card key={item.name} className="hover:shadow-md transition-shadow group">
+              <Card key={item.id} className="hover:shadow-md transition-shadow group">
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-xl bg-maroon-100 flex items-center justify-center shrink-0 group-hover:bg-maroon-700 transition-colors">
-                      <item.icon className="h-6 w-6 text-maroon-700 group-hover:text-white transition-colors" />
+                      <Shirt className="h-6 w-6 text-maroon-700 group-hover:text-white transition-colors" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="font-semibold text-stone-900 text-sm leading-snug">{item.name}</h3>
-                        <Badge variant={item.badgeVariant} className="text-xs shrink-0">{item.badge}</Badge>
+                        <h3 className="font-semibold text-stone-900 text-sm leading-snug">{item.title}</h3>
+                        {item.label && <Badge variant="secondary" className="text-xs shrink-0">{item.label}</Badge>}
                       </div>
-                      <p className="text-xs text-stone-500 leading-relaxed">{item.description}</p>
+                      <p className="text-xs text-stone-500 leading-relaxed">{item.body}</p>
                     </div>
                   </div>
                   <div className="mt-4">

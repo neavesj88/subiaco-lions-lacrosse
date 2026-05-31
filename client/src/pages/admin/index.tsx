@@ -21,9 +21,10 @@ import { formatDate } from "@/lib/utils";
 import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
   ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
-  Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft
+  Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft, List as ListIcon
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import ListManager from "@/components/list-manager";
 import type { Event, Announcement, Registration, JuniorsContent, ContactMessage, MediaUpload, Sponsor, MatchResult, NewsletterSubscriber } from "@shared/schema";
 
 // ── Result form ────────────────────────────────────────────────────────────────
@@ -628,6 +629,7 @@ export default function AdminDashboard() {
             {hasRole("club_admin") && <TabsTrigger value="results"><Trophy className="h-4 w-4 mr-1" />Results</TabsTrigger>}
             {hasRole("club_admin") && <TabsTrigger value="sponsors"><Heart className="h-4 w-4 mr-1" />Sponsors</TabsTrigger>}
             {hasRole("club_admin") && <TabsTrigger value="newsletter"><Mail className="h-4 w-4 mr-1" />Newsletter</TabsTrigger>}
+            {hasRole("club_admin") && <TabsTrigger value="content"><ListIcon className="h-4 w-4 mr-1" />Page Lists</TabsTrigger>}
             {hasRole("content_manager") && <TabsTrigger value="media"><ImageIcon className="h-4 w-4 mr-1" />Media</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" />Settings</TabsTrigger>}
@@ -974,6 +976,43 @@ export default function AdminDashboard() {
                   </div>
                 ))}
                 {subscribers.length === 0 && <p className="text-stone-400 text-center py-8">No subscribers yet.</p>}
+              </div>
+            </TabsContent>
+          )}
+
+          {/* ── Page Lists (team divisions, store apparel, juniors FAQ) ── */}
+          {hasRole("club_admin") && (
+            <TabsContent value="content">
+              <div className="space-y-8">
+                <ListManager
+                  listType="team_division"
+                  title="Team Divisions"
+                  description="Shown on the About and Fixtures pages. Group is the team (Men's, Women's, Juniors); the link opens the fixtures page for that division."
+                  fields={[
+                    { key: "group", label: "Team (Men's / Women's / Juniors)", placeholder: "Men's", required: true },
+                    { key: "title", label: "Division name", placeholder: "Division 1", required: true },
+                    { key: "url", label: "Fixtures link (optional)", placeholder: "https://lacrossewa.com.au/..." },
+                  ]}
+                />
+                <ListManager
+                  listType="store_item"
+                  title="Store Apparel"
+                  description="The apparel cards shown on the Store page."
+                  fields={[
+                    { key: "title", label: "Item name", placeholder: "Club Hoodie", required: true },
+                    { key: "body", label: "Description", textarea: true, placeholder: "Premium fleece hoodie…" },
+                    { key: "label", label: "Badge (optional)", placeholder: "Casual Wear" },
+                  ]}
+                />
+                <ListManager
+                  listType="faq"
+                  title="Juniors FAQ"
+                  description="The questions & answers in the Juniors page accordion."
+                  fields={[
+                    { key: "title", label: "Question", placeholder: "What age can my child start?", required: true },
+                    { key: "body", label: "Answer", textarea: true, placeholder: "We welcome players from age 8…" },
+                  ]}
+                />
               </div>
             </TabsContent>
           )}

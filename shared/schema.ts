@@ -221,7 +221,28 @@ export const pageContent = sqliteTable("page_content", {
   updatedBy: integer("updated_by").references(() => users.id),
 });
 
+// ── List Items (flexible repeating content) ───────────────────────────────────
+// One table powers several "list" sections that admins can add/edit/remove rows in:
+//   listType="team_division" → About & Fixtures team divisions (title=team, label=division)
+//   listType="store_item"    → Store apparel cards (title=name, body=description, label=badge)
+//   listType="faq"           → Juniors FAQ (title=question, body=answer)
+// Generic columns keep it simple; not every column is used by every list type.
+export const listItems = sqliteTable("list_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  listType: text("list_type").notNull(),  // which list this row belongs to
+  group: text("group"),                    // optional grouping (e.g. "Men's" team)
+  title: text("title").notNull(),          // question / item name / division name
+  body: text("body"),                      // answer / description
+  label: text("label"),                    // badge text / extra tag
+  url: text("url"),                         // optional link (e.g. fixtures URL)
+  icon: text("icon"),                       // optional icon name
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // ── Zod validation schemas (used in routes for input validation) ───────────────
+export const insertListItemSchema = createInsertSchema(listItems).omit({ id: true, createdAt: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true, createdAt: true });
 export const insertRegistrationSchema = createInsertSchema(registrations).omit({ id: true, createdAt: true, status: true });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, createdAt: true });
@@ -254,3 +275,4 @@ export type Sponsor = typeof sponsors.$inferSelect;
 export type MatchResult = typeof matchResults.$inferSelect;
 export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 export type PageContent = typeof pageContent.$inferSelect;
+export type ListItem = typeof listItems.$inferSelect;

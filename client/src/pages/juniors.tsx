@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Star, Shield, Heart, Mail, UserPlus } from "lucide-react";
 import { RichTextDisplay } from "@/components/rich-text-editor";
+import { useListItems } from "@/hooks/use-list-items";
 import type { JuniorsContent } from "@shared/schema";
 
 export default function Juniors() {
+  const { items: faqItems } = useListItems("faq"); // title=question, body=answer
   const { data: contentItems = [] } = useQuery<JuniorsContent[]>({
     queryKey: ["/api/juniors-content"],
     queryFn: () => apiRequest("GET", "/api/juniors-content"),
@@ -140,35 +142,14 @@ export default function Juniors() {
           <h2 className="section-title text-center">Common Questions</h2>
           <div className="gold-bar mx-auto" />
           <div className="space-y-4 mt-6">
-            {[
-              {
-                q: "What age can my child start?",
-                a: "We welcome players from age 8 upwards. Our U11 program is designed as a gentle introduction with modified rules.",
-              },
-              {
-                q: "Do they need to know how to play?",
-                a: "Not at all! Most of our junior players start as complete beginners. Our coaches will teach everything from scratch.",
-              },
-              {
-                q: "Is lacrosse safe?",
-                a: "Field lacrosse is a contact sport for older age groups, but junior divisions use modified, non-contact rules. All players wear helmets and protective equipment.",
-              },
-              {
-                q: "What about KidSport?",
-                a: "We're a registered KidSport club. Eligible WA families can receive up to $200 per child per year to help cover registration fees. Ask us at sign-up.",
-              },
-              {
-                q: "When is training?",
-                a: "Training schedules vary by division. Check the Club Calendar for current sessions, or ask us when you register.",
-              },
-            ].map((item) => (
-              <details key={item.q} className="group border rounded-xl overflow-hidden">
+            {faqItems.map((item) => (
+              <details key={item.id} className="group border rounded-xl overflow-hidden">
                 <summary className="cursor-pointer px-5 py-4 font-medium text-stone-900 flex justify-between items-center hover:bg-stone-50">
-                  {item.q}
+                  {item.title}
                   <span className="text-stone-400 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
                 </summary>
                 <div className="px-5 pb-4 pt-2 text-sm text-stone-500 border-t bg-stone-50">
-                  {item.a}
+                  {item.body}
                 </div>
               </details>
             ))}

@@ -92,7 +92,7 @@ export default function About() {
           <div className="grid md:grid-cols-3 gap-6 mt-8">
             {teams.map((t) => (
               <Card key={t.category} className="overflow-hidden">
-                <div className={`${t.color} h-2`} />
+                <div className={`${teamColors[t.category] ?? "bg-maroon-600"} h-2`} />
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Users className="h-5 w-5 text-maroon-700" />
