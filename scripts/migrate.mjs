@@ -166,15 +166,15 @@ if (listCount === 0) {
     'INSERT INTO list_items (list_type, "group", title, body, label, url, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
 
-  const LWA = 'https://lacrossewa.com.au/fixtures-results/club-fixtures/';
-
-  // Team divisions (group = team, title = division name)
+  // Divisions link to GameDay (the third-party that hosts fixtures & results).
+  // Left as NULL so each row falls back to the club-wide gameday_url setting,
+  // which means changing the GameDay URL in Settings updates every division link.
   const divisions = [
     ["Men's", "State League"], ["Men's", "Division 1"], ["Men's", "Division 2"], ["Men's", "Division 3"],
     ["Women's", "State League"], ["Women's", "Division 1"], ["Women's", "Division 2"],
     ["Juniors", "Under 11"], ["Juniors", "Under 13"], ["Juniors", "Under 15"], ["Juniors", "Under 17"],
   ];
-  divisions.forEach(([group, name], i) => ins.run("team_division", group, name, null, null, LWA, i));
+  divisions.forEach(([group, name], i) => ins.run("team_division", group, name, null, null, null, i));
 
   // Store apparel items (title = name, body = description, label = badge)
   const apparel = [
