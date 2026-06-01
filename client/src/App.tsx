@@ -1,10 +1,11 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import Navigation from "@/components/navigation";
 import Footer from "@/components/footer";
 import EditModeBanner from "@/components/edit-mode-banner";
+import SEO from "@/components/seo";
 import Home from "@/pages/home";
 import About from "@/pages/about";
 import Calendar from "@/pages/calendar";
@@ -19,8 +20,13 @@ import AdminDashboard from "@/pages/admin/index";
 import NotFound from "@/pages/not-found";
 
 function Router() {
+  const [location] = useLocation();
+  // Don't apply public SEO to admin pages (they shouldn't be indexed)
+  const isAdmin = location.startsWith("/admin");
+
   return (
     <div className="min-h-screen flex flex-col">
+      {!isAdmin && <SEO path={location} />}
       <Navigation />
       <main className="flex-1">
         <Switch>

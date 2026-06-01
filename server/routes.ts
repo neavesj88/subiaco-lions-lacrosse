@@ -49,6 +49,8 @@ import {
 } from "@shared/schema";
 import { requireAuth, requireRole } from "./middleware";
 import { notifyContactMessage, notifyNewRegistration } from "./email";
+import { SITEMAP_PAGES } from "@shared/seo";
+import { getOrigin } from "./seo-inject";
 
 const SQLiteStore = ConnectSqlite3(session);
 
@@ -149,6 +151,63 @@ export async function registerRoutes(app: Express) {
   setupPassport();
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // ── SEO: robots.txt ─────────────────────────────────────────────────
+  // Tells search engines what to crawl and where the sitemap is.
+  // Admin pages are disallowed so they don't appear in search results.
+  app.get("/robots.txt", (req: Request, res: Response) => {
+    const origin = getOrigin(req);
+    res.type("text/plain").send(
+      [
+        "User-agent: *",
+        "Allow: /",
+        "Disallow: /admin",
+        "Disallow: /admin/",
+        "",
+        `Sitemap: ${origin}/sitemap.xml`,
+      ].join("\n")
+    );
+  });
+
+  // ── SEO: sitemap.xml ────────────────────────────────────────────────
+  // Lists all public pages for search engines. Respects the page on/off
+  // toggles in Settings (a hidden page is left out of the sitemap), and
+  // includes published news posts so articles get indexed too.
+  app.get("/sitemap.xml", async (req: Request, res: Response) => {
+    const origin = getOrigin(req);
+
+    // Page visibility settings (nav_show_*) decide which optional pages appear
+    const settingRows = await db.select().from(siteSettings);
+    const settingsMap: Record<string, string> = {};
+    for (const r of settingRows) settingsMap[r.key] = r.value;
+    const pageOn = (key: string) => settingsMap[`nav_show_${key}`] !== "false";
+
+    // Map sitemap paths to their visibility key (pages without a key are always on)
+    const visKey: Record<string, string> = {
+      "/gallery": "gallery",
+      "/fixtures": "fixtures",
+      "/store": "store",
+    };
+
+    const today = new Date().toISOString().split("T")[0];
+    const urls = SITEMAP_PAGES
+      .filter((p) => {
+        const key = visKey[p.path];
+        return !key || pageOn(key);
+      })
+      .map(
+        (p) =>
+          `  <url>\n    <loc>${origin}${p.path}</loc>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n    <lastmod>${today}</lastmod>\n  </url>`
+      );
+
+    const xml =
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      urls.join("\n") +
+      `\n</urlset>`;
+
+    res.type("application/xml").send(xml);
+  });
 
   // ── Auth — username/password ────────────────────────────────────────
   app.post("/api/auth/login", async (req: Request, res: Response) => {

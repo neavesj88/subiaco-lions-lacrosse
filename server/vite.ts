@@ -5,6 +5,7 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { injectSeo, getOrigin } from "./seo-inject";
 
 const viteLogger = createLogger();
 
@@ -52,6 +53,8 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
       );
+      // Inject per-route SEO tags so dev matches production behaviour
+      template = injectSeo(template, url.split("?")[0], getOrigin(req));
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -66,8 +69,15 @@ export function serveStatic(app: Express) {
   if (!fs.existsSync(distPath)) {
     throw new Error(`Build directory not found: ${distPath}. Run 'npm run build' first.`);
   }
+  // Serve built assets (JS/CSS/images) normally
   app.use(express.static(distPath));
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+
+  // SPA catch-all: serve index.html but inject per-route SEO tags first so
+  // crawlers/social scrapers see the correct title + description for each page.
+  const indexPath = path.resolve(distPath, "index.html");
+  const baseHtml = fs.readFileSync(indexPath, "utf-8");
+  app.use("*", (req, res) => {
+    const html = injectSeo(baseHtml, req.originalUrl.split("?")[0], getOrigin(req));
+    res.status(200).set({ "Content-Type": "text/html" }).end(html);
   });
 }

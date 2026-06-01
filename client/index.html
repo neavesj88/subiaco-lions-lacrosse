@@ -3,11 +3,57 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Subiaco Lions Lacrosse Club</title>
-    <meta name="description" content="Subiaco Lions Lacrosse Club — Perth's home of lacrosse at Rosalie Park, Shenton Park. Men's, Women's and Junior teams." />
+
+    <!-- SEO meta tags below are rewritten per-page by the server (server/seo-inject.ts)
+         so crawlers and social scrapers get the correct title/description for each route. -->
+    <!--SEO-START-->
+    <title>Subiaco Lions Lacrosse Club | Perth Lacrosse</title>
+    <meta name="description" content="Subiaco Lions Lacrosse Club — Perth's home of lacrosse since 1940 at Rosalie Park, Shenton Park. Men's, Women's and Junior teams. New players welcome." />
+    <meta property="og:title" content="Subiaco Lions Lacrosse Club" />
+    <meta property="og:description" content="Perth's home of lacrosse since 1940. Men's, Women's and Junior teams at Rosalie Park, Shenton Park." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!--SEO-END-->
+
+    <meta name="theme-color" content="#7B1E32" />
+    <meta name="robots" content="index, follow" />
+    <meta name="geo.region" content="AU-WA" />
+    <meta name="geo.placename" content="Shenton Park, Perth, Western Australia" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Structured data: tells Google this is a sports club, for rich results,
+         the local-business knowledge panel and Google Maps. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SportsClub",
+      "name": "Subiaco Lions Lacrosse Club",
+      "alternateName": "Subiaco Lacrosse Club",
+      "sport": "Lacrosse",
+      "foundingDate": "1940",
+      "description": "Perth's home of lacrosse since 1940. Men's, Women's and Junior lacrosse teams competing across all divisions of Lacrosse WA.",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Rosalie Park",
+        "addressLocality": "Shenton Park",
+        "addressRegion": "WA",
+        "postalCode": "6008",
+        "addressCountry": "AU"
+      },
+      "areaServed": "Perth, Western Australia",
+      "email": "subiacolacrosseclub@outlook.com",
+      "sameAs": [
+        "https://www.facebook.com/SubiacoLacrosse/",
+        "https://www.instagram.com/subiacolacrosse_official/"
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
