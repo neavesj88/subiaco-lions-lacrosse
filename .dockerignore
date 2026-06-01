@@ -1,0 +1,10 @@
+# Don't copy these into the Docker image — keeps builds fast and images small
+node_modules
+dist
+data
+.git
+.env
+*.md
+.vscode
+.claude
+npm-debug.log

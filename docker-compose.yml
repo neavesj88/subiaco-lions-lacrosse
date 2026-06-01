@@ -1,0 +1,41 @@
+# =============================================================================
+# docker-compose.yml — Subiaco Lions Lacrosse Club
+# =============================================================================
+# Runs the whole thing with one command:  docker compose up -d
+#
+# Two services:
+#   web     — the club website (built from the Dockerfile)
+#   tunnel  — Cloudflare Tunnel that securely exposes the site to the internet
+#             with automatic HTTPS, NO open ports, NO nginx, NO SSL certificates
+#
+# The tunnel means you do NOT need to:
+#   - configure nginx
+#   - manage SSL certificates
+#   - open ports on your router / firewall
+#   - have a static IP
+#
+# You only need a free Cloudflare account and a domain. See SETUP_HOSTING.md.
+# =============================================================================
+
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Persist the database + uploaded images on the host so they survive
+      # rebuilds and updates. This folder is your entire site's data.
+      - ./data:/app/data
+      - ./public/uploads:/app/public/uploads
+    # No "ports:" needed — the tunnel reaches the app over the internal network.
+    expose:
+      - "5000"
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    # Reads the tunnel token from your .env file
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - web

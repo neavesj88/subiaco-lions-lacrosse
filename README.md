@@ -27,22 +27,30 @@ Default credentials: **`admin` / `lions2024!`** — change this immediately.
 
 ## Hosting it for real
 
-Everything you need is automated. On a fresh Ubuntu server:
+**You don't need to be a Linux expert or flash a PC.** The easiest path is
+Docker + a Cloudflare Tunnel — no nginx, no SSL certificates, no port-forwarding.
+On any server (a $6/mo cloud VPS or a spare always-on PC) with Docker installed:
 
 ```bash
 git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git
 cd subiaco-lions-lacrosse
-bash scripts/setup.sh      # installs Node + PM2, builds, seeds, starts the app
+cp .env.example .env      # then paste a SESSION_SECRET + Cloudflare tunnel token
+docker compose up -d --build
 ```
 
-Then point nginx + Cloudflare at it. **Full step-by-step guide:
-[DEPLOYMENT.md](./DEPLOYMENT.md)** (nginx config, SSL, Google login, backups).
+Your domain is then live with automatic HTTPS. **Full step-by-step (including
+how to get a server, domain, and Cloudflare tunnel): [SETUP_HOSTING.md](./SETUP_HOSTING.md).**
+
+Integrations (email, Google login): [SETUP_INTEGRATIONS.md](./SETUP_INTEGRATIONS.md).
 
 ### Updating after the first deploy
 
 ```bash
-./scripts/deploy.sh        # git pull → install → migrate → build → restart
+git pull && docker compose up -d --build   # data + uploads are preserved
 ```
+
+> Prefer a traditional Node + PM2 + nginx setup instead of Docker?
+> That's still supported — see [DEPLOYMENT.md](./DEPLOYMENT.md) and `scripts/setup.sh`.
 
 ---
 
