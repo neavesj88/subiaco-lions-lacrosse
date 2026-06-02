@@ -27,30 +27,33 @@ Default credentials: **`admin` / `lions2024!`** — change this immediately.
 
 ## Hosting it for real
 
-**You don't need to be a Linux expert or flash a PC.** The easiest path is
-Docker + a Cloudflare Tunnel — no nginx, no SSL certificates, no port-forwarding.
-On any server (a $6/mo cloud VPS or a spare always-on PC) with Docker installed:
+Runs the same way as neaves.au (PM2 + nginx + Cloudflare) and is designed to
+sit **alongside it on the same Ubuntu VM** — it uses port **5001** so it won't
+clash with neaves.au on 5000.
 
 ```bash
 git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git
 cd subiaco-lions-lacrosse
-cp .env.example .env      # then paste a SESSION_SECRET + Cloudflare tunnel token
-docker compose up -d --build
+cp .env.example .env        # set SESSION_SECRET, PORT=5001
+npm ci && npm run build
+node scripts/migrate.mjs && npm run db:seed
+pm2 start ecosystem.config.cjs --env production && pm2 save
+# then add an nginx server block → localhost:5001 and point Cloudflare DNS at the VM
 ```
 
-Your domain is then live with automatic HTTPS. **Full step-by-step (including
-how to get a server, domain, and Cloudflare tunnel): [SETUP_HOSTING.md](./SETUP_HOSTING.md).**
-
+**Full step-by-step (nginx block, Cloudflare DNS, backups, running both sites):
+[SETUP_HOSTING.md](./SETUP_HOSTING.md).**
 Integrations (email, Google login): [SETUP_INTEGRATIONS.md](./SETUP_INTEGRATIONS.md).
 
 ### Updating after the first deploy
 
 ```bash
-git pull && docker compose up -d --build   # data + uploads are preserved
+./scripts/deploy.sh         # git pull → install → migrate → build → pm2 restart
 ```
 
-> Prefer a traditional Node + PM2 + nginx setup instead of Docker?
-> That's still supported — see [DEPLOYMENT.md](./DEPLOYMENT.md) and `scripts/setup.sh`.
+> Want zero-server hosting on a fresh machine instead? A Docker + Cloudflare
+> Tunnel setup is also bundled (`docker compose up -d --build`) — but on your
+> existing VM the steps above are simpler.
 
 ---
 
