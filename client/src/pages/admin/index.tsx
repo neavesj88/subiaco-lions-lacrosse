@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import RichTextEditor from "@/components/rich-text-editor";
 import ImageUploader from "@/components/image-uploader";
 import ImagePicker from "@/components/image-picker";
+import ChangePasswordDialog from "@/components/change-password-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +22,8 @@ import { formatDate } from "@/lib/utils";
 import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
   ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
-  Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft, List as ListIcon
+  Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft, List as ListIcon,
+  KeyRound, AlertTriangle
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ListManager from "@/components/list-manager";
@@ -574,16 +576,45 @@ export default function AdminDashboard() {
           <span className="text-maroon-300 text-sm ml-3">— {user.name}</span>
           <RoleBadge role={user.role} />
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-maroon-400 text-white hover:bg-maroon-600"
-          onClick={() => logoutMutation.mutate(undefined, { onSuccess: () => navigate("/") })}
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
-        </Button>
+        <div className="flex items-center gap-2">
+          <ChangePasswordDialog
+            onChanged={() => qc.invalidateQueries({ queryKey: ["/api/auth/me"] })}
+            trigger={
+              <Button size="sm" variant="outline" className="border-maroon-400 text-white hover:bg-maroon-600">
+                <KeyRound className="h-4 w-4" />
+                Password
+              </Button>
+            }
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-maroon-400 text-white hover:bg-maroon-600"
+            onClick={() => logoutMutation.mutate(undefined, { onSuccess: () => navigate("/") })}
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
+        </div>
       </div>
+
+      {/* Default-password warning — shown until the admin changes it.
+          Critical for a gifted site so it never sits on the public default. */}
+      {user.usingDefaultPassword && (
+        <div className="bg-amber-50 border-b border-amber-300 px-4 py-3">
+          <div className="max-w-6xl mx-auto flex items-center gap-3 text-amber-900">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+            <p className="text-sm flex-1">
+              <strong>Security warning:</strong> you're still using the default password.
+              Anyone who knows it can log in. Please change it now.
+            </p>
+            <ChangePasswordDialog
+              onChanged={() => qc.invalidateQueries({ queryKey: ["/api/auth/me"] })}
+              trigger={<Button size="sm" variant="gold"><KeyRound className="h-4 w-4" />Change Password</Button>}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Summary cards */}

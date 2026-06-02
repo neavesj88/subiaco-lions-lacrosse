@@ -239,7 +239,46 @@ export async function registerRoutes(app: Express) {
     if (!userId) return res.status(401).json({ message: "Not authenticated" });
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!user) return res.status(401).json({ message: "User not found" });
-    res.json({ id: user.id, name: user.name, role: user.role, email: user.email, username: user.username });
+
+    // Flag if this account still uses the default seeded password. The admin UI
+    // shows a prominent warning banner until it's changed — important for a
+    // gifted/handed-over site so it never sits on the public default password.
+    let usingDefaultPassword = false;
+    if (user.passwordHash) {
+      usingDefaultPassword = await bcrypt.compare("lions2024!", user.passwordHash);
+    }
+
+    res.json({
+      id: user.id, name: user.name, role: user.role,
+      email: user.email, username: user.username, usingDefaultPassword,
+    });
+  });
+
+  // ── Change own password (any logged-in admin) ───────────────────────
+  // Lets every admin manage their OWN password without needing a super admin.
+  // Requires the current password (unless the account is still on the default).
+  app.post("/api/auth/change-password", requireAuth, async (req: Request, res: Response) => {
+    const { currentPassword, newPassword } = req.body;
+    if (!newPassword || String(newPassword).length < 8) {
+      return res.status(400).json({ message: "New password must be at least 8 characters." });
+    }
+    const [user] = await db.select().from(users).where(eq(users.id, req.session.userId!)).limit(1);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Verify the current password (skip the check only if still on the default,
+    // so a freshly-handed-over admin can set their own without friction).
+    const onDefault = user.passwordHash
+      ? await bcrypt.compare("lions2024!", user.passwordHash)
+      : false;
+    if (!onDefault) {
+      const ok = user.passwordHash && (await bcrypt.compare(currentPassword ?? "", user.passwordHash));
+      if (!ok) return res.status(400).json({ message: "Current password is incorrect." });
+    }
+
+    await db.update(users)
+      .set({ passwordHash: await bcrypt.hash(newPassword, 12) })
+      .where(eq(users.id, user.id));
+    res.json({ ok: true });
   });
 
   // ── Google OAuth ────────────────────────────────────────────────────
@@ -705,9 +744,34 @@ export async function registerRoutes(app: Express) {
     res.status(201).json(row);
   });
 
+  // Helper: how many ACTIVE super admins exist (besides an optional excluded id).
+  // Used to prevent the club from ever locking themselves out by removing,
+  // demoting or deactivating their last super admin.
+  async function countOtherActiveSuperAdmins(excludeId: number): Promise<number> {
+    const supers = await db.select({ id: users.id }).from(users)
+      .where(and(eq(users.role, "super_admin"), eq(users.isActive, true)));
+    return supers.filter((u) => u.id !== excludeId).length;
+  }
+
   app.put("/api/users/:id", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const { name, email, role, isActive, password } = req.body;
+
+    // Look up the user being edited so we can apply lockout safeguards
+    const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!target) return res.status(404).json({ message: "User not found" });
+
+    // SAFEGUARD: don't allow demoting or deactivating the LAST active super admin.
+    // Without this, a club could accidentally remove all super-admin access and
+    // permanently lose the ability to manage users and settings.
+    const demoting = role && role !== "super_admin" && target.role === "super_admin";
+    const deactivating = isActive === false && target.role === "super_admin";
+    if ((demoting || deactivating) && (await countOtherActiveSuperAdmins(id)) === 0) {
+      return res.status(400).json({
+        message: "This is the only Super Admin. Promote another user to Super Admin first, then change this one.",
+      });
+    }
+
     const updates: Record<string, unknown> = {};
     if (name) updates.name = name;
     if (email) updates.email = email;
@@ -716,13 +780,21 @@ export async function registerRoutes(app: Express) {
     if (password) updates.passwordHash = await bcrypt.hash(password, 12);
     const [row] = await db.update(users).set(updates).where(eq(users.id, id))
       .returning({ id: users.id, name: users.name, role: users.role, isActive: users.isActive });
-    if (!row) return res.status(404).json({ message: "User not found" });
     res.json(row);
   });
 
   app.delete("/api/users/:id", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     if (id === req.session.userId) return res.status(400).json({ message: "Cannot delete your own account" });
+
+    // SAFEGUARD: never delete the last active super admin (prevents permanent lockout)
+    const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (target?.role === "super_admin" && (await countOtherActiveSuperAdmins(id)) === 0) {
+      return res.status(400).json({
+        message: "This is the only Super Admin. Promote another user to Super Admin before deleting this one.",
+      });
+    }
+
     await db.delete(users).where(eq(users.id, id));
     res.json({ ok: true });
   });

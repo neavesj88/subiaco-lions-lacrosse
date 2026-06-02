@@ -7,6 +7,7 @@ export type AuthUser = {
   role: "super_admin" | "club_admin" | "juniors_coordinator" | "content_manager";
   email: string;
   username: string;
+  usingDefaultPassword?: boolean;
 };
 
 const roleLevel: Record<AuthUser["role"], number> = {
