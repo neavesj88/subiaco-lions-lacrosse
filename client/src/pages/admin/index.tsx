@@ -439,6 +439,24 @@ export default function AdminDashboard() {
     enabled: hasRole("super_admin"),
   });
 
+  // Login security: IPs with failed login attempts (refreshes every 30s)
+  const { data: loginAttempts = [] } = useQuery<
+    { ip: string; attempts: number; lastAttempt: string; status: string }[]
+  >({
+    queryKey: ["/api/security/login-attempts"],
+    queryFn: () => apiRequest("GET", "/api/security/login-attempts"),
+    enabled: hasRole("super_admin"),
+    refetchInterval: 30_000,
+  });
+
+  const unblockMutation = useMutation({
+    mutationFn: (ip: string) => apiRequest("POST", "/api/security/unblock", { ip }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/security/login-attempts"] });
+      toast({ title: "IP unblocked" });
+    },
+  });
+
   const { data: mediaItems = [] } = useQuery<MediaUpload[]>({
     queryKey: ["/api/media"],
     queryFn: () => apiRequest("GET", "/api/media"),
@@ -1287,6 +1305,47 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 <div className="pt-2 text-xs text-stone-400">Tip: You can always re-enable a page here if you want to add it back later.</div>
+                </CardContent>
+              </Card>
+
+              {/* ── Login Security ── */}
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-maroon-700" />
+                    Login Security
+                  </CardTitle>
+                  <p className="text-sm text-stone-500">
+                    The admin login locks out an IP address after repeated failed attempts
+                    (5 min after 3 fails, escalating up to 24 hours). Locked IPs appear below.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {loginAttempts.length === 0 ? (
+                    <p className="text-sm text-stone-400 py-2">No failed login attempts. All clear. ✓</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {loginAttempts.map((a) => (
+                        <div key={a.ip} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-stone-50">
+                          <div className="min-w-0">
+                            <span className="font-mono text-sm text-stone-800">{a.ip}</span>
+                            <span className="text-xs text-stone-400 ml-2">
+                              {a.attempts} failed · {new Date(a.lastAttempt).toLocaleString("en-AU")}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant={a.status === "Blocked" ? "default" : "secondary"} className="text-xs">
+                              {a.status}
+                            </Badge>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs"
+                              onClick={() => unblockMutation.mutate(a.ip)}>
+                              Unblock
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

@@ -58,7 +58,20 @@ Admin → **Users** (Super Admins only). There are four permission levels:
 
 ---
 
-## 4. "Help, nobody can log in!" (emergency reset)
+## 4. Login protection (automatic)
+
+The admin login automatically protects itself against password-guessing:
+after a few wrong passwords from the same device, that device is temporarily
+locked out (5 minutes, increasing if it keeps trying). Legitimate admins on
+other devices are never affected.
+
+Super Admins can see any locked-out addresses — and clear them — under
+**Settings → Login Security**. If *you* get locked out by mistake, just wait a
+few minutes, or use a different device, or do the emergency reset below.
+
+---
+
+## 5. "Help, nobody can log in!" (emergency reset)
 
 If every admin is locked out, whoever manages the server can reset access:
 
@@ -73,7 +86,7 @@ set up — it's the guaranteed way back in.
 
 ---
 
-## 5. Backups (important!)
+## 6. Backups (important!)
 
 Everything you create — news, photos, sign-ups — lives on the server. Back it up.
 
@@ -87,7 +100,7 @@ Everything you create — news, photos, sign-ups — lives on the server. Back i
 
 ---
 
-## 6. Optional features you can turn on later
+## 7. Optional features you can turn on later
 
 These work without setup, but become better if configured (see
 `SETUP_INTEGRATIONS.md` for click-by-click steps):
@@ -99,7 +112,7 @@ These work without setup, but become better if configured (see
 
 ---
 
-## 7. Who to call
+## 8. Who to call
 
 - **Day-to-day content:** any committee member with an admin login (this guide).
 - **Server / domain / technical issues:** whoever set the site up for you.

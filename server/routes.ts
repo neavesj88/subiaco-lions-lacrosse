@@ -52,6 +52,10 @@ import { notifyContactMessage, notifyNewRegistration } from "./email";
 import { SITEMAP_PAGES } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
 import { getAdminPath } from "./runtime-config";
+import {
+  getClientIP, isBlocked, recordFailedAttempt, recordSuccessfulLogin,
+  formatTime, getSuspiciousIPs, unblockIP,
+} from "./security";
 
 const SQLiteStore = ConnectSqlite3(session);
 
@@ -212,18 +216,46 @@ export async function registerRoutes(app: Express) {
   });
 
   // ── Auth — username/password ────────────────────────────────────────
+  // Protected by progressive IP-based brute-force lockout (see server/security.ts)
   app.post("/api/auth/login", async (req: Request, res: Response) => {
+    const ip = getClientIP(req);
+
+    // 1. If this IP is currently locked out, reject before doing anything else
+    const block = isBlocked(ip);
+    if (block.blocked) {
+      return res.status(429).json({
+        message: `Too many failed attempts. Please try again in ${formatTime(block.timeRemaining || 0)}.`,
+        retryAfter: block.timeRemaining,
+      });
+    }
+
     const parsed = loginSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ message: "Invalid credentials" });
+    if (!parsed.success) {
+      recordFailedAttempt(ip);
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
     const { username, password } = parsed.data;
     const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
 
-    if (!user || !user.isActive) return res.status(401).json({ message: "Invalid credentials" });
+    // 2. Any failure (bad user, inactive, wrong password) counts as an attempt.
+    //    The message stays generic so attackers can't tell which part was wrong.
+    const fail = (msg = "Invalid credentials") => {
+      const r = recordFailedAttempt(ip);
+      const m = r.blockedUntil
+        ? `Invalid credentials. Too many failed attempts — locked for ${formatTime(r.blockedUntil.getTime() - Date.now())}.`
+        : msg;
+      return res.status(401).json({ message: m });
+    };
+
+    if (!user || !user.isActive) return fail();
     if (!user.passwordHash) return res.status(401).json({ message: "This account uses Google Sign-In" });
 
     const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) return res.status(401).json({ message: "Invalid credentials" });
+    if (!valid) return fail();
+
+    // 3. Success — clear this IP's failed-attempt record
+    recordSuccessfulLogin(ip);
 
     req.session.userId = user.id;
     req.session.userRole = user.role;
@@ -799,6 +831,18 @@ export async function registerRoutes(app: Express) {
 
     await db.delete(users).where(eq(users.id, id));
     res.json({ ok: true });
+  });
+
+  // ── Login security (super admin) ────────────────────────────────────
+  // Shows IPs that have failed login attempts and lets an admin clear a block.
+  app.get("/api/security/login-attempts", requireAuth, requireRole("super_admin"), (_req: Request, res: Response) => {
+    res.json(getSuspiciousIPs());
+  });
+
+  app.post("/api/security/unblock", requireAuth, requireRole("super_admin"), (req: Request, res: Response) => {
+    const { ip } = req.body;
+    if (!ip) return res.status(400).json({ message: "IP required" });
+    res.json({ ok: unblockIP(ip) });
   });
 
   return server;
