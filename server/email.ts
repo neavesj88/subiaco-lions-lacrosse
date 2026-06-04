@@ -136,7 +136,7 @@ export async function notifyContactMessage(data: {
         <div style="margin-top:16px;padding:16px;background:#f5f5f5;border-radius:8px;white-space:pre-wrap">${data.message}</div>
         <p style="margin-top:20px;color:#888;font-size:12px">
           Reply directly to this email to respond to ${data.name}.<br>
-          Message also saved in your <a href="/admin">admin panel → Messages</a>.
+          This message is also saved in your admin panel under Messages.
         </p>
       </div>
     `,
@@ -188,12 +188,7 @@ export async function notifyNewRegistration(data: {
           ${data.howHeard ? `<tr><td style="padding:6px 0;color:#666">How they heard</td><td style="padding:6px 0">${data.howHeard}</td></tr>` : ""}
         </table>
         ${data.message ? `<div style="margin-top:16px;padding:16px;background:#f5f5f5;border-radius:8px"><strong>Their message:</strong><br><br>${data.message}</div>` : ""}
-        <p style="margin-top:20px">
-          <a href="/admin" style="background:#7B1E32;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">
-            View in Admin Panel →
-          </a>
-        </p>
-        <p style="margin-top:16px;color:#888;font-size:12px">Update their status (Contacted → Registered) in Admin → Sign-Ups.</p>
+        <p style="margin-top:16px;color:#888;font-size:12px">Log in to your admin panel to update their status (Contacted → Registered) under Sign-Ups.</p>
       </div>
     `,
     text: `New sign-up: ${fullName}\nEmail: ${data.email}\n${data.phone ? `Phone: ${data.phone}\n` : ""}Junior: ${data.isJunior ? "Yes" : "No"}\nExperience: ${data.experienceLevel}\n\n${data.message ?? ""}`,

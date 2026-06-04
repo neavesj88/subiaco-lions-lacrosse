@@ -12,6 +12,7 @@ import RichTextEditor from "@/components/rich-text-editor";
 import ImageUploader from "@/components/image-uploader";
 import ImagePicker from "@/components/image-picker";
 import ChangePasswordDialog from "@/components/change-password-dialog";
+import { ADMIN_LOGIN_PATH } from "@/lib/admin-path";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -405,7 +406,7 @@ export default function AdminDashboard() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    if (!isLoading && !user) navigate("/admin/login");
+    if (!isLoading && !user) navigate(ADMIN_LOGIN_PATH);
   }, [user, isLoading]);
 
   const { data: events = [] } = useQuery<Event[]>({

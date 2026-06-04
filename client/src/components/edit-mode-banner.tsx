@@ -9,6 +9,7 @@
 import { useLocation } from "wouter";
 import { Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { ADMIN_PATH } from "@/lib/admin-path";
 
 export default function EditModeBanner() {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export default function EditModeBanner() {
 
   // Only show for logged-in admins, and not on the admin dashboard/login
   if (!user) return null;
-  if (location.startsWith("/admin")) return null;
+  if (location.startsWith(ADMIN_PATH)) return null;
 
   return (
     <div className="fixed bottom-4 left-4 z-30 bg-maroon-700 text-white text-xs rounded-full pl-3 pr-4 py-2 shadow-lg flex items-center gap-2 max-w-[280px]">

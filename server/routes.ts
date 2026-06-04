@@ -51,6 +51,7 @@ import { requireAuth, requireRole } from "./middleware";
 import { notifyContactMessage, notifyNewRegistration } from "./email";
 import { SITEMAP_PAGES } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
+import { getAdminPath } from "./runtime-config";
 
 const SQLiteStore = ConnectSqlite3(session);
 
@@ -157,12 +158,13 @@ export async function registerRoutes(app: Express) {
   // Admin pages are disallowed so they don't appear in search results.
   app.get("/robots.txt", (req: Request, res: Response) => {
     const origin = getOrigin(req);
+    // NOTE: we deliberately do NOT list the admin path here — robots.txt is
+    // public, so naming it would defeat the point of a secret path. The admin
+    // area is noindex'd via the page itself instead.
     res.type("text/plain").send(
       [
         "User-agent: *",
         "Allow: /",
-        "Disallow: /admin",
-        "Disallow: /admin/",
         "",
         `Sitemap: ${origin}/sitemap.xml`,
       ].join("\n")
@@ -288,7 +290,7 @@ export async function registerRoutes(app: Express) {
 
   app.get(
     "/api/auth/google/callback",
-    passport.authenticate("google", { failureRedirect: "/admin/login?error=google" }),
+    passport.authenticate("google", { failureRedirect: `${getAdminPath()}/login?error=google` }),
     async (req: Request, res: Response) => {
       const user = req.user as any;
       if (user) {
@@ -296,7 +298,7 @@ export async function registerRoutes(app: Express) {
         req.session.userRole = user.role;
         req.session.userName = user.name;
       }
-      res.redirect("/admin");
+      res.redirect(getAdminPath());
     }
   );
 

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSettings } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ADMIN_PATH } from "@/lib/admin-path";
 
 export default function Navigation() {
   const [location] = useLocation();
@@ -93,7 +94,7 @@ export default function Navigation() {
             </Link>
 
             {user && (
-              <Link href="/admin" className="ml-1">
+              <Link href={ADMIN_PATH} className="ml-1">
                 <Button size="sm" variant="outline" className="border-maroon-400 text-white hover:bg-maroon-600 gap-1.5">
                   <Shield className="h-3.5 w-3.5" /> Admin
                 </Button>
@@ -131,7 +132,7 @@ export default function Navigation() {
               <Button size="sm" variant="gold" className="w-full mt-1">Join Up</Button>
             </Link>
             {user && (
-              <Link href="/admin" onClick={() => setOpen(false)}>
+              <Link href={ADMIN_PATH} onClick={() => setOpen(false)}>
                 <Button size="sm" variant="outline" className="w-full mt-1 border-maroon-400 text-white gap-1.5">
                   <Shield className="h-3.5 w-3.5" /> Admin Panel
                 </Button>

@@ -7,7 +7,9 @@ Keep this document somewhere safe (and share it with at least two committee memb
 
 ## 1. Logging in
 
-- Go to **https://YOUR-DOMAIN/admin/login**
+- Go to **https://YOUR-DOMAIN/SECRET-PATH/login**
+  (the admin area is at a private path, not the obvious "/admin", to keep bots
+  out — the exact address was provided at handover. Bookmark it.)
 - Username and password were provided at handover.
 - **First thing to do:** if you see a yellow "Security warning" bar at the top,
   click **Change Password** and set your own. Don't skip this.

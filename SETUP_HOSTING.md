@@ -48,9 +48,12 @@ Set at minimum:
 NODE_ENV=production
 PORT=5001
 SESSION_SECRET=paste-a-long-random-string
+ADMIN_PATH=/pick-a-secret-path        # admin login lives here, not /admin
 ```
 
 Generate the secret with: `openssl rand -hex 32`
+Pick a private `ADMIN_PATH` (e.g. `/lions-office-7y2x`) so the login isn't at the
+obvious `/admin`. You'll log in at `https://your-domain.com<ADMIN_PATH>/login`.
 (Email + Google login are optional — see `SETUP_INTEGRATIONS.md`. Leave blank for now.)
 
 Save: `Ctrl+O`, `Enter`, `Ctrl+X`.
@@ -134,10 +137,12 @@ Give DNS a minute, then open `https://lions-domain.com` — it's live with HTTPS
 
 ## Step 6 — Log in and lock down
 
-1. `https://lions-domain.com/admin/login`
+1. Go to your secret admin path: `https://lions-domain.com<ADMIN_PATH>/login`
+   (e.g. `/pick-a-secret-path/login` — whatever you set in `.env`).
 2. Log in: **`admin` / `lions2024!`**
-3. **Change the password immediately** (Admin → Users) and set club details in
-   Admin → Settings.
+3. **Change the password immediately** — a yellow warning banner will prompt you,
+   or use the **Password** button in the admin top bar. Then set club details in
+   Settings.
 
 ---
 

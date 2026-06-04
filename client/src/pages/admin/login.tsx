@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Lock } from "lucide-react";
+import { ADMIN_PATH } from "@/lib/admin-path";
 
 const schema = z.object({
   username: z.string().min(1, "Required"),
@@ -45,7 +46,7 @@ export default function AdminLogin() {
   const googleError = new URLSearchParams(location.split("?")[1] ?? "").get("error") === "google";
 
   useEffect(() => {
-    if (user) navigate("/admin");
+    if (user) navigate(ADMIN_PATH);
   }, [user]);
 
   useEffect(() => {
@@ -64,7 +65,7 @@ export default function AdminLogin() {
 
   const onSubmit = (data: FormData) => {
     loginMutation.mutate(data, {
-      onSuccess: () => navigate("/admin"),
+      onSuccess: () => navigate(ADMIN_PATH),
       onError: (e) => toast({ title: "Login failed", description: e.message, variant: "destructive" }),
     });
   };

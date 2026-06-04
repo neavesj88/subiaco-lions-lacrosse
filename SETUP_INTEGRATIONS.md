@@ -14,7 +14,7 @@ in development).
 
 ## Part 1 — Google Sign-In for admins
 
-Lets admins log into `/admin` with their Google account instead of a password.
+Lets admins log into the admin area with their Google account instead of a password.
 
 ### Step 1: Create a Google Cloud project
 1. Go to **https://console.cloud.google.com**
@@ -54,7 +54,7 @@ GOOGLE_CALLBACK_URL=https://YOURDOMAIN.com.au/api/auth/google/callback
 
 ### Step 5: Restart and match emails
 1. Restart the app: `pm2 restart lions-lacrosse`
-2. The **"Sign in with Google"** button now appears on `/admin/login`
+2. The **"Sign in with Google"** button now appears on the admin login page
 3. **Important:** an admin can only log in with Google if their Google email
    matches the email on their admin account. In **Admin → Users**, make sure
    each person's email is their Google address.
