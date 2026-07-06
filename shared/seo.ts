@@ -83,6 +83,12 @@ export const PAGE_SEO: Record<string, PageSeo> = {
     keywords:
       "join lacrosse Perth, learn lacrosse, play lacrosse WA, lacrosse beginners Perth, sign up lacrosse Subiaco",
   },
+  "/coaches-board": {
+    title: "Coaches Board — Tactical Whiteboard | Subiaco Lions Lacrosse",
+    description:
+      "Free interactive lacrosse tactical whiteboard from the Subiaco Lions. Draw plays, position players and plan set pieces — works on phones and tablets, even offline.",
+    keywords: "lacrosse whiteboard, lacrosse tactics board, lacrosse coaching app, lacrosse play designer",
+  },
   "/contact": {
     title: "Contact Us | Subiaco Lions Lacrosse Club",
     description:
@@ -109,5 +115,6 @@ export const SITEMAP_PAGES: { path: string; priority: number; changefreq: string
   { path: "/fixtures", priority: 0.8, changefreq: "weekly" },
   { path: "/gallery", priority: 0.5, changefreq: "weekly" },
   { path: "/store", priority: 0.5, changefreq: "monthly" },
+  { path: "/coaches-board", priority: 0.5, changefreq: "monthly" },
   { path: "/contact", priority: 0.6, changefreq: "yearly" },
 ];

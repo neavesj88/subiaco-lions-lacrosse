@@ -136,6 +136,7 @@ db.exec(`
 `);
 
 addSetting('club_logo_url', '');  // Upload a logo in Media Library, paste URL here
+addSetting('nav_show_coaches_board', 'true');   // Coaches Board tactical whiteboard page
 // GameDay is the third-party that hosts the club's fixtures & results.
 // Admins can update this in Admin → Settings if the club ID ever changes.
 addSetting('gameday_url', 'https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0');

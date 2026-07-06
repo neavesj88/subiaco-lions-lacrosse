@@ -11,7 +11,7 @@
 
 import {
   Rocket, Pencil, Megaphone, ImageIcon, Calendar, ClipboardList, Trophy,
-  ListChecks, Settings, Users, ShieldAlert, LifeBuoy,
+  ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -124,6 +124,17 @@ const GUIDE: GuideSection[] = [
       "Open Page Lists and pick the list you want.",
       "Add, edit, remove or re-order rows with the arrows.",
       "Changes appear on the public pages immediately.",
+    ],
+  },
+  {
+    icon: PenTool,
+    title: "The Coaches Board (tactical whiteboard)",
+    intro:
+      "Under the Club menu there's a full tactical whiteboard for coaches — a lacrosse field where you drag players around, draw plays and plan set pieces. It's a tool, not a page you edit: there's nothing to manage in this panel.",
+    tips: [
+      "It works great on phones and tablets on the sideline — and even keeps working with no internet.",
+      "Saved plays live on each coach's own device, not on the website.",
+      "Don't want it in the menu? Turn it off under Settings → Page Visibility.",
     ],
   },
   {

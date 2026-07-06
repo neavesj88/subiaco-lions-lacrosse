@@ -222,6 +222,7 @@ export async function registerRoutes(app: Express) {
       "/gallery": "gallery",
       "/fixtures": "fixtures",
       "/store": "store",
+      "/coaches-board": "coaches_board",
     };
 
     const today = new Date().toISOString().split("T")[0];

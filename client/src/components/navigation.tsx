@@ -16,10 +16,11 @@ export default function Navigation() {
 
   // "Club" dropdown — only shows items that are enabled in Admin → Settings
   const clubItems = [
-    { href: "/calendar",  label: "Calendar",         key: "calendar"  },
-    { href: "/fixtures",  label: "Fixtures",         key: "fixtures"  },
-    { href: "/gallery",   label: "Photo Gallery",    key: "gallery"   },
-    { href: "/store",     label: "Store",            key: "store"     },
+    { href: "/calendar",      label: "Calendar",       key: "calendar"      },
+    { href: "/fixtures",      label: "Fixtures",       key: "fixtures"      },
+    { href: "/gallery",       label: "Photo Gallery",  key: "gallery"       },
+    { href: "/store",         label: "Store",          key: "store"         },
+    { href: "/coaches-board", label: "Coaches Board",  key: "coaches_board" },
   ].filter((item) => item.key === "calendar" || pageEnabled(item.key));
   // Calendar is always shown — it's core club functionality
 
@@ -120,6 +121,7 @@ export default function Navigation() {
               { href: "/fixtures",label: "Fixtures",      show: pageEnabled("fixtures") },
               { href: "/gallery", label: "Photo Gallery", show: pageEnabled("gallery") },
               { href: "/store",   label: "Store",         show: pageEnabled("store") },
+              { href: "/coaches-board", label: "Coaches Board", show: pageEnabled("coaches_board") },
               { href: "/juniors", label: "Juniors",       show: pageEnabled("juniors") },
               { href: "/contact", label: "Contact",       show: true },
             ].filter((l) => l.show).map((l) => (

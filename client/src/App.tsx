@@ -42,6 +42,7 @@ const SignUp = lazy(() => import("@/pages/sign-up"));
 const Juniors = lazy(() => import("@/pages/juniors"));
 const Store = lazy(() => import("@/pages/store"));
 const Contact = lazy(() => import("@/pages/contact"));
+const CoachesBoard = lazy(() => import("@/pages/coaches-board"));
 const AdminLogin = lazy(() => import("@/pages/admin/login"));
 const AdminDashboard = lazy(() => import("@/pages/admin/index"));
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -59,6 +60,8 @@ function Router() {
   const [location] = useLocation();
   // Don't apply public SEO to admin pages (they shouldn't be indexed)
   const isAdmin = location.startsWith(ADMIN_PATH);
+  // The Coaches Board is a full-screen tool — no footer / edit banner there.
+  const isBoard = location === "/coaches-board";
 
   // Tell search engines never to index the admin area, even if its URL is found.
   useEffect(() => {
@@ -91,15 +94,16 @@ function Router() {
             <Route path="/juniors" component={Juniors} />
             <Route path="/store" component={Store} />
             <Route path="/contact" component={Contact} />
+            <Route path="/coaches-board" component={CoachesBoard} />
             <Route path={ADMIN_LOGIN_PATH} component={AdminLogin} />
             <Route path={ADMIN_PATH} component={AdminDashboard} />
             <Route component={NotFound} />
           </Switch>
         </Suspense>
       </main>
-      <Footer />
+      {!isBoard && <Footer />}
       <Toaster />
-      <EditModeBanner />
+      {!isBoard && <EditModeBanner />}
     </div>
   );
 }

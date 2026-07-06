@@ -1292,6 +1292,7 @@ export default function AdminDashboard() {
                     { key: "nav_show_gallery",    label: "Photo Gallery",    desc: "The /gallery page showing uploaded photos" },
                     { key: "nav_show_fixtures",   label: "Fixtures",         desc: "The /fixtures page linking to LacrosseWA & GameDay" },
                     { key: "nav_show_store",      label: "Club Store",       desc: "The /store merchandise page" },
+                    { key: "nav_show_coaches_board", label: "Coaches Board", desc: "The tactical whiteboard app for coaches (under the Club menu)" },
                     { key: "nav_show_results",    label: "Recent Results",   desc: "Match results section on the home page" },
                     { key: "nav_show_sponsors",   label: "Sponsor Strip",    desc: "Sponsor logos shown at the bottom of the home page" },
                     { key: "nav_show_newsletter", label: "Newsletter Widget",desc: "Email subscribe form on the home page" },
