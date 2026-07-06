@@ -3,25 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
-import { RichTextDisplay } from "@/components/rich-text-editor";
+import { RichTextDisplay } from "@/components/rich-text-display";
+import { useListItems } from "@/hooks/use-list-items";
 
-const teams = [
-  {
-    category: "Men's",
-    color: "bg-blue-600",
-    divisions: ["State League", "Division 1", "Division 2", "Division 3"],
-  },
-  {
-    category: "Women's",
-    color: "bg-purple-600",
-    divisions: ["State League", "Division 1", "Division 2"],
-  },
-  {
-    category: "Juniors",
-    color: "bg-green-600",
-    divisions: ["Under 11", "Under 13", "Under 15", "Under 17"],
-  },
-];
+// Accent colour for each team group's card. The team/division data itself is
+// managed in Admin → Page Lists → Team Divisions (shared with the Fixtures page).
+const teamColors: Record<string, string> = {
+  "Men's": "bg-blue-600",
+  "Women's": "bg-purple-600",
+  "Juniors": "bg-green-600",
+};
 
 // Default text — used until an admin edits a section. Stored in DB once edited.
 const DEFAULTS = {
@@ -33,6 +24,18 @@ const DEFAULTS = {
 
 export default function About() {
   const { get } = usePageContent("about");
+
+  // Team divisions come from the database (Admin → Page Lists → Team Divisions).
+  // Rows are grouped by their "group" field (Men's / Women's / Juniors),
+  // preserving the admin's chosen order — same data the Fixtures page uses.
+  const { items: divisions } = useListItems("team_division");
+  const teams: { category: string; divisions: string[] }[] = [];
+  for (const d of divisions) {
+    const cat = d.group ?? "Teams";
+    let grp = teams.find((g) => g.category === cat);
+    if (!grp) { grp = { category: cat, divisions: [] }; teams.push(grp); }
+    grp.divisions.push(d.title);
+  }
 
   return (
     <>

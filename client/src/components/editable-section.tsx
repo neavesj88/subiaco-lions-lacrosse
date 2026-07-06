@@ -19,15 +19,19 @@
 // When logged in, a pencil button appears on hover at the top-right corner.
 // =============================================================================
 
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageContent } from "@/hooks/use-page-content";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import RichTextEditor, { RichTextDisplay } from "@/components/rich-text-editor";
 import { toast } from "@/components/ui/toaster";
+
+// PERFORMANCE: the TipTap rich-text editor is a large library that public
+// visitors never need. lazy() means the browser only downloads it the moment
+// an admin actually opens an edit dialog — the public site stays fast.
+const RichTextEditor = lazy(() => import("@/components/rich-text-editor"));
 
 interface EditableSectionProps {
   page: string;
@@ -91,12 +95,16 @@ export default function EditableSection({
 
           <div className="space-y-4">
             {richText ? (
-              <RichTextEditor
-                value={draft}
-                onChange={setDraft}
-                placeholder="Enter content..."
-                minHeight="180px"
-              />
+              // Suspense shows a placeholder for the moment it takes to fetch
+              // the editor code the first time an admin opens a rich-text dialog.
+              <Suspense fallback={<div className="h-[180px] flex items-center justify-center text-sm text-stone-400 border rounded-md">Loading editor…</div>}>
+                <RichTextEditor
+                  value={draft}
+                  onChange={setDraft}
+                  placeholder="Enter content..."
+                  minHeight="180px"
+                />
+              </Suspense>
             ) : (
               <Textarea
                 value={draft}

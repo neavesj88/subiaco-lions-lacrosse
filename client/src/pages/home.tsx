@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import InstagramFeed from "@/components/instagram-feed";
-import { RichTextDisplay } from "@/components/rich-text-editor";
+import { RichTextDisplay } from "@/components/rich-text-display";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
 import { formatDate, formatDateShort } from "@/lib/utils";

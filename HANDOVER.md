@@ -17,6 +17,10 @@ Keep this document somewhere safe (and share it with at least two committee memb
 > Tip: every admin can change their own password anytime via the **Password**
 > button in the top-right of the admin panel.
 
+> **This whole guide also lives inside the site:** click the **Help** tab in
+> the admin panel for step-by-step instructions on every feature. You never
+> need to find this document again.
+
 ---
 
 ## 2. Editing the website

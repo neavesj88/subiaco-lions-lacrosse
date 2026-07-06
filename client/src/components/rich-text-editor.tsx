@@ -80,10 +80,11 @@ export default function RichTextEditor({
     },
   });
 
-  // Sync external value changes (e.g. form reset)
+  // Sync external value changes (e.g. form reset). emitUpdate:false stops the
+  // sync itself firing onChange (TipTap v3 options-object signature).
   useEffect(() => {
     if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value, false);
+      editor.commands.setContent(value, { emitUpdate: false });
     }
   }, [value]);
 
@@ -195,13 +196,8 @@ export default function RichTextEditor({
   );
 }
 
-/** Read-only renderer for rich text HTML stored in DB */
-export function RichTextDisplay({ html, className }: { html: string; className?: string }) {
-  if (!html) return null;
-  return (
-    <div
-      className={cn("prose prose-stone prose-sm max-w-none", className)}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
-}
+// RichTextDisplay used to live here, but that dragged the huge TipTap editor
+// library into the PUBLIC pages just to display saved HTML. It now lives in
+// its own lightweight file (rich-text-display.tsx). This re-export keeps any
+// old imports working, but new code should import from rich-text-display.
+export { RichTextDisplay } from "@/components/rich-text-display";

@@ -13,6 +13,8 @@ import ImageUploader from "@/components/image-uploader";
 import ImagePicker from "@/components/image-picker";
 import ChangePasswordDialog from "@/components/change-password-dialog";
 import { ADMIN_LOGIN_PATH } from "@/lib/admin-path";
+import { useSessionKeepalive } from "@/hooks/use-session-keepalive";
+import AdminHelp from "@/pages/admin/help";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +26,7 @@ import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
   ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
   Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft, List as ListIcon,
-  KeyRound, AlertTriangle
+  KeyRound, AlertTriangle, HelpCircle, Shield
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ListManager from "@/components/list-manager";
@@ -405,6 +407,10 @@ export default function AdminDashboard() {
   const { user, isLoading, logoutMutation, hasRole } = useAuth();
   const qc = useQueryClient();
 
+  // Keeps an ACTIVE admin logged in past the 2h idle timeout (pings the server
+  // while they're working), while an abandoned session still expires.
+  useSessionKeepalive(!!user);
+
   useEffect(() => {
     if (!isLoading && !user) navigate(ADMIN_LOGIN_PATH);
   }, [user, isLoading]);
@@ -683,6 +689,8 @@ export default function AdminDashboard() {
             {hasRole("content_manager") && <TabsTrigger value="media"><ImageIcon className="h-4 w-4 mr-1" />Media</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" />Settings</TabsTrigger>}
+            {/* Help is visible to every admin role — it's the built-in user guide */}
+            <TabsTrigger value="help"><HelpCircle className="h-4 w-4 mr-1" />Help</TabsTrigger>
           </TabsList>
 
           {/* ── Events ── */}
@@ -1350,6 +1358,11 @@ export default function AdminDashboard() {
               </Card>
             </TabsContent>
           )}
+
+          {/* ── Help — the built-in admin user guide (all roles) ── */}
+          <TabsContent value="help">
+            <AdminHelp />
+          </TabsContent>
         </Tabs>
       </div>
     </div>

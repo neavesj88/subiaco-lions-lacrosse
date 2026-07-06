@@ -37,6 +37,7 @@ import bcrypt from "bcrypt";
 import multer from "multer";
 import path from "path";
 import { mkdirSync } from "fs";
+import { randomBytes } from "crypto";
 import { eq, desc, gte, and } from "drizzle-orm";
 import { db } from "./db";
 import {
@@ -44,7 +45,7 @@ import {
   mediaUploads, siteSettings, contactMessages,
   sponsors, matchResults, newsletterSubscribers, pageContent, listItems,
   insertEventSchema, insertRegistrationSchema, insertAnnouncementSchema,
-  insertSponsorSchema, insertMatchResultSchema,
+  insertSponsorSchema, insertMatchResultSchema, insertListItemSchema,
   loginSchema, createUserSchema,
 } from "@shared/schema";
 import { requireAuth, requireRole } from "./middleware";
@@ -138,17 +139,45 @@ export async function registerRoutes(app: Express) {
   // Serve uploaded files
   app.use("/uploads", (await import("express")).default.static(uploadDir));
 
-  // Session
+  // ── Session setup ───────────────────────────────────────────────────
+  // SECURITY: the session secret signs every admin login cookie. If it were
+  // a known/guessable default, anyone could forge an admin session. So:
+  // if SESSION_SECRET is missing (or still a placeholder), we generate a
+  // random one-off secret and warn loudly. The site still works — but every
+  // admin gets logged out whenever the server restarts, until a real
+  // SESSION_SECRET is set in .env (see .env.example for how).
+  const PLACEHOLDER_SECRETS = [
+    "lions-lacrosse-secret-change-me",
+    "change-this-to-a-long-random-string",
+  ];
+  let sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret || PLACEHOLDER_SECRETS.includes(sessionSecret)) {
+    sessionSecret = randomBytes(32).toString("hex");
+    console.warn(
+      "[security] ⚠ SESSION_SECRET is not set in .env — using a random one-off secret.\n" +
+      "[security]   Admin logins will NOT survive a server restart until you set it.\n" +
+      "[security]   Fix: add SESSION_SECRET=<output of `openssl rand -hex 32`> to .env"
+    );
+  }
+
+  // Idle timeout: admins are logged out after this long with NO activity.
+  // "rolling: true" makes it a sliding window — every request an admin makes
+  // pushes the expiry forward, so an actively-working admin is never
+  // interrupted, but a login left open on a shared/club laptop dies after
+  // SESSION_IDLE_HOURS (default 2, same policy as neaves.au).
+  const idleHours = parseFloat(process.env.SESSION_IDLE_HOURS ?? "2") || 2;
+
   app.use(
     session({
       store: new (SQLiteStore as any)({ db: "sessions.db", dir: "./data" }),
-      secret: process.env.SESSION_SECRET ?? "lions-lacrosse-secret-change-me",
+      secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
+      rolling: true, // refresh the expiry on every request (sliding idle window)
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: idleHours * 60 * 60 * 1000,
       },
     })
   );
