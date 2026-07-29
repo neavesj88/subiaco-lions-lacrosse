@@ -63,6 +63,8 @@ Integrations (email, Google login): [SETUP_INTEGRATIONS.md](./SETUP_INTEGRATIONS
 |--------|--------------|
 | `scripts/setup.sh`   | One-time server setup (Node, PM2, build, seed, start) |
 | `scripts/deploy.sh`  | Pull latest code and redeploy |
+| `scripts/tunnel-quick.sh` | Free temporary public URL — no domain needed (testing/demos) |
+| `scripts/tunnel-setup.sh` | Permanent Cloudflare Tunnel on your own domain (no nginx/SSL/ports) |
 | `scripts/migrate.mjs`| Create/update database tables (safe to re-run) |
 | `scripts/backup.sh`  | Back up the database (add to cron for nightly backups) |
 | `scripts/restore.sh` | Restore the database from a backup |

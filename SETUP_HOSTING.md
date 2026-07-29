@@ -194,6 +194,57 @@ affects the other.
 
 ---
 
+## Cloudflare Tunnel — no domain, no nginx, no open ports
+
+If you'd rather not set up the nginx server block and DNS above (or you don't
+have the club's domain yet), a **Cloudflare Tunnel** puts the site online with
+automatic HTTPS and nothing exposed on your server or router.
+
+### Option A — No domain yet (free temporary address)
+
+Great for showing the committee before anything is official:
+
+```bash
+cd ~/subiaco-lions-lacrosse
+pm2 start ecosystem.config.cjs --env production   # make sure the site is running
+./scripts/tunnel-quick.sh                          # tunnels port 5001
+```
+
+Cloudflare prints a free public address like
+`https://shiny-otter-lamp-verb.trycloudflare.com` — open it on any phone or
+share it with the club.
+
+⚠️ **Testing only.** The address changes every restart, it's rate-limited, and
+you can't use your own domain. When the club has a domain, use Option B.
+
+### Option B — With a domain (permanent, production)
+
+Needs the domain added to a free Cloudflare account (Cloudflare walks you
+through pointing the nameservers, a one-time step).
+
+```bash
+cd ~/subiaco-lions-lacrosse
+./scripts/tunnel-setup.sh subiacolions.com.au
+```
+
+The script installs cloudflared, opens a Cloudflare login (copy the URL into a
+browser if the VM is headless), creates the tunnel, **creates the DNS records
+for both `yourdomain.com` and `www.`**, and installs it as a systemd service so
+it starts on boot.
+
+With this you do **not** need the nginx server block or the DNS A records from
+Steps 4–5 above — the tunnel replaces both.
+
+```bash
+sudo systemctl status cloudflared    # is it running?
+sudo journalctl -u cloudflared -f    # live logs
+```
+
+> Running the Lions site behind a tunnel does **not** affect neaves.au — it
+> keeps using nginx on port 5000 exactly as before.
+
+---
+
 ## If you ever want zero-server hosting instead (Docker + Cloudflare Tunnel)
 
 The repo also includes a `Dockerfile` and `docker-compose.yml` that bundle the
