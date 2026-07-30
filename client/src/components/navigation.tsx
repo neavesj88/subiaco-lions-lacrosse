@@ -6,6 +6,9 @@ import { useSettings } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ADMIN_PATH } from "@/lib/admin-path";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import type { CustomPage } from "@shared/schema";
 
 export default function Navigation() {
   const [location] = useLocation();
@@ -14,6 +17,16 @@ export default function Navigation() {
   const { user } = useAuth();
   const { pageEnabled, settings } = useSettings();
 
+  // Pages the club created themselves (Admin → Pages). Each one chooses whether
+  // it appears in the main bar, the Club dropdown, the footer, or nowhere.
+  const { data: customPages = [] } = useQuery<CustomPage[]>({
+    queryKey: ["/api/pages"],
+    queryFn: () => apiRequest("GET", "/api/pages"),
+    staleTime: 60_000,
+  });
+  const customIn = (where: string) =>
+    customPages.filter((p) => p.navLocation === where);
+
   // "Club" dropdown — only shows items that are enabled in Admin → Settings
   const clubItems = [
     { href: "/calendar",      label: "Calendar",       key: "calendar"      },
@@ -21,7 +34,12 @@ export default function Navigation() {
     { href: "/gallery",       label: "Photo Gallery",  key: "gallery"       },
     { href: "/store",         label: "Store",          key: "store"         },
     { href: "/coaches-board", label: "Coaches Board",  key: "coaches_board" },
-  ].filter((item) => item.key === "calendar" || pageEnabled(item.key));
+  ]
+    .filter((item) => item.key === "calendar" || pageEnabled(item.key))
+    // Custom pages set to "In the Club menu" join the same dropdown
+    .concat(customIn("club_menu").map((p) => ({
+      href: `/p/${p.slug}`, label: p.title, key: `custom_${p.id}`,
+    })));
   // Calendar is always shown — it's core club functionality
 
   const clubActive = clubItems.some((i) => location === i.href);
@@ -90,6 +108,17 @@ export default function Navigation() {
               Contact
             </Link>
 
+            {/* Custom pages the admin chose to put in the main menu bar */}
+            {customIn("main").map((p) => (
+              <Link
+                key={p.id}
+                href={`/p/${p.slug}`}
+                className={cn("px-3 py-2 rounded-md text-sm font-medium transition-colors", location === `/p/${p.slug}` ? "bg-maroon-900 text-white" : "text-maroon-100 hover:bg-maroon-600")}
+              >
+                {p.title}
+              </Link>
+            ))}
+
             <Link href="/sign-up" className="ml-1">
               <Button size="sm" variant="gold">Join Up</Button>
             </Link>
@@ -124,6 +153,11 @@ export default function Navigation() {
               { href: "/coaches-board", label: "Coaches Board", show: pageEnabled("coaches_board") },
               { href: "/juniors", label: "Juniors",       show: pageEnabled("juniors") },
               { href: "/contact", label: "Contact",       show: true },
+              // Custom pages listed anywhere except "hidden" appear on mobile,
+              // where there's no separate dropdown/footer distinction.
+              ...customPages
+                .filter((p) => p.navLocation !== "hidden")
+                .map((p) => ({ href: `/p/${p.slug}`, label: p.title, show: true })),
             ].filter((l) => l.show).map((l) => (
               <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
                 className={cn("block px-3 py-2.5 rounded-md text-sm font-medium transition-colors", location === l.href ? "bg-maroon-900 text-white" : "text-maroon-100 hover:bg-maroon-700")}>

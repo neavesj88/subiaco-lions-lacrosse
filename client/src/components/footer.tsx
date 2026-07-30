@@ -1,12 +1,23 @@
 import { Link } from "wouter";
 import { useClubDetails } from "@/components/club-details";
 import { useSettings } from "@/hooks/use-settings";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import type { CustomPage } from "@shared/schema";
 import { Facebook, Instagram, Mail, MapPin } from "lucide-react";
 
 export default function Footer() {
   // Club address, email and social links come from Admin → Settings
   const club = useClubDetails();
   const { settings } = useSettings();
+
+  // Custom pages the admin chose to list in the footer
+  const { data: customPages = [] } = useQuery<CustomPage[]>({
+    queryKey: ["/api/pages"],
+    queryFn: () => apiRequest("GET", "/api/pages"),
+    staleTime: 60_000,
+  });
+  const footerPages = customPages.filter((p) => p.navLocation === "footer");
 
   return (
     <footer className="bg-maroon-900 text-maroon-100">
@@ -39,6 +50,14 @@ export default function Footer() {
                 <li key={l.href}>
                   <Link href={l.href} className="text-maroon-300 hover:text-gold-400 transition-colors">
                     {l.label}
+                  </Link>
+                </li>
+              ))}
+              {/* Club-created pages set to appear in the footer */}
+              {footerPages.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/p/${p.slug}`} className="text-maroon-300 hover:text-gold-400 transition-colors">
+                    {p.title}
                   </Link>
                 </li>
               ))}

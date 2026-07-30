@@ -44,6 +44,8 @@ const Juniors = lazy(() => import("@/pages/juniors"));
 const Store = lazy(() => import("@/pages/store"));
 const Contact = lazy(() => import("@/pages/contact"));
 const CoachesBoard = lazy(() => import("@/pages/coaches-board"));
+// Pages the club creates themselves in Admin → Pages, served at /p/<slug>
+const CustomPage = lazy(() => import("@/pages/custom-page"));
 const AdminLogin = lazy(() => import("@/pages/admin/login"));
 const AdminDashboard = lazy(() => import("@/pages/admin/index"));
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -98,6 +100,7 @@ function Router() {
             <Route path="/store" component={Store} />
             <Route path="/contact" component={Contact} />
             <Route path="/coaches-board" component={CoachesBoard} />
+            <Route path="/p/:slug" component={CustomPage} />
             <Route path={ADMIN_LOGIN_PATH} component={AdminLogin} />
             <Route path={ADMIN_PATH} component={AdminDashboard} />
             <Route component={NotFound} />

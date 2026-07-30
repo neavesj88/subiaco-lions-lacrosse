@@ -11,7 +11,7 @@
 
 import {
   Rocket, Pencil, Megaphone, ImageIcon, Calendar, ClipboardList, Trophy,
-  ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool, Palette,
+  ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool, Palette, FilePlus,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -80,6 +80,25 @@ const GUIDE: GuideSection[] = [
       "'Link' copies a photo's web address, handy if you need to paste it somewhere.",
       "Deleting a photo removes it from the gallery AND from any post using it — delete carefully.",
       "Don't want a public gallery? Turn the page off under Settings → Page Visibility.",
+    ],
+  },
+  {
+    icon: FilePlus,
+    title: "Adding your own pages",
+    intro:
+      "The Pages tab lets you add pages the site didn't come with — Life Members, Club Policies, Coaching Resources, anything you like. You never start from a blank screen.",
+    steps: [
+      "Go to Pages → New Page.",
+      "Pick the template closest to what you need (Simple Information, Questions & Answers, People/Committee, Links & Resources, Schedule, or Blank).",
+      "Give it a title — the web address fills in automatically.",
+      "Overwrite the example content with your own. It's the same editor as news posts, so you can add headings, lists, links and photos.",
+      "Choose where it appears: the Club menu, the main menu bar, the footer, or nowhere.",
+      "Untick 'Visible to visitors' if you want to keep working on it privately, then Create Page.",
+    ],
+    tips: [
+      "The template only fills in a starting layout — you can change or delete anything in it afterwards.",
+      "Every page lives at /p/its-name, so it can never clash with the built-in pages.",
+      "Changing the web address of a live page breaks any links people have saved — best to leave it alone once published.",
     ],
   },
   {

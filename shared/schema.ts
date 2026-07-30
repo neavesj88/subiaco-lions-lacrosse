@@ -241,7 +241,38 @@ export const listItems = sqliteTable("list_items", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// ── Custom Pages (admin-created) ──────────────────────────────────────────────
+// Pages the club creates themselves from the admin panel — e.g. "Life Members",
+// "Coaching Resources", "Club Policies". Distinct from the nine built-in pages,
+// whose text lives in page_content.
+//
+// An admin picks a TEMPLATE (which pre-fills sensible starter content), then
+// edits it freely with the rich text editor. They also choose where it appears
+// in the navigation.
+export const customPages = sqliteTable("custom_pages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  // URL slug, e.g. "life-members" → the page lives at /p/life-members.
+  // The /p/ prefix guarantees a custom page can never collide with a built-in
+  // route like /about or the secret admin path.
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),          // shown in the nav and as the page heading
+  subtitle: text("subtitle"),              // optional line under the heading in the banner
+  content: text("content").notNull().default(""), // HTML from the rich text editor
+  template: text("template").notNull().default("blank"), // which template it started from
+  // Where the link appears: main nav, inside the Club dropdown, footer, or
+  // nowhere (the page still works if you know the link — handy for drafts).
+  navLocation: text("nav_location", {
+    enum: ["main", "club_menu", "footer", "hidden"],
+  }).notNull().default("club_menu"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // ── Zod validation schemas (used in routes for input validation) ───────────────
+export const insertCustomPageSchema = createInsertSchema(customPages).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertListItemSchema = createInsertSchema(listItems).omit({ id: true, createdAt: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true, createdAt: true });
 export const insertRegistrationSchema = createInsertSchema(registrations).omit({ id: true, createdAt: true, status: true });
@@ -276,3 +307,4 @@ export type MatchResult = typeof matchResults.$inferSelect;
 export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 export type PageContent = typeof pageContent.$inferSelect;
 export type ListItem = typeof listItems.$inferSelect;
+export type CustomPage = typeof customPages.$inferSelect;

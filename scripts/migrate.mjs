@@ -145,6 +145,27 @@ addSetting('venue_address', 'Shenton Park WA 6008');
 // Anything Google Maps understands: an address, a place name, or coordinates.
 addSetting('map_query', 'Rosalie Park, Shenton Park WA 6008');
 
+// ── v6: admin-created custom pages ───────────────────────────────────────────
+// Lets the club add their own pages (Life Members, Policies, etc.) from the
+// admin panel. They live at /p/<slug> so they can never clash with a built-in
+// route or the secret admin path.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS custom_pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    subtitle TEXT,
+    content TEXT NOT NULL DEFAULT '',
+    template TEXT NOT NULL DEFAULT 'blank',
+    nav_location TEXT NOT NULL DEFAULT 'club_menu',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_published INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // ── v5: admin-editable theme colours ─────────────────────────────────────────
 // Drive the CSS variables in client/src/index.css. Blank = use the built-in
 // default, so the site always looks right even before an admin picks colours.

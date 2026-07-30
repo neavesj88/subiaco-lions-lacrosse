@@ -17,6 +17,7 @@ import { useSessionKeepalive } from "@/hooks/use-session-keepalive";
 import AdminHelp from "@/pages/admin/help";
 import AdminSecurity from "@/pages/admin/security";
 import MediaLibrary from "@/pages/admin/media-library";
+import AdminPages from "@/pages/admin/pages";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +29,7 @@ import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
   ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
   Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft, List as ListIcon,
-  KeyRound, AlertTriangle, HelpCircle, Shield, Palette
+  KeyRound, AlertTriangle, HelpCircle, Shield, Palette, FileText
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ListManager from "@/components/list-manager";
@@ -677,6 +678,7 @@ export default function AdminDashboard() {
             {hasRole("club_admin") && <TabsTrigger value="sponsors"><Heart className="h-4 w-4 mr-1" />Sponsors</TabsTrigger>}
             {hasRole("club_admin") && <TabsTrigger value="newsletter"><Mail className="h-4 w-4 mr-1" />Newsletter</TabsTrigger>}
             {hasRole("club_admin") && <TabsTrigger value="content"><ListIcon className="h-4 w-4 mr-1" />Page Lists</TabsTrigger>}
+            {hasRole("club_admin") && <TabsTrigger value="pages"><FileText className="h-4 w-4 mr-1" />Pages</TabsTrigger>}
             {hasRole("content_manager") && <TabsTrigger value="media"><ImageIcon className="h-4 w-4 mr-1" />Media</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" />Settings</TabsTrigger>}
@@ -1071,6 +1073,13 @@ export default function AdminDashboard() {
           {hasRole("content_manager") && (
             <TabsContent value="media">
               <MediaLibrary items={mediaItems} onChanged={() => qc.invalidateQueries({ queryKey: ["/api/media"] })} />
+            </TabsContent>
+          )}
+
+          {/* ── Pages — admin-created custom pages ── */}
+          {hasRole("club_admin") && (
+            <TabsContent value="pages">
+              <AdminPages />
             </TabsContent>
           )}
 

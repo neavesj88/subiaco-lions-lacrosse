@@ -43,9 +43,11 @@ import { db } from "./db";
 import {
   users, events, registrations, announcements, juniorsContent,
   mediaUploads, siteSettings, contactMessages,
-  sponsors, matchResults, newsletterSubscribers, pageContent, listItems,
+  sponsors, matchResults, newsletterSubscribers, pageContent,
+  customPages, listItems,
   insertEventSchema, insertRegistrationSchema, insertAnnouncementSchema,
   insertSponsorSchema, insertMatchResultSchema, insertListItemSchema,
+  insertCustomPageSchema,
   loginSchema, createUserSchema,
 } from "@shared/schema";
 import { requireAuth, requireRole } from "./middleware";
@@ -909,6 +911,69 @@ export async function registerRoutes(app: Express) {
         message: "Couldn't remove this account. Try locking it instead (Security → Admin Access).",
       });
     }
+    res.json({ ok: true });
+  });
+
+  // ── Custom Pages (admin-created) ────────────────────────────────────
+  // Public: list published pages (for the nav) and fetch one by slug.
+  // Admin (club_admin+): full create/edit/delete.
+  app.get("/api/pages", async (_req: Request, res: Response) => {
+    const rows = await db.select().from(customPages)
+      .where(eq(customPages.isPublished, true))
+      .orderBy(customPages.sortOrder, customPages.title);
+    res.json(rows);
+  });
+
+  app.get("/api/pages/all", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(customPages).orderBy(customPages.sortOrder, customPages.title);
+    res.json(rows);
+  });
+
+  app.get("/api/pages/:slug", async (req: Request, res: Response) => {
+    const [row] = await db.select().from(customPages)
+      .where(eq(customPages.slug, req.params.slug)).limit(1);
+    if (!row || !row.isPublished) return res.status(404).json({ message: "Page not found" });
+    res.json(row);
+  });
+
+  app.post("/api/pages", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const parsed = insertCustomPageSchema.safeParse({ ...req.body, createdBy: req.session.userId });
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+
+    // Slugs must be unique — they're the page's web address.
+    const [clash] = await db.select().from(customPages)
+      .where(eq(customPages.slug, parsed.data.slug)).limit(1);
+    if (clash) {
+      return res.status(400).json({ message: "A page with that web address already exists. Try a different title." });
+    }
+
+    const [row] = await db.insert(customPages).values(parsed.data).returning();
+    res.status(201).json(row);
+  });
+
+  app.put("/api/pages/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const parsed = insertCustomPageSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
+
+    // If the slug is changing, make sure it doesn't collide with another page.
+    if (parsed.data.slug) {
+      const [clash] = await db.select().from(customPages)
+        .where(eq(customPages.slug, parsed.data.slug)).limit(1);
+      if (clash && clash.id !== id) {
+        return res.status(400).json({ message: "Another page already uses that web address." });
+      }
+    }
+
+    const [row] = await db.update(customPages)
+      .set({ ...parsed.data, updatedAt: new Date().toISOString() })
+      .where(eq(customPages.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "Page not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/pages/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+    await db.delete(customPages).where(eq(customPages.id, parseInt(req.params.id)));
     res.json({ ok: true });
   });
 
