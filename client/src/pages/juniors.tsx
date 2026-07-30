@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Star, Shield, Heart, Mail, UserPlus } from "lucide-react";
 import { RichTextDisplay } from "@/components/rich-text-display";
 import { useListItems } from "@/hooks/use-list-items";
+import { useClubDetails } from "@/components/club-details";
 import type { JuniorsContent } from "@shared/schema";
 
 export default function Juniors() {
   const { items: faqItems } = useListItems("faq"); // title=question, body=answer
+  const club = useClubDetails(); // club email from Admin → Settings
   const { data: contentItems = [] } = useQuery<JuniorsContent[]>({
     queryKey: ["/api/juniors-content"],
     queryFn: () => apiRequest("GET", "/api/juniors-content"),
@@ -122,14 +124,14 @@ export default function Juniors() {
               <Mail className="h-8 w-8 text-green-600 mb-3" />
               <h3 className="font-bold text-stone-900 mb-2">{contact?.title ?? "Get in Touch"}</h3>
               <RichTextDisplay
-                html={contact?.content ?? "<p>For all junior enquiries, email us at subiacolacrosseclub@outlook.com and our Juniors Coordinator will be in touch within 48 hours.</p>"}
+                html={contact?.content ?? `<p>For all junior enquiries, email us at ${club.email} and our Juniors Coordinator will be in touch within 48 hours.</p>`}
                 className="text-sm text-stone-500"
               />
               <a
-                href="mailto:subiacolacrosseclub@outlook.com"
+                href={`mailto:${club.email}`}
                 className="inline-block mt-3 text-sm text-maroon-600 hover:text-maroon-800 font-medium"
               >
-                subiacolacrosseclub@outlook.com →
+                {club.email} →
               </a>
             </CardContent>
           </Card>

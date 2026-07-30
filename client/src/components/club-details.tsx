@@ -1,0 +1,62 @@
+// =============================================================================
+// Club contact details — client/src/components/club-details.tsx
+// =============================================================================
+// The club's address, email and map all used to be hardcoded into About,
+// Contact, Juniors and the Footer. If the club ever moved grounds or changed
+// their email, someone had to edit four files.
+//
+// Now they come from Admin → Settings → Club Details, via these small shared
+// helpers. Everything falls back to the current real values, so nothing breaks
+// if a setting is blank.
+// =============================================================================
+
+import { useSettings } from "@/hooks/use-settings";
+
+// Sensible fallbacks — used until an admin sets their own.
+const FALLBACK = {
+  venue: "Rosalie Park",
+  address: "Shenton Park WA 6008",
+  email: "subiacolacrosseclub@outlook.com",
+  mapQuery: "Rosalie Park, Shenton Park WA 6008",
+};
+
+/** Reads the club's contact details from Settings, with safe defaults. */
+export function useClubDetails() {
+  const { settings } = useSettings();
+  return {
+    venue: settings?.venue_name?.trim() || FALLBACK.venue,
+    address: settings?.venue_address?.trim() || FALLBACK.address,
+    email: settings?.contact_email?.trim() || FALLBACK.email,
+    mapQuery: settings?.map_query?.trim() || FALLBACK.mapQuery,
+    // "Rosalie Park, Shenton Park WA 6008" — for one-line displays
+    fullAddress: [
+      settings?.venue_name?.trim() || FALLBACK.venue,
+      settings?.venue_address?.trim() || FALLBACK.address,
+    ].filter(Boolean).join(", "),
+  };
+}
+
+/**
+ * An embedded Google Map of the club's ground.
+ *
+ * Uses the plain `?q=` embed form so it works with whatever address an admin
+ * types — no API key, and no fragile pre-baked coordinates like the old
+ * hardcoded embed URL had.
+ */
+export function ClubMap({ height = 220, className = "" }: { height?: number; className?: string }) {
+  const { mapQuery, venue } = useClubDetails();
+  return (
+    <div className={`rounded-xl overflow-hidden border shadow-sm ${className}`}>
+      <iframe
+        src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`}
+        width="100%"
+        height={height}
+        style={{ border: 0 }}
+        allowFullScreen
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        title={`Map of ${venue}`}
+      />
+    </div>
+  );
+}

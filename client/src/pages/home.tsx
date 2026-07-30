@@ -11,6 +11,7 @@ import InstagramFeed from "@/components/instagram-feed";
 import { RichTextDisplay } from "@/components/rich-text-display";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
+import { useClubDetails } from "@/components/club-details";
 import { formatDate, formatDateShort } from "@/lib/utils";
 import { CalendarDays, UserPlus, MapPin, Megaphone, Trophy, Mail } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
@@ -43,6 +44,7 @@ export default function Home() {
   const [subDone, setSubDone] = useState(false);
   const { settings, pageEnabled } = useSettings();
   const { get } = usePageContent("home");
+  const club = useClubDetails(); // address from Admin → Settings
 
   // Default hero text — editable by admins, saved to DB once changed
   const HERO_TITLE = "Subiaco Lions";
@@ -129,7 +131,7 @@ export default function Home() {
       {/* ── Info strip ──────────────────────────────────────────────── */}
       <section className="bg-gold-500 text-white py-4 px-4">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm font-medium">
-          <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> Rosalie Park, Shenton Park WA</span>
+          <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {club.fullAddress}</span>
           <span>Men's · Women's · Juniors U11–U17</span>
           <span>All skill levels welcome · Loan equipment available</span>
         </div>

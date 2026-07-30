@@ -1,7 +1,13 @@
 import { Link } from "wouter";
+import { useClubDetails } from "@/components/club-details";
+import { useSettings } from "@/hooks/use-settings";
 import { Facebook, Instagram, Mail, MapPin } from "lucide-react";
 
 export default function Footer() {
+  // Club address, email and social links come from Admin → Settings
+  const club = useClubDetails();
+  const { settings } = useSettings();
+
   return (
     <footer className="bg-maroon-900 text-maroon-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -54,19 +60,19 @@ export default function Footer() {
             <h3 className="text-white font-semibold mb-4">Contact & Find Us</h3>
             <div className="space-y-3 text-sm">
               <a
-                href="mailto:subiacolacrosseclub@outlook.com"
+                href={`mailto:${club.email}`}
                 className="flex items-center gap-2 text-maroon-300 hover:text-gold-400 transition-colors"
               >
                 <Mail className="h-4 w-4 shrink-0" />
-                subiacolacrosseclub@outlook.com
+                {club.email}
               </a>
               <div className="flex items-start gap-2 text-maroon-300">
                 <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>Rosalie Park, Shenton Park WA 6008</span>
+                <span>{club.fullAddress}</span>
               </div>
               <div className="flex gap-3 pt-2">
                 <a
-                  href="https://www.facebook.com/SubiacoLacrosse/"
+                  href={settings?.facebook_url || "https://www.facebook.com/SubiacoLacrosse/"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-maroon-300 hover:text-gold-400 transition-colors"
@@ -75,7 +81,7 @@ export default function Footer() {
                   <Facebook className="h-5 w-5" />
                 </a>
                 <a
-                  href="https://www.instagram.com/subiacolacrosse_official/"
+                  href={`https://www.instagram.com/${settings?.instagram_handle || "subiacolacrosse_official"}/`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-maroon-300 hover:text-gold-400 transition-colors"

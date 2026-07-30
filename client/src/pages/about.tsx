@@ -5,6 +5,7 @@ import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
 import { RichTextDisplay } from "@/components/rich-text-display";
 import { useListItems } from "@/hooks/use-list-items";
+import { useClubDetails, ClubMap } from "@/components/club-details";
 
 // Accent colour for each team group's card. The team/division data itself is
 // managed in Admin → Page Lists → Team Divisions (shared with the Fixtures page).
@@ -24,6 +25,8 @@ const DEFAULTS = {
 
 export default function About() {
   const { get } = usePageContent("about");
+  // Address / email / map from Admin → Settings → Club Details
+  const club = useClubDetails();
 
   // Team divisions come from the database (Admin → Page Lists → Team Divisions).
   // Rows are grouped by their "group" field (Men's / Women's / Juniors),
@@ -69,7 +72,7 @@ export default function About() {
                 { icon: Trophy, label: "Founded", value: "1940" },
                 { icon: Users, label: "Teams", value: "10+" },
                 { icon: Shield, label: "Divisions", value: "State to Div 3" },
-                { icon: MapPin, label: "Home Ground", value: "Rosalie Park" },
+                { icon: MapPin, label: "Home Ground", value: club.venue },
               ].map((s) => (
                 <div key={s.label} className="bg-stone-50 rounded-xl p-5 text-center border">
                   <s.icon className="h-8 w-8 text-maroon-700 mx-auto mb-2" />
@@ -128,29 +131,18 @@ export default function About() {
                 <div className="flex items-start gap-3">
                   <MapPin className="h-5 w-5 text-maroon-700 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-medium text-stone-900">Rosalie Park</p>
-                    <p>Shenton Park WA 6008</p>
+                    <p className="font-medium text-stone-900">{club.venue}</p>
+                    <p>{club.address}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Mail className="h-5 w-5 text-maroon-700 shrink-0" />
-                  <a href="mailto:subiacolacrosseclub@outlook.com" className="hover:text-maroon-700">
-                    subiacolacrosseclub@outlook.com
+                  <a href={`mailto:${club.email}`} className="hover:text-maroon-700">
+                    {club.email}
                   </a>
                 </div>
               </div>
-              <div className="mt-6 rounded-xl overflow-hidden border shadow-sm">
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3385.1!2d115.8!3d-31.95!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2a32bafc5c3b8e2b%3A0x5a6c1d4d8c9f1f8d!2sRosalie%20Park%2C%20Shenton%20Park%20WA%206008!5e0!3m2!1sen!2sau!4v1"
-                  width="100%"
-                  height="220"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Rosalie Park location"
-                />
-              </div>
+              <ClubMap height={220} className="mt-6" />
             </div>
             <div>
               <h2 className="section-title">Affiliated With</h2>

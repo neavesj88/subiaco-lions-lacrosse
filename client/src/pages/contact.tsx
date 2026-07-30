@@ -13,6 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mail, MapPin, Facebook, Instagram, CheckCircle, Clock } from "lucide-react";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
+import { useClubDetails, ClubMap } from "@/components/club-details";
+import { useSettings } from "@/hooks/use-settings";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -26,6 +28,9 @@ type FormData = z.infer<typeof schema>;
 export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
   const { get } = usePageContent("contact");
+  // Club address / email / map come from Admin → Settings → Club Details
+  const club = useClubDetails();
+  const { settings } = useSettings();
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -66,7 +71,7 @@ export default function Contact() {
 
             <div className="space-y-4">
               <a
-                href="mailto:subiacolacrosseclub@outlook.com"
+                href={`mailto:${club.email}`}
                 className="flex items-start gap-3 p-4 rounded-xl border bg-white hover:border-maroon-300 transition-colors group"
               >
                 <div className="w-10 h-10 bg-maroon-100 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-maroon-700 transition-colors">
@@ -74,7 +79,7 @@ export default function Contact() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-0.5">Email</p>
-                  <p className="text-sm text-stone-900 font-medium">subiacolacrosseclub@outlook.com</p>
+                  <p className="text-sm text-stone-900 font-medium">{club.email}</p>
                 </div>
               </a>
 
@@ -84,8 +89,8 @@ export default function Contact() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-0.5">Home Ground</p>
-                  <p className="text-sm text-stone-900 font-medium">Rosalie Park</p>
-                  <p className="text-sm text-stone-500">Shenton Park WA 6008</p>
+                  <p className="text-sm text-stone-900 font-medium">{club.venue}</p>
+                  <p className="text-sm text-stone-500">{club.address}</p>
                 </div>
               </div>
 
@@ -106,7 +111,7 @@ export default function Contact() {
               <p className="text-sm font-semibold text-stone-700 mb-3">Follow the Lions</p>
               <div className="flex gap-3">
                 <a
-                  href="https://www.facebook.com/SubiacoLacrosse/"
+                  href={settings?.facebook_url || "https://www.facebook.com/SubiacoLacrosse/"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-white hover:border-blue-400 hover:text-blue-600 transition-colors text-sm font-medium"
@@ -114,7 +119,7 @@ export default function Contact() {
                   <Facebook className="h-4 w-4" /> Facebook
                 </a>
                 <a
-                  href="https://www.instagram.com/subiacolacrosse_official/"
+                  href={`https://www.instagram.com/${settings?.instagram_handle || "subiacolacrosse_official"}/`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-white hover:border-pink-400 hover:text-pink-600 transition-colors text-sm font-medium"
@@ -180,19 +185,8 @@ export default function Contact() {
       {/* Map */}
       <section className="pb-16 px-4">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-xl font-bold text-stone-900 mb-4">Find Us — Rosalie Park, Shenton Park</h2>
-          <div className="rounded-xl overflow-hidden border shadow-sm">
-            <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3385.1!2d115.8!3d-31.95!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2a32bafc5c3b8e2b%3A0x5a6c1d4d8c9f1f8d!2sRosalie%20Park%2C%20Shenton%20Park%20WA%206008!5e0!3m2!1sen!2sau!4v1"
-              width="100%"
-              height="300"
-              style={{ border: 0 }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              title="Rosalie Park map"
-            />
-          </div>
+          <h2 className="text-xl font-bold text-stone-900 mb-4">Find Us — {club.fullAddress}</h2>
+          <ClubMap height={300} />
         </div>
       </section>
     </>

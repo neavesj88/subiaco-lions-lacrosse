@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { usePageContent } from "@/hooks/use-page-content";
 import { useListItems } from "@/hooks/use-list-items";
 import EditableSection from "@/components/editable-section";
+import { useClubDetails } from "@/components/club-details";
 
 export default function Store() {
   const { data: settings } = useQuery<Record<string, string>>({
@@ -17,6 +18,7 @@ export default function Store() {
   const storeUrl = settings?.store_url;
   const { get } = usePageContent("store");
   const { items: apparel } = useListItems("store_item"); // title=name, body=description, label=badge
+  const club = useClubDetails(); // club email from Admin → Settings
 
   return (
     <>
@@ -47,7 +49,7 @@ export default function Store() {
           <div className="max-w-4xl mx-auto text-center">
             <p className="text-gold-800 font-medium">
               Our online store is coming soon!{" "}
-              <a href="mailto:subiacolacrosseclub@outlook.com" className="underline hover:text-gold-900">
+              <a href={`mailto:${club.email}`} className="underline hover:text-gold-900">
                 Email us
               </a>{" "}
               to order club apparel in the meantime.
@@ -91,7 +93,7 @@ export default function Store() {
                         </Button>
                       </a>
                     ) : (
-                      <a href="mailto:subiacolacrosseclub@outlook.com?subject=Apparel Enquiry">
+                      <a href={`mailto:${club.email}?subject=Apparel Enquiry`}>
                         <Button size="sm" variant="outline" className="w-full gap-1.5">
                           <Mail className="h-3.5 w-3.5" /> Enquire to Order
                         </Button>
@@ -123,7 +125,7 @@ export default function Store() {
           </div>
           <div className="text-center mt-8">
             <p className="text-stone-500 text-sm mb-3">Questions about apparel or kit orders?</p>
-            <a href="mailto:subiacolacrosseclub@outlook.com?subject=Store Enquiry">
+            <a href={`mailto:${club.email}?subject=Store Enquiry`}>
               <Button variant="default" className="gap-2">
                 <Mail className="h-4 w-4" />
                 Contact Us

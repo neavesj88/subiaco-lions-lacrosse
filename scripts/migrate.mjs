@@ -138,6 +138,13 @@ db.exec(`
 addSetting('club_logo_url', '');  // Upload a logo in Media Library, paste URL here
 addSetting('nav_show_coaches_board', 'true');   // Coaches Board tactical whiteboard page
 
+// ── v5: club contact details (used on About, Contact, Juniors, Footer) ───────
+// Previously hardcoded in the page files — now editable in Admin → Settings.
+addSetting('venue_name', 'Rosalie Park');
+addSetting('venue_address', 'Shenton Park WA 6008');
+// Anything Google Maps understands: an address, a place name, or coordinates.
+addSetting('map_query', 'Rosalie Park, Shenton Park WA 6008');
+
 // ── v5: admin-editable theme colours ─────────────────────────────────────────
 // Drive the CSS variables in client/src/index.css. Blank = use the built-in
 // default, so the site always looks right even before an admin picks colours.
