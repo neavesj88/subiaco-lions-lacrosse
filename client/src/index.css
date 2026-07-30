@@ -2,10 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===========================================================================
+   THEME COLOURS
+   ---------------------------------------------------------------------------
+   The club's colours are stored in the DATABASE (Admin → Settings → Club
+   Colours) and applied at runtime by client/src/hooks/use-theme.ts, which
+   overwrites the CSS variables below.
+
+   The values here are only the FALLBACK defaults used before the settings
+   load (and if an admin has never changed them). Changing a colour in the
+   admin panel updates every banner, button, heading and accent instantly —
+   nobody needs to touch this file.
+   =========================================================================== */
+
 @layer base {
   :root {
     --background: 250 249 247;
     --foreground: 26 15 15;
+
+    /* Primary club colour (banners, buttons, headings) */
+    --brand-primary: #7B1E32;
+    /* Darker shade — used for the deep end of banner gradients */
+    --brand-primary-dark: #3A0C17;
+    /* Accent colour (gold bars, highlight buttons, pinned posts) */
+    --brand-accent: #C5942A;
+    /* Angle of the banner gradient, e.g. "135deg" */
+    --brand-gradient-angle: 135deg;
   }
 
   body {
@@ -18,12 +40,20 @@
 }
 
 @layer components {
+  /* The big coloured banner at the top of every page. Driven by the theme
+     variables above so admins can restyle it without code. */
   .hero-gradient {
-    background: linear-gradient(135deg, #7B1E32 0%, #5A1424 60%, #3A0C17 100%);
+    background: linear-gradient(
+      var(--brand-gradient-angle),
+      var(--brand-primary) 0%,
+      color-mix(in srgb, var(--brand-primary) 55%, var(--brand-primary-dark)) 60%,
+      var(--brand-primary-dark) 100%
+    );
   }
 
   .section-title {
-    @apply text-3xl font-bold text-maroon-700 mb-2;
+    @apply text-3xl font-bold mb-2;
+    color: var(--brand-primary);
   }
 
   .section-subtitle {
@@ -31,6 +61,7 @@
   }
 
   .gold-bar {
-    @apply h-1 w-16 bg-gold-500 mb-6 rounded-full;
+    @apply h-1 w-16 mb-6 rounded-full;
+    background: var(--brand-accent);
   }
 }

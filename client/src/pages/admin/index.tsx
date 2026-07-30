@@ -15,6 +15,8 @@ import ChangePasswordDialog from "@/components/change-password-dialog";
 import { ADMIN_LOGIN_PATH } from "@/lib/admin-path";
 import { useSessionKeepalive } from "@/hooks/use-session-keepalive";
 import AdminHelp from "@/pages/admin/help";
+import AdminSecurity from "@/pages/admin/security";
+import MediaLibrary from "@/pages/admin/media-library";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +28,7 @@ import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
   ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
   Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft, List as ListIcon,
-  KeyRound, AlertTriangle, HelpCircle, Shield
+  KeyRound, AlertTriangle, HelpCircle, Shield, Palette
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ListManager from "@/components/list-manager";
@@ -445,23 +447,7 @@ export default function AdminDashboard() {
     enabled: hasRole("super_admin"),
   });
 
-  // Login security: IPs with failed login attempts (refreshes every 30s)
-  const { data: loginAttempts = [] } = useQuery<
-    { ip: string; attempts: number; lastAttempt: string; status: string }[]
-  >({
-    queryKey: ["/api/security/login-attempts"],
-    queryFn: () => apiRequest("GET", "/api/security/login-attempts"),
-    enabled: hasRole("super_admin"),
-    refetchInterval: 30_000,
-  });
-
-  const unblockMutation = useMutation({
-    mutationFn: (ip: string) => apiRequest("POST", "/api/security/unblock", { ip }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/security/login-attempts"] });
-      toast({ title: "IP unblocked" });
-    },
-  });
+  // (Login lockouts now live in the Security tab — see pages/admin/security.tsx)
 
   const { data: mediaItems = [] } = useQuery<MediaUpload[]>({
     queryKey: ["/api/media"],
@@ -494,8 +480,10 @@ export default function AdminDashboard() {
   });
 
   const { data: settings } = useQuery<Record<string, string>>({
-    queryKey: ["/api/settings"],
-    queryFn: () => apiRequest("GET", "/api/settings"),
+    // The SECURE endpoint — the public /api/settings hides the mail fields, so
+    // the Settings form has to read them from here (password comes back masked).
+    queryKey: ["/api/settings/secure"],
+    queryFn: () => apiRequest("GET", "/api/settings/secure"),
     enabled: hasRole("super_admin"),
   });
 
@@ -524,6 +512,9 @@ export default function AdminDashboard() {
   const saveSettings = useMutation({
     mutationFn: (data: Record<string, string>) => apiRequest("PUT", "/api/settings", data),
     onSuccess: () => {
+      // Refresh both: the secure copy (this form) and the public one (drives
+      // the live site colours, logo etc. via useTheme/useSettings).
+      qc.invalidateQueries({ queryKey: ["/api/settings/secure"] });
       qc.invalidateQueries({ queryKey: ["/api/settings"] });
       toast({ title: "Settings saved" });
     },
@@ -689,6 +680,7 @@ export default function AdminDashboard() {
             {hasRole("content_manager") && <TabsTrigger value="media"><ImageIcon className="h-4 w-4 mr-1" />Media</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>}
             {hasRole("super_admin") && <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" />Settings</TabsTrigger>}
+            {hasRole("super_admin") && <TabsTrigger value="security"><Shield className="h-4 w-4 mr-1" />Security</TabsTrigger>}
             {/* Help is visible to every admin role — it's the built-in user guide */}
             <TabsTrigger value="help"><HelpCircle className="h-4 w-4 mr-1" />Help</TabsTrigger>
           </TabsList>
@@ -1078,63 +1070,7 @@ export default function AdminDashboard() {
           {/* ── Media Library ── */}
           {hasRole("content_manager") && (
             <TabsContent value="media">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Media Library</h2>
-                <span className="text-sm text-stone-500">{mediaItems.length} files uploaded</span>
-              </div>
-              <div className="mb-4 p-4 bg-stone-50 border rounded-xl">
-                <p className="text-sm font-medium text-stone-700 mb-2">Upload new image</p>
-                <ImageUploader
-                  onChange={async (url) => {
-                    if (url) qc.invalidateQueries({ queryKey: ["/api/media"] });
-                  }}
-                  hint="Drag & drop or click to upload. Images appear in the grid below and can be inserted into posts."
-                />
-              </div>
-              {mediaItems.length === 0 ? (
-                <p className="text-stone-400 text-center py-8">No images uploaded yet.</p>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {mediaItems.map((m) => (
-                    <div key={m.id} className="rounded-lg overflow-hidden border bg-white">
-                      <div className="group relative aspect-video bg-stone-50">
-                        <img src={m.url} alt={m.originalName} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-7 text-xs"
-                            onClick={() => {
-                              if (confirm("Delete this image? It will disappear from the gallery and any posts using it.")) {
-                                apiRequest("DELETE", `/api/media/${m.id}`)
-                                  .then(() => qc.invalidateQueries({ queryKey: ["/api/media"] }))
-                                  .catch((e) => toast({ title: "Error", description: e.message, variant: "destructive" }));
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" /> Delete
-                          </Button>
-                        </div>
-                      </div>
-                      {/* Caption — shown under the photo in the public gallery */}
-                      <div className="p-2">
-                        <Input
-                          placeholder="Add a caption…"
-                          defaultValue={m.caption ?? ""}
-                          className="h-8 text-xs"
-                          onBlur={(e) => {
-                            if (e.target.value !== (m.caption ?? "")) {
-                              apiRequest("PUT", `/api/media/${m.id}/caption`, { caption: e.target.value })
-                                .then(() => { qc.invalidateQueries({ queryKey: ["/api/media"] }); toast({ title: "Caption saved" }); })
-                                .catch((err) => toast({ title: "Error", description: err.message, variant: "destructive" }));
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <MediaLibrary items={mediaItems} onChanged={() => qc.invalidateQueries({ queryKey: ["/api/media"] })} />
             </TabsContent>
           )}
 
@@ -1317,46 +1253,152 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              {/* ── Login Security ── */}
+              {/* ── Club Colours ── */}
+              {/* These drive the CSS variables in index.css, so changing one
+                  instantly restyles every banner, heading, button and accent. */}
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-maroon-700" />
-                    Login Security
+                    <Palette className="h-5 w-5 text-maroon-700" />
+                    Club Colours
                   </CardTitle>
                   <p className="text-sm text-stone-500">
-                    The admin login locks out an IP address after repeated failed attempts
-                    (5 min after 3 fails, escalating up to 24 hours). Locked IPs appear below.
+                    Change the colours used across the whole site — page banners,
+                    headings, buttons and accent bars. Pick a colour or paste a hex
+                    code. Changes apply the moment you save.
                   </p>
                 </CardHeader>
-                <CardContent>
-                  {loginAttempts.length === 0 ? (
-                    <p className="text-sm text-stone-400 py-2">No failed login attempts. All clear. ✓</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {loginAttempts.map((a) => (
-                        <div key={a.ip} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-stone-50">
-                          <div className="min-w-0">
-                            <span className="font-mono text-sm text-stone-800">{a.ip}</span>
-                            <span className="text-xs text-stone-400 ml-2">
-                              {a.attempts} failed · {new Date(a.lastAttempt).toLocaleString("en-AU")}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant={a.status === "Blocked" ? "default" : "secondary"} className="text-xs">
-                              {a.status}
-                            </Badge>
-                            <Button size="sm" variant="ghost" className="h-7 text-xs"
-                              onClick={() => unblockMutation.mutate(a.ip)}>
-                              Unblock
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                <CardContent className="space-y-4">
+                  {[
+                    { key: "theme_primary", label: "Primary colour", fallback: "#7B1E32",
+                      help: "Banners, buttons and headings. This is the club's main colour." },
+                    { key: "theme_primary_dark", label: "Banner shadow colour", fallback: "#3A0C17",
+                      help: "The darker shade the banner fades into. Usually a deeper version of the primary." },
+                    { key: "theme_accent", label: "Accent colour", fallback: "#C5942A",
+                      help: "Gold bars under headings, highlight buttons and pinned posts." },
+                  ].map(({ key, label, fallback, help }) => (
+                    <div key={key} className="space-y-1.5">
+                      <Label>{label}</Label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          className="h-9 w-14 rounded border cursor-pointer bg-white p-0.5"
+                          value={settingsForm[key] || fallback}
+                          onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
+                        />
+                        <Input
+                          className="font-mono"
+                          placeholder={fallback}
+                          value={settingsForm[key] ?? ""}
+                          onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
+                        />
+                      </div>
+                      <p className="text-xs text-stone-400">{help}</p>
                     </div>
-                  )}
+                  ))}
+
+                  <div className="space-y-1.5">
+                    <Label>Banner gradient direction</Label>
+                    <Select
+                      value={settingsForm.theme_gradient_angle || "135deg"}
+                      onValueChange={(v) => setSettingsForm((p) => ({ ...p, theme_gradient_angle: v }))}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="135deg">Diagonal (default)</SelectItem>
+                        <SelectItem value="90deg">Left to right</SelectItem>
+                        <SelectItem value="180deg">Top to bottom</SelectItem>
+                        <SelectItem value="45deg">Diagonal (other way)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Live preview so admins see the result before saving */}
+                  <div>
+                    <Label className="mb-1.5 block">Preview</Label>
+                    <div
+                      className="rounded-xl p-6 text-center text-white shadow-sm"
+                      style={{
+                        background: `linear-gradient(${settingsForm.theme_gradient_angle || "135deg"}, ${settingsForm.theme_primary || "#7B1E32"} 0%, ${settingsForm.theme_primary_dark || "#3A0C17"} 100%)`,
+                      }}
+                    >
+                      <p className="text-xl font-extrabold">Subiaco Lions</p>
+                      <div
+                        className="h-1 w-16 mx-auto mt-2 rounded-full"
+                        style={{ background: settingsForm.theme_accent || "#C5942A" }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={() => saveSettings.mutate(settingsForm)} disabled={saveSettings.isPending}>
+                      {saveSettings.isPending ? "Saving..." : "Save Colours"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const reset = { ...settingsForm,
+                          theme_primary: "#7B1E32", theme_primary_dark: "#3A0C17",
+                          theme_accent: "#C5942A", theme_gradient_angle: "135deg" };
+                        setSettingsForm(reset);
+                        saveSettings.mutate(reset);
+                      }}
+                    >
+                      Reset to club defaults
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
+
+              {/* ── Email server ── */}
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5 text-maroon-700" />
+                    Email (SMTP) Settings
+                  </CardTitle>
+                  <p className="text-sm text-stone-500">
+                    Used to email the club when someone signs up or sends a message.
+                    Leave blank to keep using the server's <code>.env</code> settings.
+                    Test it and switch it on/off in the <strong>Security</strong> tab.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[
+                    { key: "mail_user", label: "Sending email address", type: "email",
+                      help: "The full address emails are sent from, e.g. contact@mail.yourclub.com.au — also used as the SMTP username." },
+                    { key: "mail_pass", label: "SMTP password", type: "password",
+                      help: "From your email provider (e.g. Mailgun). Stored securely and never shown again once saved." },
+                    { key: "mail_notify", label: "Send club notifications to", type: "email",
+                      help: "Where sign-up and contact alerts are delivered. Usually the club's main inbox." },
+                    { key: "mail_host", label: "SMTP server (optional)", type: "text",
+                      help: "Leave blank to detect automatically from the address above. Override only if your provider requires it." },
+                    { key: "mail_port", label: "SMTP port (optional)", type: "text",
+                      help: "Usually 587. Use 465 only if your provider requires implicit TLS." },
+                  ].map(({ key, label, type, help }) => (
+                    <div key={key} className="space-y-1.5">
+                      <Label>{label}</Label>
+                      <Input
+                        type={type}
+                        autoComplete={type === "password" ? "new-password" : "off"}
+                        value={settingsForm[key] ?? ""}
+                        onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
+                      />
+                      <p className="text-xs text-stone-400">{help}</p>
+                    </div>
+                  ))}
+                  <Button onClick={() => saveSettings.mutate(settingsForm)} disabled={saveSettings.isPending}>
+                    {saveSettings.isPending ? "Saving..." : "Save Email Settings"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {/* ── Security — email kill-switch, password resets, lockouts ── */}
+          {hasRole("super_admin") && (
+            <TabsContent value="security">
+              <AdminSecurity currentUserId={user.id} />
             </TabsContent>
           )}
 

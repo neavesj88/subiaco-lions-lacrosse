@@ -29,6 +29,45 @@
 // =============================================================================
 
 import nodemailer from "nodemailer";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { siteSettings } from "@shared/schema";
+
+// ---------------------------------------------------------------------------
+// getMailConfig — where the email settings come from
+// ---------------------------------------------------------------------------
+// Two sources, database first:
+//   1. Admin → Settings → Email (stored in site_settings) — so the club can
+//      change providers themselves without SSH-ing into the server.
+//   2. The .env file — the original method, still used as a fallback.
+//
+// Also reads the kill-switch (Admin → Security → "Email sending"), which lets
+// a super admin stop all outgoing email instantly, e.g. if an address starts
+// bouncing or the club is being spammed.
+// ---------------------------------------------------------------------------
+async function getMailConfig() {
+  let dbSettings: Record<string, string> = {};
+  try {
+    const rows = await db.select().from(siteSettings);
+    for (const r of rows) dbSettings[r.key] = r.value;
+  } catch {
+    // DB unavailable — fall back to .env entirely
+  }
+
+  const pick = (dbKey: string, envKey?: string) =>
+    (dbSettings[dbKey]?.trim() || (envKey ? process.env[envKey]?.trim() : "") || "");
+
+  return {
+    // Kill-switch: only "false" disables it, so email works by default.
+    enabled: dbSettings.mail_enabled !== "false",
+    host: pick("mail_host"),
+    port: parseInt(pick("mail_port") || "587", 10),
+    user: pick("mail_user", "CONTACT_EMAIL_USER"),
+    pass: pick("mail_pass", "CONTACT_EMAIL_PASS"),
+    from: pick("mail_from") || pick("mail_user", "CONTACT_EMAIL_USER"),
+    notify: pick("mail_notify", "CLUB_NOTIFY_EMAIL") || "subiacolacrosseclub@outlook.com",
+  };
+}
 
 // ---------------------------------------------------------------------------
 // buildTransporter — creates a nodemailer SMTP connection
@@ -37,35 +76,49 @@ import nodemailer from "nodemailer";
 // it globally. This is slightly slower but avoids stale connection issues on
 // long-running servers. For a club site with low traffic this is fine.
 // ---------------------------------------------------------------------------
-function buildTransporter() {
-  const user = process.env.CONTACT_EMAIL_USER;
-  const pass = process.env.CONTACT_EMAIL_PASS;
+function buildTransporter(cfg: { host: string; port: number; user: string; pass: string }) {
+  if (!cfg.user || !cfg.pass) return null; // No credentials → caller handles gracefully
 
-  if (!user || !pass) return null; // No credentials → caller handles gracefully
+  // If the admin didn't specify a host, auto-detect it from the email address
+  // — same logic as neaves.au, so most clubs never need to think about it.
+  let host = cfg.host;
+  let port = cfg.port;
 
-  // Auto-detect SMTP host from the email address — same logic as neaves.au
-  let host = "smtp.eu.mailgun.org"; // Default: Mailgun European server
-  let port = 587;
-
-  if (user.includes("@gmail.com")) {
-    host = "smtp.gmail.com";
-    port = 587;
-  } else if (user.includes("@outlook.com") || user.includes("@hotmail.com")) {
-    host = "smtp-mail.outlook.com";
-    port = 587;
-  } else if (user.includes("@yahoo.com")) {
-    host = "smtp.mail.yahoo.com";
-    port = 587;
+  if (!host) {
+    host = "smtp.eu.mailgun.org"; // Default: Mailgun European server
+    if (cfg.user.includes("@gmail.com")) host = "smtp.gmail.com";
+    else if (cfg.user.includes("@outlook.com") || cfg.user.includes("@hotmail.com")) host = "smtp-mail.outlook.com";
+    else if (cfg.user.includes("@yahoo.com")) host = "smtp.mail.yahoo.com";
   }
-  // Any other domain (e.g. mail.yourdomain.com.au) → Mailgun European server
 
   return nodemailer.createTransport({
     host,
-    port,
-    secure: false, // TLS via STARTTLS on port 587
-    auth: { user, pass },
+    port: port || 587,
+    secure: (port || 587) === 465, // 465 = implicit TLS; 587 = STARTTLS
+    auth: { user: cfg.user, pass: cfg.pass },
     connectionTimeout: 8000, // 8 seconds — prevents the form hanging forever
     greetingTimeout: 8000,
+  });
+}
+
+// Exposed so the Security tab's "Send test email" button can verify the
+// settings actually work. Throws on failure so the UI can show the reason.
+export async function sendTestEmail(to: string): Promise<void> {
+  const cfg = await getMailConfig();
+  if (!cfg.enabled) throw new Error("Email sending is switched OFF in Admin → Security.");
+  const transporter = buildTransporter(cfg);
+  if (!transporter) throw new Error("No email credentials configured (Admin → Settings → Email).");
+
+  await transporter.sendMail({
+    from: cfg.from,
+    to,
+    subject: "Test email — Subiaco Lions website",
+    text: "This is a test email from your club website. If you're reading this, email is working correctly.",
+    html: `<div style="font-family:sans-serif">
+      <h2 style="color:#7B1E32">Email is working ✓</h2>
+      <p>This is a test message from your club website. If you're reading this,
+      your email settings are correct and the site can send notifications.</p>
+    </div>`,
   });
 }
 
@@ -81,19 +134,25 @@ async function sendEmail(opts: {
   html: string;
   text: string;
 }): Promise<boolean> {
-  const transporter = buildTransporter();
-  const from = process.env.CONTACT_EMAIL_USER;
+  const cfg = await getMailConfig();
 
-  if (!transporter || !from) {
+  // Kill-switch (Admin → Security). Form data is still saved to the DB.
+  if (!cfg.enabled) {
+    console.warn("[email] Sending is switched OFF in Admin → Security — skipping.");
+    return false;
+  }
+
+  const transporter = buildTransporter(cfg);
+  if (!transporter || !cfg.from) {
     console.warn(
       "[email] No SMTP credentials set — skipping email. " +
-      "Set CONTACT_EMAIL_USER and CONTACT_EMAIL_PASS in .env to enable."
+      "Configure them in Admin → Settings → Email, or in .env."
     );
     return false;
   }
 
   try {
-    await transporter.sendMail({ from, ...opts });
+    await transporter.sendMail({ from: cfg.from, ...opts });
     console.log(`[email] Sent → ${opts.to}: ${opts.subject}`);
     return true;
   } catch (err: any) {
@@ -120,7 +179,7 @@ export async function notifyContactMessage(data: {
   subject: string;
   message: string;
 }) {
-  const clubEmail = process.env.CLUB_NOTIFY_EMAIL ?? "subiacolacrosseclub@outlook.com";
+  const clubEmail = (await getMailConfig()).notify;
 
   return sendEmail({
     to: clubEmail,
@@ -166,7 +225,7 @@ export async function notifyNewRegistration(data: {
   howHeard?: string | null;
   message?: string | null;
 }) {
-  const clubEmail = process.env.CLUB_NOTIFY_EMAIL ?? "subiacolacrosseclub@outlook.com";
+  const clubEmail = (await getMailConfig()).notify;
   const fullName = `${data.firstName} ${data.lastName}`;
 
   // --- 1. Notify the club ---

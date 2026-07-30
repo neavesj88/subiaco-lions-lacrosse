@@ -28,6 +28,7 @@ import Footer from "@/components/footer";
 import EditModeBanner from "@/components/edit-mode-banner";
 import ErrorBoundary from "@/components/error-boundary";
 import SEO from "@/components/seo";
+import { useTheme } from "@/hooks/use-theme";
 import { ADMIN_PATH, ADMIN_LOGIN_PATH } from "@/lib/admin-path";
 
 // Home is loaded eagerly — it's the page most visitors land on first.
@@ -58,6 +59,8 @@ function PageLoading() {
 
 function Router() {
   const [location] = useLocation();
+  // Applies the club's chosen colours (Admin → Settings → Club Colours)
+  useTheme();
   // Don't apply public SEO to admin pages (they shouldn't be indexed)
   const isAdmin = location.startsWith(ADMIN_PATH);
   // The Coaches Board is a full-screen tool — no footer / edit banner there.

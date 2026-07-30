@@ -49,7 +49,7 @@ import {
   loginSchema, createUserSchema,
 } from "@shared/schema";
 import { requireAuth, requireRole } from "./middleware";
-import { notifyContactMessage, notifyNewRegistration } from "./email";
+import { notifyContactMessage, notifyNewRegistration, sendTestEmail } from "./email";
 import { SITEMAP_PAGES } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
 import { getAdminPath } from "./runtime-config";
@@ -568,15 +568,41 @@ export async function registerRoutes(app: Express) {
   });
 
   // ── Site Settings ───────────────────────────────────────────────────
+  // SECURITY: /api/settings is PUBLIC (the site needs the logo, colours etc.
+  // before anyone logs in), so mail credentials must never appear there.
+  // They're stripped below and exposed only to super admins via
+  // /api/settings/secure, with the password masked.
+  const SECRET_SETTING_KEYS = [
+    "mail_pass", "mail_user", "mail_host", "mail_port", "mail_from", "mail_notify",
+  ];
+
   app.get("/api/settings", async (_req: Request, res: Response) => {
     const rows = await db.select().from(siteSettings);
     const map: Record<string, string> = {};
-    for (const row of rows) map[row.key] = row.value;
+    for (const row of rows) {
+      if (SECRET_SETTING_KEYS.includes(row.key)) continue; // never expose publicly
+      map[row.key] = row.value;
+    }
+    res.json(map);
+  });
+
+  // Super-admin view INCLUDING mail settings, for the Settings/Security tabs.
+  // The password is masked — the stored value is only ever written, never
+  // sent back to a browser.
+  app.get("/api/settings/secure", requireAuth, requireRole("super_admin"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(siteSettings);
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      map[row.key] = row.key === "mail_pass" ? (row.value ? "********" : "") : row.value;
+    }
     res.json(map);
   });
 
   app.put("/api/settings", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
     const updates = req.body as Record<string, string>;
+    // Ignore the masked placeholder so re-saving the form doesn't overwrite the
+    // real SMTP password with literal asterisks.
+    if (updates.mail_pass === "********") delete updates.mail_pass;
     for (const [key, value] of Object.entries(updates)) {
       const existing = await db.select().from(siteSettings).where(eq(siteSettings.key, key)).limit(1);
       if (existing.length > 0) {
@@ -873,6 +899,70 @@ export async function registerRoutes(app: Express) {
     const { ip } = req.body;
     if (!ip) return res.status(400).json({ message: "IP required" });
     res.json({ ok: unblockIP(ip) });
+  });
+
+  // ── Security: send a test email ─────────────────────────────────────
+  // Lets a super admin confirm the mail settings actually work, without
+  // waiting for a real form submission.
+  app.post("/api/security/test-email", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+    const to = (req.body?.to || "").trim();
+    if (!to || !/\S+@\S+\.\S+/.test(to)) {
+      return res.status(400).json({ message: "A valid destination email is required." });
+    }
+    try {
+      await sendTestEmail(to);
+      res.json({ ok: true, message: `Test email sent to ${to}. Check the inbox (and spam).` });
+    } catch (e: any) {
+      // Surface the real SMTP error — that's what makes this button useful.
+      res.status(400).json({ message: e?.message ?? "Sending failed." });
+    }
+  });
+
+  // ── Security: reset another admin's password (super admin only) ─────
+  // For when a committee member forgets theirs. The super admin sets a
+  // temporary password and passes it on; the user can then change it
+  // themselves from the Password button.
+  app.post("/api/security/reset-user-password", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+    const id = parseInt(req.body?.userId);
+    const newPassword = String(req.body?.newPassword ?? "");
+    if (!id) return res.status(400).json({ message: "User is required." });
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters." });
+    }
+
+    const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!target) return res.status(404).json({ message: "User not found." });
+
+    await db.update(users)
+      .set({ passwordHash: await bcrypt.hash(newPassword, 12) })
+      .where(eq(users.id, id));
+
+    res.json({ ok: true, message: `Password reset for ${target.name}.` });
+  });
+
+  // ── Security: lock / unlock an admin account ────────────────────────
+  // "Locking" sets is_active = false: the account stays (so their history is
+  // intact) but they can no longer log in. Reversible, unlike deleting.
+  app.post("/api/security/set-user-active", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+    const id = parseInt(req.body?.userId);
+    const isActive = req.body?.isActive === true;
+    if (!id) return res.status(400).json({ message: "User is required." });
+    if (id === req.session.userId) {
+      return res.status(400).json({ message: "You can't lock your own account." });
+    }
+
+    const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!target) return res.status(404).json({ message: "User not found." });
+
+    // Same safeguard as elsewhere: never lock out the last active super admin.
+    if (!isActive && target.role === "super_admin" && (await countOtherActiveSuperAdmins(id)) === 0) {
+      return res.status(400).json({
+        message: "This is the only Super Admin. Promote another user first.",
+      });
+    }
+
+    await db.update(users).set({ isActive }).where(eq(users.id, id));
+    res.json({ ok: true, message: `${target.name} ${isActive ? "unlocked" : "locked out"}.` });
   });
 
   return server;

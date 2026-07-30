@@ -11,7 +11,7 @@
 
 import {
   Rocket, Pencil, Megaphone, ImageIcon, Calendar, ClipboardList, Trophy,
-  ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool,
+  ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool, Palette,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -72,11 +72,30 @@ const GUIDE: GuideSection[] = [
     steps: [
       "Go to Media and drag photos onto the upload box (or click it to browse). Up to 8 MB each.",
       "Add a caption under any photo — captions show in the public gallery.",
+      "Use the Search, 'Date added' and 'Sort by' boxes to find an old photo quickly.",
       "Wherever you see 'Choose image' (logo, hero background, sponsor logos, post thumbnails), you can pick from this library or upload on the spot.",
     ],
     tips: [
+      "Photos appear exactly as uploaded — there's no cropping or re-ordering in the library, and the gallery always shows newest first. Edit a photo on your phone/computer BEFORE uploading if you need it framed differently.",
+      "'Link' copies a photo's web address, handy if you need to paste it somewhere.",
       "Deleting a photo removes it from the gallery AND from any post using it — delete carefully.",
       "Don't want a public gallery? Turn the page off under Settings → Page Visibility.",
+    ],
+  },
+  {
+    icon: Palette,
+    title: "Changing the club's colours",
+    intro:
+      "Settings → Club Colours controls the look of the entire site — the coloured banner at the top of every page, headings, buttons and the little accent bars.",
+    steps: [
+      "Go to Settings and scroll to Club Colours.",
+      "Click a colour swatch to pick a colour, or type a hex code (like #7B1E32) if you know it.",
+      "Watch the Preview box update as you choose.",
+      "Click Save Colours — the whole site changes instantly.",
+    ],
+    tips: [
+      "'Primary' is the club's main colour, 'Banner shadow' is the darker shade the banner fades into, and 'Accent' is the gold used for highlights.",
+      "Got it wrong? 'Reset to club defaults' puts the original maroon and gold back in one click.",
     ],
   },
   {
@@ -141,7 +160,7 @@ const GUIDE: GuideSection[] = [
     icon: Settings,
     title: "Settings & turning pages on/off",
     intro:
-      "The Settings tab (Super Admins only) holds the club-wide options: logo, hero photo, Instagram feed, GameDay links, contact email and more. Each field explains itself.",
+      "The Settings tab (Super Admins only) holds the club-wide options: logo, hero photo, club colours, Instagram feed, GameDay links, and the email (SMTP) server. Each field explains itself.",
     tips: [
       "Page Visibility switches let you hide whole pages (Store, Gallery, etc.) until you're ready — flip the switch and it vanishes from the menu instantly, flip it back anytime.",
       "The club logo and hero image use 'Choose image' — upload via the Media library, no web addresses needed.",
@@ -162,12 +181,19 @@ const GUIDE: GuideSection[] = [
   },
   {
     icon: ShieldAlert,
-    title: "Login security & lockouts",
+    title: "The Security tab (Super Admins)",
     intro:
-      "The login page locks out a device after repeated wrong passwords (5 minutes after 3 tries, longer if it keeps happening). This blocks password-guessing bots.",
+      "One place for the emergency jobs — everything here used to need a technical person with server access.",
+    steps: [
+      "Email sending — a master ON/OFF switch for every email the site sends. Turning it off loses nothing: sign-ups and messages still save, you just read them in their tabs.",
+      "Send a test email — proves your email settings actually work, and tells you exactly what's wrong if they don't.",
+      "Reset an Admin's Password — for the 'I've forgotten mine' phone call. Set a temporary one and pass it on.",
+      "Admin Access — Lock someone out without deleting them (their posts and history stay). Unlock anytime.",
+      "Login Lockouts — the site auto-blocks a device after repeated wrong passwords (5 minutes after 3 tries, longer if it persists). Unblock a genuine admin here.",
+    ],
     tips: [
-      "Locked yourself out with typos? Just wait 5 minutes, or use another device.",
-      "Super Admins can see and clear any lockouts under Settings → Login Security.",
+      "Locked yourself out with typos? Wait 5 minutes, use another device, or ask another Super Admin to clear it.",
+      "The site won't let you lock or delete the last Super Admin — that's deliberate, so the club can never be locked out entirely.",
       "The admin area lives at a private address on purpose — don't post the link publicly.",
     ],
   },

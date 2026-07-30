@@ -137,6 +137,25 @@ db.exec(`
 
 addSetting('club_logo_url', '');  // Upload a logo in Media Library, paste URL here
 addSetting('nav_show_coaches_board', 'true');   // Coaches Board tactical whiteboard page
+
+// ── v5: admin-editable theme colours ─────────────────────────────────────────
+// Drive the CSS variables in client/src/index.css. Blank = use the built-in
+// default, so the site always looks right even before an admin picks colours.
+addSetting('theme_primary', '#7B1E32');        // banners, buttons, headings
+addSetting('theme_primary_dark', '#3A0C17');   // deep end of banner gradients
+addSetting('theme_accent', '#C5942A');         // gold bars, highlights
+addSetting('theme_gradient_angle', '135deg');  // banner gradient direction
+
+// ── v5: admin-editable mail server (overrides .env when set) ─────────────────
+// Lets the club change their email provider from the admin panel instead of
+// editing .env on the server. mail_enabled is the kill-switch.
+addSetting('mail_enabled', 'true');
+addSetting('mail_host', '');       // e.g. smtp.eu.mailgun.org (blank = auto-detect from user)
+addSetting('mail_port', '587');
+addSetting('mail_user', '');       // full sending address
+addSetting('mail_pass', '');       // SMTP password (stored in the DB, admin-only)
+addSetting('mail_from', '');       // "From" address if different to mail_user
+addSetting('mail_notify', '');     // where club notifications go (blank = CLUB_NOTIFY_EMAIL)
 // GameDay is the third-party that hosts the club's fixtures & results.
 // Admins can update this in Admin → Settings if the club ID ever changes.
 addSetting('gameday_url', 'https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0');
