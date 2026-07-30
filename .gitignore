@@ -5,3 +5,8 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+# Admin-uploaded photos are the club's own content, not source code. They live
+# on the server (and in the nightly backup alongside data/), so they must never
+# be committed — otherwise the repo bloats and test images end up public.
+public/uploads/
