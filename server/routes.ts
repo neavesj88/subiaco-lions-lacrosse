@@ -302,7 +302,13 @@ export async function registerRoutes(app: Express) {
     const userId = req.session.userId ?? (req.user as any)?.id;
     if (!userId) return res.status(401).json({ message: "Not authenticated" });
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    if (!user) return res.status(401).json({ message: "User not found" });
+    // Also reject if the account was locked out or deleted while they were
+    // logged in — otherwise the admin UI would keep looking signed-in even
+    // though every API call is now being refused.
+    if (!user || !user.isActive) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Not authenticated" });
+    }
 
     // Flag if this account still uses the default seeded password. The admin UI
     // shows a prominent warning banner until it's changed — important for a
@@ -885,7 +891,24 @@ export async function registerRoutes(app: Express) {
       });
     }
 
-    await db.delete(users).where(eq(users.id, id));
+    // Their news posts, events and uploads are the CLUB's content and must
+    // survive the person leaving. Those tables have a foreign key to users, so
+    // deleting the row outright fails ("FOREIGN KEY constraint failed") and
+    // would crash the server. Clear the authorship links first, then delete.
+    try {
+      await db.update(announcements).set({ createdBy: null }).where(eq(announcements.createdBy, id));
+      await db.update(events).set({ createdBy: null }).where(eq(events.createdBy, id));
+      await db.update(juniorsContent).set({ updatedBy: null }).where(eq(juniorsContent.updatedBy, id));
+      await db.update(mediaUploads).set({ uploadedBy: null }).where(eq(mediaUploads.uploadedBy, id));
+      await db.update(pageContent).set({ updatedBy: null }).where(eq(pageContent.updatedBy, id));
+      await db.delete(users).where(eq(users.id, id));
+    } catch (e: any) {
+      // Never let this take the site down — report it instead.
+      console.error("[users] Delete failed:", e?.message ?? e);
+      return res.status(500).json({
+        message: "Couldn't remove this account. Try locking it instead (Security → Admin Access).",
+      });
+    }
     res.json({ ok: true });
   });
 

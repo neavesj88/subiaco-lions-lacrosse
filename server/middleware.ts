@@ -24,7 +24,9 @@
 // =============================================================================
 
 import { type Request, type Response, type NextFunction } from "express";
-import type { User } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { users, type User } from "@shared/schema";
 
 type Role = User["role"];
 
@@ -36,11 +38,41 @@ const roleHierarchy: Record<Role, number> = {
   super_admin: 4,
 };
 
+// ── loadCurrentUser ──────────────────────────────────────────────────────────
+// Re-reads the logged-in user FROM THE DATABASE on every protected request.
+//
+// Why not just trust the session?
+//   The session cookie is a snapshot from login time. If we trusted it, then
+//   locking someone out, demoting them, or deleting their account would only
+//   take effect the NEXT time they logged in — meanwhile their existing browser
+//   session would keep working with the old permissions. For a club handing
+//   over admin access that's exactly backwards: "remove their access" must
+//   mean immediately.
+//
+//   Re-checking costs one indexed SQLite lookup per admin request, which is
+//   nothing at this site's traffic, and it also keeps the session's cached role
+//   in sync so later checks in the same request see the truth.
+// ---------------------------------------------------------------------------
+async function loadCurrentUser(req: Request) {
+  if (!req.session.userId) return null;
+  const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+
+  // Account deleted or locked out (is_active = false) → session is dead.
+  if (!user || !user.isActive) return null;
+
+  // Keep the session's cached role current after a promotion/demotion.
+  req.session.userRole = user.role;
+  return user;
+}
+
 // ── requireAuth ──────────────────────────────────────────────────────────────
-// Blocks the request if the user isn't logged in.
-// Returns 401 so the frontend knows to redirect to /admin/login.
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
+// Blocks the request unless the user is logged in AND their account is still
+// active. Returns 401 so the frontend redirects to the login page.
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const user = await loadCurrentUser(req);
+  if (!user) {
+    // Destroy the now-invalid session so the browser stops sending it.
+    req.session.destroy(() => {});
     return res.status(401).json({ message: "Not authenticated" });
   }
   next();
@@ -49,15 +81,18 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 // ── requireRole ──────────────────────────────────────────────────────────────
 // Blocks the request if the user's role level is below the minimum required.
 // Pass the MINIMUM role needed — anyone at that level or above is allowed.
+// The role is read live from the database, so demotions apply immediately.
 //
 // Example: requireRole("club_admin") allows club_admin AND super_admin
 //          requireRole("super_admin") allows ONLY super_admin
 export function requireRole(...roles: Role[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.session.userId || !req.session.userRole) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const user = await loadCurrentUser(req);
+    if (!user) {
+      req.session.destroy(() => {});
       return res.status(401).json({ message: "Not authenticated" });
     }
-    const userLevel = roleHierarchy[req.session.userRole as Role] ?? 0;
+    const userLevel = roleHierarchy[user.role] ?? 0;
     const minRequired = Math.min(...roles.map((r) => roleHierarchy[r]));
     if (userLevel < minRequired) {
       return res.status(403).json({ message: "Insufficient permissions" });

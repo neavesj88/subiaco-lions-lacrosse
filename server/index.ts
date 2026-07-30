@@ -64,6 +64,21 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// ── Last-resort crash guards ─────────────────────────────────────────────────
+// Express's error handler only catches errors thrown while handling a request.
+// An error from an async callback (e.g. a failed database write) escapes it and
+// would kill the Node process — taking the whole club website offline until
+// someone SSHs in and restarts it.
+//
+// These guards log the problem and keep serving. PM2 would restart the process
+// anyway, but staying up means visitors never see an outage at all.
+process.on("uncaughtException", (err) => {
+  console.error("[fatal] Uncaught exception — server kept alive:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[fatal] Unhandled promise rejection — server kept alive:", reason);
+});
+
 // ── Start up ─────────────────────────────────────────────────────────────────
 (async () => {
   // Register all API routes and get back the HTTP server instance
