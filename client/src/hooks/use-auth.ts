@@ -1,16 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
+import { roleHas, type Permission, type Role } from "@shared/roles";
+
 export type AuthUser = {
   id: number;
   name: string;
-  role: "super_admin" | "club_admin" | "juniors_coordinator" | "content_manager";
+  role: Role;
   email: string;
   username: string;
   usingDefaultPassword?: boolean;
 };
 
-const roleLevel: Record<AuthUser["role"], number> = {
+// Legacy ladder — kept only for the older hasRole() helper. New code should
+// use can(), which also handles restricted roles like social_media.
+const roleLevel: Record<Role, number> = {
+  social_media: 1,
   content_manager: 1,
   juniors_coordinator: 2,
   club_admin: 3,
@@ -46,5 +51,9 @@ export function useAuth() {
     return roles.some((r) => userLevel >= roleLevel[r]);
   };
 
-  return { user, isLoading, loginMutation, logoutMutation, hasRole };
+  // can("events") — the preferred check. Mirrors the server's requirePermission,
+  // both reading shared/roles.ts, so the tabs shown always match what's allowed.
+  const can = (permission: Permission) => !!user && roleHas(user.role, permission);
+
+  return { user, isLoading, loginMutation, logoutMutation, hasRole, can };
 }

@@ -18,6 +18,8 @@ const FALLBACK = {
   address: "Shenton Park WA 6008",
   email: "subiacolacrosseclub@outlook.com",
   mapQuery: "Rosalie Park, Shenton Park WA 6008",
+  clubName: "Subiaco Lions",
+  clubNameSuffix: "Lacrosse Club",
 };
 
 /** Reads the club's contact details from Settings, with safe defaults. */
@@ -33,6 +35,17 @@ export function useClubDetails() {
       settings?.venue_name?.trim() || FALLBACK.venue,
       settings?.venue_address?.trim() || FALLBACK.address,
     ].filter(Boolean).join(", "),
+
+    // Club branding — used in the nav logo, footer and page titles so the club
+    // can rename itself (or another club can reuse the site) without code.
+    clubName: settings?.club_name?.trim() || FALLBACK.clubName,
+    clubNameSuffix: settings?.club_name_suffix?.trim() || FALLBACK.clubNameSuffix,
+    clubTagline: settings?.club_tagline?.trim() || "",
+    // "Subiaco Lions Lacrosse Club"
+    clubFullName: [
+      settings?.club_name?.trim() || FALLBACK.clubName,
+      settings?.club_name_suffix?.trim() || FALLBACK.clubNameSuffix,
+    ].filter(Boolean).join(" "),
   };
 }
 

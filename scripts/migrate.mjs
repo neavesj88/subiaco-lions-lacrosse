@@ -145,6 +145,28 @@ addSetting('venue_address', 'Shenton Park WA 6008');
 // Anything Google Maps understands: an address, a place name, or coordinates.
 addSetting('map_query', 'Rosalie Park, Shenton Park WA 6008');
 
+// ── v7: club branding (name shown across the site) + committee ───────────────
+// The club name used to be hardcoded in the nav, footer and page titles.
+addSetting('club_name', 'Subiaco Lions');            // main name in the logo/nav
+addSetting('club_name_suffix', 'Lacrosse Club');     // smaller line under it
+addSetting('club_tagline', "Perth's home of lacrosse since 1940. Men's, Women's and Junior teams competing across all divisions of Lacrosse WA.");
+addSetting('nav_show_committee', 'true');            // the /committee page
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS committee_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    position TEXT NOT NULL,
+    group_name TEXT NOT NULL DEFAULT 'Executive',
+    bio TEXT,
+    email TEXT,
+    photo_url TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // ── v6: admin-created custom pages ───────────────────────────────────────────
 // Lets the club add their own pages (Life Members, Policies, etc.) from the
 // admin panel. They live at /p/<slug> so they can never clash with a built-in

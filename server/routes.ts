@@ -45,12 +45,14 @@ import {
   mediaUploads, siteSettings, contactMessages,
   sponsors, matchResults, newsletterSubscribers, pageContent,
   customPages, listItems,
+  committeeMembers,
   insertEventSchema, insertRegistrationSchema, insertAnnouncementSchema,
   insertSponsorSchema, insertMatchResultSchema, insertListItemSchema,
   insertCustomPageSchema,
+  insertCommitteeMemberSchema,
   loginSchema, createUserSchema,
 } from "@shared/schema";
-import { requireAuth, requireRole } from "./middleware";
+import { requireAuth, requirePermission } from "./middleware";
 import { notifyContactMessage, notifyNewRegistration, sendTestEmail } from "./email";
 import { SITEMAP_PAGES } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
@@ -225,6 +227,7 @@ export async function registerRoutes(app: Express) {
       "/fixtures": "fixtures",
       "/store": "store",
       "/coaches-board": "coaches_board",
+      "/committee": "committee",
     };
 
     const today = new Date().toISOString().split("T")[0];
@@ -385,19 +388,19 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
-  app.get("/api/events/all", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/events/all", requireAuth, requirePermission("events"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(events).orderBy(desc(events.startDate)).limit(200);
     res.json(rows);
   });
 
-  app.post("/api/events", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.post("/api/events", requireAuth, requirePermission("events"), async (req: Request, res: Response) => {
     const parsed = insertEventSchema.safeParse({ ...req.body, createdBy: req.session.userId });
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const [row] = await db.insert(events).values(parsed.data).returning();
     res.status(201).json(row);
   });
 
-  app.put("/api/events/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.put("/api/events/:id", requireAuth, requirePermission("events"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const parsed = insertEventSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
@@ -406,7 +409,7 @@ export async function registerRoutes(app: Express) {
     res.json(row);
   });
 
-  app.delete("/api/events/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.delete("/api/events/:id", requireAuth, requirePermission("events"), async (req: Request, res: Response) => {
     await db.delete(events).where(eq(events.id, parseInt(req.params.id)));
     res.json({ ok: true });
   });
@@ -420,19 +423,19 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
-  app.get("/api/announcements/all", requireAuth, requireRole("content_manager"), async (_req: Request, res: Response) => {
+  app.get("/api/announcements/all", requireAuth, requirePermission("news"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(announcements).orderBy(desc(announcements.createdAt)).limit(100);
     res.json(rows);
   });
 
-  app.post("/api/announcements", requireAuth, requireRole("content_manager"), async (req: Request, res: Response) => {
+  app.post("/api/announcements", requireAuth, requirePermission("news"), async (req: Request, res: Response) => {
     const parsed = insertAnnouncementSchema.safeParse({ ...req.body, createdBy: req.session.userId });
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
     const [row] = await db.insert(announcements).values(parsed.data).returning();
     res.status(201).json(row);
   });
 
-  app.put("/api/announcements/:id", requireAuth, requireRole("content_manager"), async (req: Request, res: Response) => {
+  app.put("/api/announcements/:id", requireAuth, requirePermission("news"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const parsed = insertAnnouncementSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
@@ -441,7 +444,7 @@ export async function registerRoutes(app: Express) {
     res.json(row);
   });
 
-  app.delete("/api/announcements/:id", requireAuth, requireRole("content_manager"), async (req: Request, res: Response) => {
+  app.delete("/api/announcements/:id", requireAuth, requirePermission("news"), async (req: Request, res: Response) => {
     await db.delete(announcements).where(eq(announcements.id, parseInt(req.params.id)));
     res.json({ ok: true });
   });
@@ -477,12 +480,12 @@ export async function registerRoutes(app: Express) {
     res.status(201).json({ ok: true, id: row.id });
   });
 
-  app.get("/api/registrations", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/registrations", requireAuth, requirePermission("signups"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(registrations).orderBy(desc(registrations.createdAt)).limit(500);
     res.json(rows);
   });
 
-  app.put("/api/registrations/:id/status", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.put("/api/registrations/:id/status", requireAuth, requirePermission("signups"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const { status } = req.body;
     if (!["new", "contacted", "registered", "declined"].includes(status))
@@ -510,12 +513,12 @@ export async function registerRoutes(app: Express) {
     res.status(201).json({ ok: true, id: row.id });
   });
 
-  app.get("/api/contact", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/contact", requireAuth, requirePermission("messages"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(contactMessages).orderBy(desc(contactMessages.createdAt)).limit(200);
     res.json(rows);
   });
 
-  app.put("/api/contact/:id/read", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.put("/api/contact/:id/read", requireAuth, requirePermission("messages"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const [row] = await db.update(contactMessages).set({ isRead: true }).where(eq(contactMessages.id, id)).returning();
     res.json(row);
@@ -527,7 +530,7 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
-  app.put("/api/juniors-content/:section", requireAuth, requireRole("juniors_coordinator"), async (req: Request, res: Response) => {
+  app.put("/api/juniors-content/:section", requireAuth, requirePermission("juniors"), async (req: Request, res: Response) => {
     const { section } = req.params;
     const { title, content } = req.body;
     const existing = await db.select().from(juniorsContent).where(eq(juniorsContent.section, section)).limit(1);
@@ -542,7 +545,7 @@ export async function registerRoutes(app: Express) {
   });
 
   // ── Media Uploads ───────────────────────────────────────────────────
-  app.post("/api/upload", requireAuth, requireRole("content_manager"),
+  app.post("/api/upload", requireAuth, requirePermission("media"),
     upload.single("file"),
     async (req: Request, res: Response) => {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
@@ -559,12 +562,12 @@ export async function registerRoutes(app: Express) {
     }
   );
 
-  app.get("/api/media", requireAuth, requireRole("content_manager"), async (_req: Request, res: Response) => {
+  app.get("/api/media", requireAuth, requirePermission("media"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(mediaUploads).orderBy(desc(mediaUploads.createdAt)).limit(200);
     res.json(rows);
   });
 
-  app.delete("/api/media/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.delete("/api/media/:id", requireAuth, requirePermission("media"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const [row] = await db.select().from(mediaUploads).where(eq(mediaUploads.id, id)).limit(1);
     if (row) {
@@ -597,7 +600,7 @@ export async function registerRoutes(app: Express) {
   // Super-admin view INCLUDING mail settings, for the Settings/Security tabs.
   // The password is masked — the stored value is only ever written, never
   // sent back to a browser.
-  app.get("/api/settings/secure", requireAuth, requireRole("super_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/settings/secure", requireAuth, requirePermission("settings"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(siteSettings);
     const map: Record<string, string> = {};
     for (const row of rows) {
@@ -606,7 +609,7 @@ export async function registerRoutes(app: Express) {
     res.json(map);
   });
 
-  app.put("/api/settings", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+  app.put("/api/settings", requireAuth, requirePermission("settings"), async (req: Request, res: Response) => {
     const updates = req.body as Record<string, string>;
     // Ignore the masked placeholder so re-saving the form doesn't overwrite the
     // real SMTP password with literal asterisks.
@@ -632,19 +635,19 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
-  app.get("/api/sponsors/all", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/sponsors/all", requireAuth, requirePermission("sponsors"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(sponsors).orderBy(sponsors.sortOrder);
     res.json(rows);
   });
 
-  app.post("/api/sponsors", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.post("/api/sponsors", requireAuth, requirePermission("sponsors"), async (req: Request, res: Response) => {
     const parsed = insertSponsorSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
     const [row] = await db.insert(sponsors).values(parsed.data).returning();
     res.status(201).json(row);
   });
 
-  app.put("/api/sponsors/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.put("/api/sponsors/:id", requireAuth, requirePermission("sponsors"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const parsed = insertSponsorSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
@@ -653,7 +656,7 @@ export async function registerRoutes(app: Express) {
     res.json(row);
   });
 
-  app.delete("/api/sponsors/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.delete("/api/sponsors/:id", requireAuth, requirePermission("sponsors"), async (req: Request, res: Response) => {
     await db.delete(sponsors).where(eq(sponsors.id, parseInt(req.params.id)));
     res.json({ ok: true });
   });
@@ -669,19 +672,19 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
-  app.get("/api/results/all", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/results/all", requireAuth, requirePermission("results"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(matchResults).orderBy(desc(matchResults.matchDate)).limit(200);
     res.json(rows);
   });
 
-  app.post("/api/results", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.post("/api/results", requireAuth, requirePermission("results"), async (req: Request, res: Response) => {
     const parsed = insertMatchResultSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const [row] = await db.insert(matchResults).values(parsed.data).returning();
     res.status(201).json(row);
   });
 
-  app.put("/api/results/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.put("/api/results/:id", requireAuth, requirePermission("results"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const parsed = insertMatchResultSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
@@ -690,7 +693,7 @@ export async function registerRoutes(app: Express) {
     res.json(row);
   });
 
-  app.delete("/api/results/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.delete("/api/results/:id", requireAuth, requirePermission("results"), async (req: Request, res: Response) => {
     await db.delete(matchResults).where(eq(matchResults.id, parseInt(req.params.id)));
     res.json({ ok: true });
   });
@@ -710,7 +713,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.get("/api/newsletter/subscribers", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/newsletter/subscribers", requireAuth, requirePermission("newsletter"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(newsletterSubscribers)
       .where(eq(newsletterSubscribers.isActive, true))
       .orderBy(desc(newsletterSubscribers.subscribedAt));
@@ -718,7 +721,7 @@ export async function registerRoutes(app: Express) {
   });
 
   // CSV export — download the full subscriber list
-  app.get("/api/newsletter/export", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/newsletter/export", requireAuth, requirePermission("newsletter"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(newsletterSubscribers)
       .where(eq(newsletterSubscribers.isActive, true))
       .orderBy(newsletterSubscribers.subscribedAt);
@@ -730,7 +733,7 @@ export async function registerRoutes(app: Express) {
     res.send(csv);
   });
 
-  app.delete("/api/newsletter/subscribers/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.delete("/api/newsletter/subscribers/:id", requireAuth, requirePermission("newsletter"), async (req: Request, res: Response) => {
     await db.update(newsletterSubscribers)
       .set({ isActive: false })
       .where(eq(newsletterSubscribers.id, parseInt(req.params.id)));
@@ -752,7 +755,7 @@ export async function registerRoutes(app: Express) {
     res.json(map);
   });
 
-  app.put("/api/page-content/:page/:section", requireAuth, requireRole("content_manager"), async (req: Request, res: Response) => {
+  app.put("/api/page-content/:page/:section", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
     const { page, section } = req.params;
     const { content } = req.body;
     if (!content && content !== "") return res.status(400).json({ message: "content is required" });
@@ -776,7 +779,7 @@ export async function registerRoutes(app: Express) {
   });
 
   // ── Media caption update ─────────────────────────────────────────────
-  app.put("/api/media/:id/caption", requireAuth, requireRole("content_manager"), async (req: Request, res: Response) => {
+  app.put("/api/media/:id/caption", requireAuth, requirePermission("media"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const { caption } = req.body;
     const [row] = await db.update(mediaUploads).set({ caption }).where(eq(mediaUploads.id, id)).returning();
@@ -793,21 +796,21 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
-  app.get("/api/list-items/:type/all", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.get("/api/list-items/:type/all", requireAuth, requirePermission("lists"), async (req: Request, res: Response) => {
     const rows = await db.select().from(listItems)
       .where(eq(listItems.listType, req.params.type))
       .orderBy(listItems.sortOrder);
     res.json(rows);
   });
 
-  app.post("/api/list-items", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.post("/api/list-items", requireAuth, requirePermission("lists"), async (req: Request, res: Response) => {
     const parsed = insertListItemSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const [row] = await db.insert(listItems).values(parsed.data).returning();
     res.status(201).json(row);
   });
 
-  app.put("/api/list-items/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.put("/api/list-items/:id", requireAuth, requirePermission("lists"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const parsed = insertListItemSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
@@ -816,13 +819,13 @@ export async function registerRoutes(app: Express) {
     res.json(row);
   });
 
-  app.delete("/api/list-items/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.delete("/api/list-items/:id", requireAuth, requirePermission("lists"), async (req: Request, res: Response) => {
     await db.delete(listItems).where(eq(listItems.id, parseInt(req.params.id)));
     res.json({ ok: true });
   });
 
   // ── Users ───────────────────────────────────────────────────────────
-  app.get("/api/users", requireAuth, requireRole("super_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/users", requireAuth, requirePermission("users"), async (_req: Request, res: Response) => {
     const rows = await db.select({
       id: users.id, username: users.username, name: users.name,
       email: users.email, role: users.role, isActive: users.isActive,
@@ -831,7 +834,7 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
-  app.post("/api/users", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+  app.post("/api/users", requireAuth, requirePermission("users"), async (req: Request, res: Response) => {
     const parsed = createUserSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const { password, ...rest } = parsed.data;
@@ -851,7 +854,7 @@ export async function registerRoutes(app: Express) {
     return supers.filter((u) => u.id !== excludeId).length;
   }
 
-  app.put("/api/users/:id", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+  app.put("/api/users/:id", requireAuth, requirePermission("users"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const { name, email, role, isActive, password } = req.body;
 
@@ -881,7 +884,7 @@ export async function registerRoutes(app: Express) {
     res.json(row);
   });
 
-  app.delete("/api/users/:id", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+  app.delete("/api/users/:id", requireAuth, requirePermission("users"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     if (id === req.session.userId) return res.status(400).json({ message: "Cannot delete your own account" });
 
@@ -914,6 +917,43 @@ export async function registerRoutes(app: Express) {
     res.json({ ok: true });
   });
 
+  // ── Committee / Board ───────────────────────────────────────────────
+  // Public: the active members shown on /committee.
+  // Admin: full CRUD for whoever has the "committee" permission.
+  app.get("/api/committee", async (_req: Request, res: Response) => {
+    const rows = await db.select().from(committeeMembers)
+      .where(eq(committeeMembers.isActive, true))
+      .orderBy(committeeMembers.sortOrder, committeeMembers.id);
+    res.json(rows);
+  });
+
+  app.get("/api/committee/all", requireAuth, requirePermission("committee"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(committeeMembers)
+      .orderBy(committeeMembers.sortOrder, committeeMembers.id);
+    res.json(rows);
+  });
+
+  app.post("/api/committee", requireAuth, requirePermission("committee"), async (req: Request, res: Response) => {
+    const parsed = insertCommitteeMemberSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+    const [row] = await db.insert(committeeMembers).values(parsed.data).returning();
+    res.status(201).json(row);
+  });
+
+  app.put("/api/committee/:id", requireAuth, requirePermission("committee"), async (req: Request, res: Response) => {
+    const parsed = insertCommitteeMemberSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
+    const [row] = await db.update(committeeMembers).set(parsed.data)
+      .where(eq(committeeMembers.id, parseInt(req.params.id))).returning();
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/committee/:id", requireAuth, requirePermission("committee"), async (req: Request, res: Response) => {
+    await db.delete(committeeMembers).where(eq(committeeMembers.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  });
+
   // ── Custom Pages (admin-created) ────────────────────────────────────
   // Public: list published pages (for the nav) and fetch one by slug.
   // Admin (club_admin+): full create/edit/delete.
@@ -924,7 +964,7 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
-  app.get("/api/pages/all", requireAuth, requireRole("club_admin"), async (_req: Request, res: Response) => {
+  app.get("/api/pages/all", requireAuth, requirePermission("pages"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(customPages).orderBy(customPages.sortOrder, customPages.title);
     res.json(rows);
   });
@@ -936,7 +976,7 @@ export async function registerRoutes(app: Express) {
     res.json(row);
   });
 
-  app.post("/api/pages", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.post("/api/pages", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
     const parsed = insertCustomPageSchema.safeParse({ ...req.body, createdBy: req.session.userId });
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
 
@@ -951,7 +991,7 @@ export async function registerRoutes(app: Express) {
     res.status(201).json(row);
   });
 
-  app.put("/api/pages/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.put("/api/pages/:id", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const parsed = insertCustomPageSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
@@ -972,18 +1012,18 @@ export async function registerRoutes(app: Express) {
     res.json(row);
   });
 
-  app.delete("/api/pages/:id", requireAuth, requireRole("club_admin"), async (req: Request, res: Response) => {
+  app.delete("/api/pages/:id", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
     await db.delete(customPages).where(eq(customPages.id, parseInt(req.params.id)));
     res.json({ ok: true });
   });
 
   // ── Login security (super admin) ────────────────────────────────────
   // Shows IPs that have failed login attempts and lets an admin clear a block.
-  app.get("/api/security/login-attempts", requireAuth, requireRole("super_admin"), (_req: Request, res: Response) => {
+  app.get("/api/security/login-attempts", requireAuth, requirePermission("security"), (_req: Request, res: Response) => {
     res.json(getSuspiciousIPs());
   });
 
-  app.post("/api/security/unblock", requireAuth, requireRole("super_admin"), (req: Request, res: Response) => {
+  app.post("/api/security/unblock", requireAuth, requirePermission("security"), (req: Request, res: Response) => {
     const { ip } = req.body;
     if (!ip) return res.status(400).json({ message: "IP required" });
     res.json({ ok: unblockIP(ip) });
@@ -992,7 +1032,7 @@ export async function registerRoutes(app: Express) {
   // ── Security: send a test email ─────────────────────────────────────
   // Lets a super admin confirm the mail settings actually work, without
   // waiting for a real form submission.
-  app.post("/api/security/test-email", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+  app.post("/api/security/test-email", requireAuth, requirePermission("security"), async (req: Request, res: Response) => {
     const to = (req.body?.to || "").trim();
     if (!to || !/\S+@\S+\.\S+/.test(to)) {
       return res.status(400).json({ message: "A valid destination email is required." });
@@ -1010,7 +1050,7 @@ export async function registerRoutes(app: Express) {
   // For when a committee member forgets theirs. The super admin sets a
   // temporary password and passes it on; the user can then change it
   // themselves from the Password button.
-  app.post("/api/security/reset-user-password", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+  app.post("/api/security/reset-user-password", requireAuth, requirePermission("security"), async (req: Request, res: Response) => {
     const id = parseInt(req.body?.userId);
     const newPassword = String(req.body?.newPassword ?? "");
     if (!id) return res.status(400).json({ message: "User is required." });
@@ -1031,7 +1071,7 @@ export async function registerRoutes(app: Express) {
   // ── Security: lock / unlock an admin account ────────────────────────
   // "Locking" sets is_active = false: the account stays (so their history is
   // intact) but they can no longer log in. Reversible, unlike deleting.
-  app.post("/api/security/set-user-active", requireAuth, requireRole("super_admin"), async (req: Request, res: Response) => {
+  app.post("/api/security/set-user-active", requireAuth, requirePermission("security"), async (req: Request, res: Response) => {
     const id = parseInt(req.body?.userId);
     const isActive = req.body?.isActive === true;
     if (!id) return res.status(400).json({ message: "User is required." });

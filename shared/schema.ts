@@ -43,7 +43,8 @@ export const users = sqliteTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   role: text("role", {
-    enum: ["super_admin", "club_admin", "juniors_coordinator", "content_manager"],
+    // Keep in sync with ROLES in shared/roles.ts, which defines what each can do.
+    enum: ["super_admin", "club_admin", "juniors_coordinator", "content_manager", "social_media"],
   }).notNull().default("content_manager"),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -271,7 +272,26 @@ export const customPages = sqliteTable("custom_pages", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// ── Committee / Board members ─────────────────────────────────────────────────
+// The people running the club, shown on the public /committee page.
+// Managed in Admin → Committee, so it can be refreshed after each AGM without
+// touching code. Grouped so "Executive" (President, Secretary…) can be listed
+// above "General Committee" and "Coaches".
+export const committeeMembers = sqliteTable("committee_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  position: text("position").notNull(),      // e.g. "President"
+  groupName: text("group_name").notNull().default("Executive"), // section heading
+  bio: text("bio"),                           // optional short paragraph
+  email: text("email"),                       // optional public contact
+  photoUrl: text("photo_url"),                // optional headshot (media library)
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // ── Zod validation schemas (used in routes for input validation) ───────────────
+export const insertCommitteeMemberSchema = createInsertSchema(committeeMembers).omit({ id: true, createdAt: true });
 export const insertCustomPageSchema = createInsertSchema(customPages).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertListItemSchema = createInsertSchema(listItems).omit({ id: true, createdAt: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true, createdAt: true });
@@ -290,7 +310,7 @@ export const createUserSchema = z.object({
   password: z.string().min(8).optional(),
   name: z.string().min(1),
   email: z.string().email(),
-  role: z.enum(["super_admin", "club_admin", "juniors_coordinator", "content_manager"]),
+  role: z.enum(["super_admin", "club_admin", "juniors_coordinator", "content_manager", "social_media"]),
 });
 
 // ── TypeScript types (exported for use in client and server) ──────────────────
@@ -308,3 +328,4 @@ export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 export type PageContent = typeof pageContent.$inferSelect;
 export type ListItem = typeof listItems.$inferSelect;
 export type CustomPage = typeof customPages.$inferSelect;
+export type CommitteeMember = typeof committeeMembers.$inferSelect;

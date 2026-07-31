@@ -11,7 +11,7 @@
 
 import {
   Rocket, Pencil, Megaphone, ImageIcon, Calendar, ClipboardList, Trophy,
-  ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool, Palette, FilePlus,
+  ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool, Palette, FilePlus, UserCheck,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -183,6 +183,22 @@ const GUIDE: GuideSection[] = [
     tips: [
       "Page Visibility switches let you hide whole pages (Store, Gallery, etc.) until you're ready — flip the switch and it vanishes from the menu instantly, flip it back anytime.",
       "The club logo and hero image use 'Choose image' — upload via the Media library, no web addresses needed.",
+    ],
+  },
+  {
+    icon: UserCheck,
+    title: "The President & Board page",
+    intro:
+      "The Committee tab manages the people shown on the public President & Board page — ideal to refresh after each AGM.",
+    steps: [
+      "Go to Committee → Add Person.",
+      "Enter their name and position (e.g. President), and pick a Section — Executive, General Committee, Coaches, or type your own.",
+      "Optionally add a short bio, a public email and a photo. Without a photo their initials are shown.",
+      "Use the up/down arrows to control the order they appear in.",
+    ],
+    tips: [
+      "Untick 'Show on the public page' to hide someone without deleting them — handy between AGMs.",
+      "Only add an email address if that person is happy for it to be public.",
     ],
   },
   {

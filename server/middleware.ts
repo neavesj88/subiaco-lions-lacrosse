@@ -27,11 +27,15 @@ import { type Request, type Response, type NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { users, type User } from "@shared/schema";
+import { roleHas, type Permission } from "@shared/roles";
 
 type Role = User["role"];
 
-// Numeric level for each role — higher number = more permissions
+// Numeric level for each role — used ONLY by the legacy requireRole() helper
+// below. New code should use requirePermission(), which also works for
+// restricted roles like social_media that sit outside this ladder.
 const roleHierarchy: Record<Role, number> = {
+  social_media: 1,
   content_manager: 1,
   juniors_coordinator: 2,
   club_admin: 3,
@@ -95,6 +99,30 @@ export function requireRole(...roles: Role[]) {
     const userLevel = roleHierarchy[user.role] ?? 0;
     const minRequired = Math.min(...roles.map((r) => roleHierarchy[r]));
     if (userLevel < minRequired) {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
+    next();
+  };
+}
+
+// ── requirePermission ────────────────────────────────────────────────────────
+// The preferred guard. Instead of "must be club_admin or above", it asks
+// "is this person allowed to touch events?" — which is what we actually mean.
+//
+// Crucially this works for RESTRICTED roles: a Social Media Manager can be
+// allowed to post news while being refused everything else, which a
+// level-based ladder cannot express.
+//
+// Permissions per role live in shared/roles.ts, shared with the admin UI so
+// the tabs someone sees always match what the server will actually allow.
+export function requirePermission(permission: Permission) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const user = await loadCurrentUser(req);
+    if (!user) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    if (!roleHas(user.role, permission)) {
       return res.status(403).json({ message: "Insufficient permissions" });
     }
     next();

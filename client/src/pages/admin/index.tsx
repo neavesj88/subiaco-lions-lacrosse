@@ -18,6 +18,9 @@ import AdminHelp from "@/pages/admin/help";
 import AdminSecurity from "@/pages/admin/security";
 import MediaLibrary from "@/pages/admin/media-library";
 import AdminPages from "@/pages/admin/pages";
+import AdminCommittee from "@/pages/admin/committee";
+import { ADMIN_GROUPS, ALL_SECTIONS } from "@/pages/admin/nav-config";
+import { ROLES, ROLE_INFO } from "@shared/roles";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,8 +32,14 @@ import {
   LogOut, Plus, Pencil, Trash2, Settings, Users, Calendar, Megaphone,
   ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
   Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft, List as ListIcon,
-  KeyRound, AlertTriangle, HelpCircle, Shield, Palette, FileText
+  KeyRound, AlertTriangle, HelpCircle, Shield, Palette, FileText, UserCog
 } from "lucide-react";
+
+// Sidebar icon names (from nav-config.ts) → the actual components
+const ADMIN_ICONS: Record<string, any> = {
+  Megaphone, ImageIcon, FileText, Star, ListIcon, Calendar, Trophy, Heart,
+  Users, ClipboardList, MessageSquare, Mail, Settings, UserCog, Shield,
+};
 import { Switch } from "@/components/ui/switch";
 import ListManager from "@/components/list-manager";
 import type { Event, Announcement, Registration, JuniorsContent, ContactMessage, MediaUpload, Sponsor, MatchResult, NewsletterSubscriber } from "@shared/schema";
@@ -386,10 +395,9 @@ function UserForm({ onDone }: { onDone: () => void }) {
         <Select onValueChange={(v) => setValue("role", v as any)} defaultValue="content_manager">
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="super_admin">Super Admin (full access)</SelectItem>
-            <SelectItem value="club_admin">Club Admin (events + sign-ups)</SelectItem>
-            <SelectItem value="juniors_coordinator">Juniors Coordinator</SelectItem>
-            <SelectItem value="content_manager">Content Manager (announcements)</SelectItem>
+            {ROLES.map((r) => (
+              <SelectItem key={r} value={r}>{ROLE_INFO[r].label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -407,12 +415,24 @@ function UserForm({ onDone }: { onDone: () => void }) {
 
 export default function AdminDashboard() {
   const [, navigate] = useLocation();
-  const { user, isLoading, logoutMutation, hasRole } = useAuth();
+  const { user, isLoading, logoutMutation, can } = useAuth();
   const qc = useQueryClient();
 
   // Keeps an ACTIVE admin logged in past the 2h idle timeout (pings the server
   // while they're working), while an abandoned session still expires.
   useSessionKeepalive(!!user);
+
+  // Which admin sections this person may use. Anything they lack permission
+  // for simply isn't rendered — a Social Media Manager sees News and Photos
+  // and nothing else, rather than a wall of greyed-out tabs.
+  const visibleGroups = ADMIN_GROUPS
+    .map((g) => ({ ...g, sections: g.sections.filter((sec) => can(sec.permission)) }))
+    .filter((g) => g.sections.length > 0);
+
+  // Open the first section they're allowed to see (falls back to Help).
+  const firstSection = visibleGroups[0]?.sections[0]?.id ?? "help";
+  const [activeTab, setActiveTab] = useState(firstSection);
+  const currentSection = ALL_SECTIONS.find((sec) => sec.id === activeTab);
 
   useEffect(() => {
     if (!isLoading && !user) navigate(ADMIN_LOGIN_PATH);
@@ -421,31 +441,31 @@ export default function AdminDashboard() {
   const { data: events = [] } = useQuery<Event[]>({
     queryKey: ["/api/events/all"],
     queryFn: () => apiRequest("GET", "/api/events/all"),
-    enabled: hasRole("club_admin"),
+    enabled: can("events"),
   });
 
   const { data: announcements = [] } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/all"],
     queryFn: () => apiRequest("GET", "/api/announcements/all"),
-    enabled: hasRole("content_manager"),
+    enabled: can("news"),
   });
 
   const { data: registrations = [] } = useQuery<Registration[]>({
     queryKey: ["/api/registrations"],
     queryFn: () => apiRequest("GET", "/api/registrations"),
-    enabled: hasRole("club_admin"),
+    enabled: can("signups"),
   });
 
   const { data: juniorsContent = [] } = useQuery<JuniorsContent[]>({
     queryKey: ["/api/juniors-content"],
     queryFn: () => apiRequest("GET", "/api/juniors-content"),
-    enabled: hasRole("juniors_coordinator"),
+    enabled: can("juniors"),
   });
 
   const { data: adminUsers = [] } = useQuery<any[]>({
     queryKey: ["/api/users"],
     queryFn: () => apiRequest("GET", "/api/users"),
-    enabled: hasRole("super_admin"),
+    enabled: can("users"),
   });
 
   // (Login lockouts now live in the Security tab — see pages/admin/security.tsx)
@@ -453,31 +473,31 @@ export default function AdminDashboard() {
   const { data: mediaItems = [] } = useQuery<MediaUpload[]>({
     queryKey: ["/api/media"],
     queryFn: () => apiRequest("GET", "/api/media"),
-    enabled: hasRole("content_manager"),
+    enabled: can("media"),
   });
 
   const { data: sponsorList = [] } = useQuery<Sponsor[]>({
     queryKey: ["/api/sponsors/all"],
     queryFn: () => apiRequest("GET", "/api/sponsors/all"),
-    enabled: hasRole("club_admin"),
+    enabled: can("sponsors"),
   });
 
   const { data: resultList = [] } = useQuery<MatchResult[]>({
     queryKey: ["/api/results/all"],
     queryFn: () => apiRequest("GET", "/api/results/all"),
-    enabled: hasRole("club_admin"),
+    enabled: can("results"),
   });
 
   const { data: subscribers = [] } = useQuery<NewsletterSubscriber[]>({
     queryKey: ["/api/newsletter/subscribers"],
     queryFn: () => apiRequest("GET", "/api/newsletter/subscribers"),
-    enabled: hasRole("club_admin"),
+    enabled: can("newsletter"),
   });
 
   const { data: contactMsgs = [] } = useQuery<ContactMessage[]>({
     queryKey: ["/api/contact"],
     queryFn: () => apiRequest("GET", "/api/contact"),
-    enabled: hasRole("club_admin"),
+    enabled: can("messages"),
   });
 
   const { data: settings } = useQuery<Record<string, string>>({
@@ -485,7 +505,7 @@ export default function AdminDashboard() {
     // the Settings form has to read them from here (password comes back masked).
     queryKey: ["/api/settings/secure"],
     queryFn: () => apiRequest("GET", "/api/settings/secure"),
-    enabled: hasRole("super_admin"),
+    enabled: can("settings"),
   });
 
   const deleteEvent = useMutation({
@@ -637,11 +657,11 @@ export default function AdminDashboard() {
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
-            { label: "Upcoming Events", value: events.filter((e) => new Date(e.startDate) >= new Date()).length, icon: Calendar, show: hasRole("club_admin") },
-            { label: "Announcements", value: announcements.filter((a) => a.isPublished).length, icon: Megaphone, show: hasRole("content_manager") },
-            { label: "New Sign-Ups", value: newRegs, icon: ClipboardList, show: hasRole("club_admin") },
-            { label: "Admin Users", value: adminUsers.length, icon: Users, show: hasRole("super_admin") },
-            { label: "Unread Messages", value: unreadMsgs, icon: MessageSquare, show: hasRole("club_admin") },
+            { label: "Upcoming Events", value: events.filter((e) => new Date(e.startDate) >= new Date()).length, icon: Calendar, show: can("events") },
+            { label: "Announcements", value: announcements.filter((a) => a.isPublished).length, icon: Megaphone, show: can("news") },
+            { label: "New Sign-Ups", value: newRegs, icon: ClipboardList, show: can("signups") },
+            { label: "Admin Users", value: adminUsers.length, icon: Users, show: can("users") },
+            { label: "Unread Messages", value: unreadMsgs, icon: MessageSquare, show: can("messages") },
           ]
             .filter((s) => s.show)
             .map((s) => (
@@ -657,38 +677,61 @@ export default function AdminDashboard() {
             ))}
         </div>
 
-        <Tabs defaultValue={hasRole("club_admin") ? "events" : hasRole("content_manager") ? "announcements" : "juniors"}>
-          <TabsList className="flex-wrap h-auto mb-6">
-            {hasRole("club_admin") && <TabsTrigger value="events"><Calendar className="h-4 w-4 mr-1" />Events</TabsTrigger>}
-            {hasRole("content_manager") && <TabsTrigger value="announcements"><Megaphone className="h-4 w-4 mr-1" />News</TabsTrigger>}
-            {hasRole("club_admin") && (
-              <TabsTrigger value="registrations">
-                <ClipboardList className="h-4 w-4 mr-1" />Sign-Ups
-                {newRegs > 0 && <span className="ml-1 bg-gold-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">{newRegs}</span>}
-              </TabsTrigger>
-            )}
-            {hasRole("juniors_coordinator") && <TabsTrigger value="juniors"><Star className="h-4 w-4 mr-1" />Juniors</TabsTrigger>}
-              {hasRole("club_admin") && (
-              <TabsTrigger value="messages">
-                <MessageSquare className="h-4 w-4 mr-1" />Messages
-                {unreadMsgs > 0 && <span className="ml-1 bg-maroon-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">{unreadMsgs}</span>}
-              </TabsTrigger>
-            )}
-            {hasRole("club_admin") && <TabsTrigger value="results"><Trophy className="h-4 w-4 mr-1" />Results</TabsTrigger>}
-            {hasRole("club_admin") && <TabsTrigger value="sponsors"><Heart className="h-4 w-4 mr-1" />Sponsors</TabsTrigger>}
-            {hasRole("club_admin") && <TabsTrigger value="newsletter"><Mail className="h-4 w-4 mr-1" />Newsletter</TabsTrigger>}
-            {hasRole("club_admin") && <TabsTrigger value="content"><ListIcon className="h-4 w-4 mr-1" />Page Lists</TabsTrigger>}
-            {hasRole("club_admin") && <TabsTrigger value="pages"><FileText className="h-4 w-4 mr-1" />Pages</TabsTrigger>}
-            {hasRole("content_manager") && <TabsTrigger value="media"><ImageIcon className="h-4 w-4 mr-1" />Media</TabsTrigger>}
-            {hasRole("super_admin") && <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>}
-            {hasRole("super_admin") && <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" />Settings</TabsTrigger>}
-            {hasRole("super_admin") && <TabsTrigger value="security"><Shield className="h-4 w-4 mr-1" />Security</TabsTrigger>}
-            {/* Help is visible to every admin role — it's the built-in user guide */}
-            <TabsTrigger value="help"><HelpCircle className="h-4 w-4 mr-1" />Help</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical"
+              className="flex flex-col md:flex-row gap-6 items-start">
+          {/* Grouped sidebar — only shows sections this person may use */}
+          <TabsList className="w-full md:w-56 shrink-0 flex-col h-auto bg-transparent p-0 gap-4 items-stretch">
+            {visibleGroups.map((group) => (
+              <div key={group.name}>
+                <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                  {group.name}
+                </p>
+                <div className="flex flex-col gap-0.5">
+                  {group.sections.map((sec) => {
+                    const Icon = ADMIN_ICONS[sec.icon] ?? FileText;
+                    const badge = sec.id === "signups" ? newRegs : sec.id === "messages" ? unreadMsgs : 0;
+                    return (
+                      <TabsTrigger
+                        key={sec.id}
+                        value={sec.id}
+                        className="justify-start gap-2 px-3 py-2 h-auto text-sm data-[state=active]:bg-maroon-700 data-[state=active]:text-white rounded-md"
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="flex-1 text-left">{sec.label}</span>
+                        {badge > 0 && (
+                          <span className="bg-gold-500 text-white text-[10px] rounded-full px-1.5 py-0.5 leading-none">
+                            {badge}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {/* Help is available to everyone — it's the built-in user guide */}
+            <div>
+              <div className="flex flex-col gap-0.5 pt-2 border-t">
+                <TabsTrigger value="help"
+                  className="justify-start gap-2 px-3 py-2 h-auto text-sm data-[state=active]:bg-maroon-700 data-[state=active]:text-white rounded-md">
+                  <HelpCircle className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-left">Help &amp; Guide</span>
+                </TabsTrigger>
+              </div>
+            </div>
           </TabsList>
 
+          {/* Panel — heading describes the current section */}
+          <div className="flex-1 min-w-0 w-full">
+            {currentSection && (
+              <div className="mb-5 pb-4 border-b">
+                <h1 className="text-xl font-bold text-stone-900">{currentSection.label}</h1>
+                <p className="text-sm text-stone-500 mt-0.5">{currentSection.description}</p>
+              </div>
+            )}
+
           {/* ── Events ── */}
-          {hasRole("club_admin") && (
+          {can("events") && (
             <TabsContent value="events">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Events</h2>
@@ -741,8 +784,8 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Announcements ── */}
-          {hasRole("content_manager") && (
-            <TabsContent value="announcements">
+          {can("news") && (
+            <TabsContent value="news">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Announcements</h2>
                 <Dialog>
@@ -800,8 +843,8 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Registrations ── */}
-          {hasRole("club_admin") && (
-            <TabsContent value="registrations">
+          {can("signups") && (
+            <TabsContent value="signups">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Sign-Up Enquiries</h2>
                 <span className="text-sm text-stone-500">{registrations.length} total</span>
@@ -855,7 +898,7 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Juniors Content ── */}
-          {hasRole("juniors_coordinator") && (
+          {can("juniors") && (
             <TabsContent value="juniors">
               <h2 className="text-lg font-semibold mb-4">Juniors Page Content</h2>
               <div className="space-y-4">
@@ -892,7 +935,7 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Match Results ── */}
-          {hasRole("club_admin") && (
+          {can("results") && (
             <TabsContent value="results">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Match Results</h2>
@@ -941,7 +984,7 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Sponsors ── */}
-          {hasRole("club_admin") && (
+          {can("sponsors") && (
             <TabsContent value="sponsors">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Sponsors</h2>
@@ -996,7 +1039,7 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Newsletter ── */}
-          {hasRole("club_admin") && (
+          {can("newsletter") && (
             <TabsContent value="newsletter">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Newsletter Subscribers</h2>
@@ -1033,8 +1076,8 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Page Lists (team divisions, store apparel, juniors FAQ) ── */}
-          {hasRole("club_admin") && (
-            <TabsContent value="content">
+          {can("lists") && (
+            <TabsContent value="lists">
               <div className="space-y-8">
                 <ListManager
                   listType="team_division"
@@ -1070,21 +1113,21 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Media Library ── */}
-          {hasRole("content_manager") && (
+          {can("media") && (
             <TabsContent value="media">
               <MediaLibrary items={mediaItems} onChanged={() => qc.invalidateQueries({ queryKey: ["/api/media"] })} />
             </TabsContent>
           )}
 
           {/* ── Pages — admin-created custom pages ── */}
-          {hasRole("club_admin") && (
+          {can("pages") && (
             <TabsContent value="pages">
               <AdminPages />
             </TabsContent>
           )}
 
           {/* ── Contact Messages ── */}
-          {hasRole("club_admin") && (
+          {can("messages") && (
             <TabsContent value="messages">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Contact Messages</h2>
@@ -1130,7 +1173,7 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Users ── */}
-          {hasRole("super_admin") && (
+          {can("users") && (
             <TabsContent value="users">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Admin Users</h2>
@@ -1173,11 +1216,27 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Settings ── */}
-          {hasRole("super_admin") && (
+          {can("settings") && (
             <TabsContent value="settings">
               <h2 className="text-lg font-semibold mb-4">Site Settings</h2>
               <Card>
                 <CardContent className="pt-6 space-y-4">
+                  {/* Club identity — the name shown in the nav, footer and page titles */}
+                  {[
+                    { key: "club_name", label: "Club name", help: "Main name in the logo and footer, e.g. Subiaco Lions." },
+                    { key: "club_name_suffix", label: "Club name — second line", help: "The smaller line beneath it, e.g. Lacrosse Club." },
+                    { key: "club_tagline", label: "Footer tagline", help: "The short description in the footer." },
+                  ].map(({ key, label, help }) => (
+                    <div key={key} className="space-y-1.5">
+                      <Label>{label}</Label>
+                      <Input
+                        value={settingsForm[key] ?? ""}
+                        onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
+                      />
+                      <p className="text-xs text-stone-400">{help}</p>
+                    </div>
+                  ))}
+
                   {/* Image settings — click to pick from the media library (no URL pasting) */}
                   <ImagePicker
                     label="Club Logo"
@@ -1240,6 +1299,7 @@ export default function AdminDashboard() {
                     { key: "nav_show_fixtures",   label: "Fixtures",         desc: "The /fixtures page linking to LacrosseWA & GameDay" },
                     { key: "nav_show_store",      label: "Club Store",       desc: "The /store merchandise page" },
                     { key: "nav_show_coaches_board", label: "Coaches Board", desc: "The tactical whiteboard app for coaches (under the Club menu)" },
+                    { key: "nav_show_committee", label: "President & Board", desc: "The committee page listing your club's office bearers" },
                     { key: "nav_show_results",    label: "Recent Results",   desc: "Match results section on the home page" },
                     { key: "nav_show_sponsors",   label: "Sponsor Strip",    desc: "Sponsor logos shown at the bottom of the home page" },
                     { key: "nav_show_newsletter", label: "Newsletter Widget",desc: "Email subscribe form on the home page" },
@@ -1407,9 +1467,16 @@ export default function AdminDashboard() {
           )}
 
           {/* ── Security — email kill-switch, password resets, lockouts ── */}
-          {hasRole("super_admin") && (
+          {can("security") && (
             <TabsContent value="security">
               <AdminSecurity currentUserId={user.id} />
+            </TabsContent>
+          )}
+
+          {/* ── Committee / Board ── */}
+          {can("committee") && (
+            <TabsContent value="committee">
+              <AdminCommittee />
             </TabsContent>
           )}
 
@@ -1417,6 +1484,7 @@ export default function AdminDashboard() {
           <TabsContent value="help">
             <AdminHelp />
           </TabsContent>
+          </div>
         </Tabs>
       </div>
     </div>

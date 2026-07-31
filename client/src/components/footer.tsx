@@ -28,12 +28,12 @@ export default function Footer() {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-9 h-9 rounded-full bg-gold-500 flex items-center justify-center text-maroon-900 font-bold">L</div>
               <div>
-                <div className="font-bold text-white">Subiaco Lions</div>
-                <div className="text-gold-400 text-xs">Lacrosse Club</div>
+                <div className="font-bold text-white">{club.clubName}</div>
+                <div className="text-gold-400 text-xs">{club.clubNameSuffix}</div>
               </div>
             </div>
             <p className="text-sm text-maroon-300 leading-relaxed">
-              Perth's home of lacrosse since 1940. Men's, Women's and Junior teams competing across all divisions of Lacrosse WA.
+              {club.clubTagline || "Perth's home of lacrosse since 1940. Men's, Women's and Junior teams competing across all divisions of Lacrosse WA."}
             </p>
           </div>
 
@@ -114,7 +114,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 pt-6 border-t border-maroon-700 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-maroon-400">
-          <p>© {new Date().getFullYear()} Subiaco Lions Lacrosse Club. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} {club.clubFullName}. All rights reserved.</p>
           <p>Affiliated with <a href="https://lacrossewa.com.au" target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:underline">Lacrosse WA</a></p>
         </div>
       </div>

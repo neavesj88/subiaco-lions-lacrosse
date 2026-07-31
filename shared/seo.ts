@@ -89,6 +89,12 @@ export const PAGE_SEO: Record<string, PageSeo> = {
       "Free interactive lacrosse tactical whiteboard from the Subiaco Lions. Draw plays, position players and plan set pieces — works on phones and tablets, even offline.",
     keywords: "lacrosse whiteboard, lacrosse tactics board, lacrosse coaching app, lacrosse play designer",
   },
+  "/committee": {
+    title: "President & Board | Subiaco Lions Lacrosse",
+    description:
+      "Meet the committee behind the Subiaco Lions Lacrosse Club — our President, board members and coaches.",
+    keywords: "Subiaco lacrosse committee, lacrosse club president Perth, club board",
+  },
   "/contact": {
     title: "Contact Us | Subiaco Lions Lacrosse Club",
     description:
@@ -116,5 +122,6 @@ export const SITEMAP_PAGES: { path: string; priority: number; changefreq: string
   { path: "/gallery", priority: 0.5, changefreq: "weekly" },
   { path: "/store", priority: 0.5, changefreq: "monthly" },
   { path: "/coaches-board", priority: 0.5, changefreq: "monthly" },
+  { path: "/committee", priority: 0.4, changefreq: "yearly" },
   { path: "/contact", priority: 0.6, changefreq: "yearly" },
 ];

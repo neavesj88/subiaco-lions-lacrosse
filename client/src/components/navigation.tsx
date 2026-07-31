@@ -6,6 +6,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ADMIN_PATH } from "@/lib/admin-path";
+import { useClubDetails } from "@/components/club-details";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { CustomPage } from "@shared/schema";
@@ -16,6 +17,7 @@ export default function Navigation() {
   const [clubOpen, setClubOpen] = useState(false);
   const { user } = useAuth();
   const { pageEnabled, settings } = useSettings();
+  const club = useClubDetails(); // club name from Admin → Settings
 
   // Pages the club created themselves (Admin → Pages). Each one chooses whether
   // it appears in the main bar, the Club dropdown, the footer, or nowhere.
@@ -34,6 +36,7 @@ export default function Navigation() {
     { href: "/gallery",       label: "Photo Gallery",  key: "gallery"       },
     { href: "/store",         label: "Store",          key: "store"         },
     { href: "/coaches-board", label: "Coaches Board",  key: "coaches_board" },
+    { href: "/committee",     label: "President & Board", key: "committee"  },
   ]
     .filter((item) => item.key === "calendar" || pageEnabled(item.key))
     // Custom pages set to "In the Club menu" join the same dropdown
@@ -52,15 +55,15 @@ export default function Navigation() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group shrink-0">
             {settings?.club_logo_url ? (
-              <img src={settings.club_logo_url} alt="Subiaco Lions" className="w-10 h-10 object-contain" />
+              <img src={settings.club_logo_url} alt={club.clubFullName} className="w-10 h-10 object-contain" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-maroon-900 font-bold text-lg shadow-md">
                 L
               </div>
             )}
             <div className="leading-tight hidden sm:block">
-              <div className="font-bold text-sm">Subiaco Lions</div>
-              <div className="text-gold-300 text-xs">Lacrosse Club</div>
+              <div className="font-bold text-sm">{club.clubName}</div>
+              <div className="text-gold-300 text-xs">{club.clubNameSuffix}</div>
             </div>
           </Link>
 
@@ -151,6 +154,7 @@ export default function Navigation() {
               { href: "/gallery", label: "Photo Gallery", show: pageEnabled("gallery") },
               { href: "/store",   label: "Store",         show: pageEnabled("store") },
               { href: "/coaches-board", label: "Coaches Board", show: pageEnabled("coaches_board") },
+              { href: "/committee", label: "President & Board", show: pageEnabled("committee") },
               { href: "/juniors", label: "Juniors",       show: pageEnabled("juniors") },
               { href: "/contact", label: "Contact",       show: true },
               // Custom pages listed anywhere except "hidden" appear on mobile,
