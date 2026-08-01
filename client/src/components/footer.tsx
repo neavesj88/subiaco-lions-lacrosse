@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { useClubDetails } from "@/components/club-details";
 import { useSettings } from "@/hooks/use-settings";
+import { useSiteText } from "@/hooks/use-site-text";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { CustomPage } from "@shared/schema";
@@ -10,6 +11,7 @@ export default function Footer() {
   // Club address, email and social links come from Admin → Settings
   const club = useClubDetails();
   const { settings } = useSettings();
+  const t = useSiteText();
 
   // Custom pages the admin chose to list in the footer
   const { data: customPages = [] } = useQuery<CustomPage[]>({
@@ -26,14 +28,16 @@ export default function Footer() {
           {/* Club info */}
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-full bg-gold-500 flex items-center justify-center text-maroon-900 font-bold">L</div>
+              {settings?.club_logo_url
+                ? <img src={settings.club_logo_url} alt={club.clubFullName} className="w-9 h-9 object-contain" />
+                : <div className="w-9 h-9 rounded-full bg-gold-500 flex items-center justify-center text-maroon-900 font-bold">{club.clubName.charAt(0)}</div>}
               <div>
                 <div className="font-bold text-white">{club.clubName}</div>
                 <div className="text-gold-400 text-xs">{club.clubNameSuffix}</div>
               </div>
             </div>
             <p className="text-sm text-maroon-300 leading-relaxed">
-              {club.clubTagline || "Perth's home of lacrosse since 1940. Men's, Women's and Junior teams competing across all divisions of Lacrosse WA."}
+              {t("club_tagline")}
             </p>
           </div>
 
@@ -42,10 +46,10 @@ export default function Footer() {
             <h3 className="text-white font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2 text-sm">
               {[
-                { href: "/about", label: "About the Club" },
-                { href: "/calendar", label: "Club Calendar" },
-                { href: "/juniors", label: "Juniors Program" },
-                { href: "/sign-up", label: "Sign Up to Play" },
+                { href: "/about", label: t("nav_label_about") },
+                { href: "/calendar", label: t("nav_label_calendar") },
+                { href: "/juniors", label: t("nav_label_juniors") },
+                { href: "/sign-up", label: t("nav_label_signup") },
               ].map((l) => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-maroon-300 hover:text-gold-400 transition-colors">
@@ -63,12 +67,12 @@ export default function Footer() {
               ))}
               <li>
                 <a
-                  href="https://lacrossewa.com.au"
+                  href={t("league_url")}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-maroon-300 hover:text-gold-400 transition-colors"
                 >
-                  Lacrosse WA
+                  {t("league_name")}
                 </a>
               </li>
             </ul>
@@ -91,7 +95,7 @@ export default function Footer() {
               </div>
               <div className="flex gap-3 pt-2">
                 <a
-                  href={settings?.facebook_url || "https://www.facebook.com/SubiacoLacrosse/"}
+                  href={t("facebook_url")}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-maroon-300 hover:text-gold-400 transition-colors"
@@ -100,7 +104,7 @@ export default function Footer() {
                   <Facebook className="h-5 w-5" />
                 </a>
                 <a
-                  href={`https://www.instagram.com/${settings?.instagram_handle || "subiacolacrosse_official"}/`}
+                  href={`https://www.instagram.com/${t("instagram_handle")}/`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-maroon-300 hover:text-gold-400 transition-colors"
@@ -115,7 +119,7 @@ export default function Footer() {
 
         <div className="mt-8 pt-6 border-t border-maroon-700 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-maroon-400">
           <p>© {new Date().getFullYear()} {club.clubFullName}. All rights reserved.</p>
-          <p>Affiliated with <a href="https://lacrossewa.com.au" target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:underline">Lacrosse WA</a></p>
+          <p>Affiliated with <a href={t("league_url")} target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:underline">{t("league_name")}</a></p>
         </div>
       </div>
     </footer>

@@ -8,11 +8,13 @@ import { Star, Shield, Heart, Mail, UserPlus } from "lucide-react";
 import { RichTextDisplay } from "@/components/rich-text-display";
 import { useListItems } from "@/hooks/use-list-items";
 import { useClubDetails } from "@/components/club-details";
+import { useSiteText } from "@/hooks/use-site-text";
 import type { JuniorsContent } from "@shared/schema";
 
 export default function Juniors() {
   const { items: faqItems } = useListItems("faq"); // title=question, body=answer
   const club = useClubDetails(); // club email from Admin → Settings
+  const t = useSiteText();
   const { data: contentItems = [] } = useQuery<JuniorsContent[]>({
     queryKey: ["/api/juniors-content"],
     queryFn: () => apiRequest("GET", "/api/juniors-content"),
@@ -35,10 +37,10 @@ export default function Juniors() {
   }
 
   const defaultPrograms = [
-    { age: "U11", description: "Modified rules to focus on fun and skill development. Perfect introduction to lacrosse." },
-    { age: "U13", description: "Building core lacrosse skills with more structured competition." },
+    { age: "U11", description: "Modified rules focused on fun and skill development. A perfect introduction to the game." },
+    { age: "U13", description: "Building core skills with more structured competition." },
     { age: "U15", description: "Competitive play with a focus on teamwork and game strategy." },
-    { age: "U17", description: "High-level junior competition preparing players for senior lacrosse." },
+    { age: "U17", description: "High-level junior competition preparing players for senior teams." },
   ];
 
   const displayPrograms = programList.length > 0 ? programList : defaultPrograms;
@@ -53,10 +55,10 @@ export default function Juniors() {
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <Star className="h-12 w-12 text-gold-400 mx-auto mb-4" />
           <h1 className="text-4xl sm:text-5xl font-extrabold mb-4">
-            {hero?.title ?? "Juniors Lacrosse"}
+            {hero?.title ?? t("page_juniors_title")}
           </h1>
           <p className="text-maroon-100 text-lg max-w-2xl mx-auto">
-            {hero?.content ?? "Introducing the next generation of Lions. Fun, safe and inclusive for boys and girls aged 8–17."}
+            {hero?.content ?? t("page_juniors_subtitle")}
           </p>
           <div className="flex flex-wrap gap-4 justify-center mt-8">
             <Link href="/sign-up">
@@ -163,7 +165,7 @@ export default function Juniors() {
       <section className="py-16 px-4 hero-gradient text-white text-center">
         <h2 className="text-3xl font-bold mb-4">Ready to Get Your Child Started?</h2>
         <p className="text-maroon-100 mb-8 max-w-xl mx-auto">
-          Register your interest and our Junior Coordinator will be in touch to welcome your family to the Lions.
+          Register your interest and our Junior Coordinator will be in touch to welcome your family to the {t("club_short_name")}.
         </p>
         <Link href="/sign-up">
           <Button size="lg" variant="gold">

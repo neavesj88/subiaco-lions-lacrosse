@@ -17,7 +17,8 @@
 // =============================================================================
 
 import { useEffect } from "react";
-import { getSeoForPath, SITE_NAME } from "@shared/seo";
+import { getSeoForPath, getSiteName } from "@shared/seo";
+import { useSettings } from "@/hooks/use-settings";
 
 interface SEOProps {
   path: string;
@@ -48,8 +49,10 @@ function setCanonical(href: string) {
 }
 
 export default function SEO({ path, title, description, image }: SEOProps) {
+  const { settings } = useSettings();
+
   useEffect(() => {
-    const base = getSeoForPath(path);
+    const base = getSeoForPath(path, settings);
     const finalTitle = title ?? base.title;
     const finalDesc = description ?? base.description;
     const url = window.location.origin + path;
@@ -66,7 +69,7 @@ export default function SEO({ path, title, description, image }: SEOProps) {
     setMeta("property", "og:description", finalDesc);
     setMeta("property", "og:url", url);
     setMeta("property", "og:type", "website");
-    setMeta("property", "og:site_name", SITE_NAME);
+    setMeta("property", "og:site_name", getSiteName(settings));
     setMeta("property", "og:image", ogImage);
 
     // Twitter card
@@ -76,7 +79,7 @@ export default function SEO({ path, title, description, image }: SEOProps) {
     setMeta("name", "twitter:image", ogImage);
 
     setCanonical(url);
-  }, [path, title, description, image]);
+  }, [path, title, description, image, settings]);
 
   return null;
 }

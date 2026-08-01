@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ADMIN_PATH } from "@/lib/admin-path";
 import { useClubDetails } from "@/components/club-details";
+import { useSiteText } from "@/hooks/use-site-text";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { CustomPage } from "@shared/schema";
@@ -18,6 +19,7 @@ export default function Navigation() {
   const { user } = useAuth();
   const { pageEnabled, settings } = useSettings();
   const club = useClubDetails(); // club name from Admin → Settings
+  const t = useSiteText();       // every page label is configurable
 
   // Pages the club created themselves (Admin → Pages). Each one chooses whether
   // it appears in the main bar, the Club dropdown, the footer, or nowhere.
@@ -31,12 +33,12 @@ export default function Navigation() {
 
   // "Club" dropdown — only shows items that are enabled in Admin → Settings
   const clubItems = [
-    { href: "/calendar",      label: "Calendar",       key: "calendar"      },
-    { href: "/fixtures",      label: "Fixtures",       key: "fixtures"      },
-    { href: "/gallery",       label: "Photo Gallery",  key: "gallery"       },
-    { href: "/store",         label: "Store",          key: "store"         },
-    { href: "/coaches-board", label: "Coaches Board",  key: "coaches_board" },
-    { href: "/committee",     label: "President & Board", key: "committee"  },
+    { href: "/calendar",      label: t("nav_label_calendar"),       key: "calendar"      },
+    { href: "/fixtures",      label: t("nav_label_fixtures"),       key: "fixtures"      },
+    { href: "/gallery",       label: t("nav_label_gallery"),  key: "gallery"       },
+    { href: "/store",         label: t("nav_label_store"),          key: "store"         },
+    { href: "/coaches-board", label: t("nav_label_coaches_board"),  key: "coaches_board" },
+    { href: "/committee",     label: t("nav_label_committee"), key: "committee"  },
   ]
     .filter((item) => item.key === "calendar" || pageEnabled(item.key))
     // Custom pages set to "In the Club menu" join the same dropdown
@@ -58,7 +60,7 @@ export default function Navigation() {
               <img src={settings.club_logo_url} alt={club.clubFullName} className="w-10 h-10 object-contain" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-maroon-900 font-bold text-lg shadow-md">
-                L
+                {club.clubName.charAt(0)}
               </div>
             )}
             <div className="leading-tight hidden sm:block">
@@ -71,11 +73,11 @@ export default function Navigation() {
           <div className="hidden md:flex items-center gap-0.5">
 
             <Link href="/" className={cn("px-3 py-2 rounded-md text-sm font-medium transition-colors", location === "/" ? "bg-maroon-900 text-white" : "text-maroon-100 hover:bg-maroon-600")}>
-              Home
+              {t("nav_label_home")}
             </Link>
 
             <Link href="/about" className={cn("px-3 py-2 rounded-md text-sm font-medium transition-colors", location === "/about" ? "bg-maroon-900 text-white" : "text-maroon-100 hover:bg-maroon-600")}>
-              About
+              {t("nav_label_about")}
             </Link>
 
             {/* Club dropdown */}
@@ -86,7 +88,7 @@ export default function Navigation() {
                   onMouseEnter={() => setClubOpen(true)}
                   onClick={() => setClubOpen((p) => !p)}
                 >
-                  Club <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", clubOpen && "rotate-180")} />
+                  {t("nav_label_club_menu")} <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", clubOpen && "rotate-180")} />
                 </button>
                 {clubOpen && (
                   <div className="absolute top-full left-0 mt-1 w-44 bg-white rounded-lg shadow-xl border py-1 z-50">
@@ -103,12 +105,12 @@ export default function Navigation() {
 
             {pageEnabled("juniors") && (
               <Link href="/juniors" className={cn("px-3 py-2 rounded-md text-sm font-medium transition-colors", location === "/juniors" ? "bg-maroon-900 text-white" : "text-maroon-100 hover:bg-maroon-600")}>
-                Juniors
+                {t("nav_label_juniors")}
               </Link>
             )}
 
             <Link href="/contact" className={cn("px-3 py-2 rounded-md text-sm font-medium transition-colors", location === "/contact" ? "bg-maroon-900 text-white" : "text-maroon-100 hover:bg-maroon-600")}>
-              Contact
+              {t("nav_label_contact")}
             </Link>
 
             {/* Custom pages the admin chose to put in the main menu bar */}
@@ -123,7 +125,7 @@ export default function Navigation() {
             ))}
 
             <Link href="/sign-up" className="ml-1">
-              <Button size="sm" variant="gold">Join Up</Button>
+              <Button size="sm" variant="gold">{t("nav_label_signup")}</Button>
             </Link>
 
             {user && (
@@ -147,16 +149,16 @@ export default function Navigation() {
         <div className="md:hidden bg-maroon-800 border-t border-maroon-600">
           <div className="px-4 py-3 flex flex-col gap-1">
             {[
-              { href: "/",        label: "Home",          show: true },
-              { href: "/about",   label: "About",         show: true },
-              { href: "/calendar",label: "Calendar",      show: true },
-              { href: "/fixtures",label: "Fixtures",      show: pageEnabled("fixtures") },
-              { href: "/gallery", label: "Photo Gallery", show: pageEnabled("gallery") },
-              { href: "/store",   label: "Store",         show: pageEnabled("store") },
-              { href: "/coaches-board", label: "Coaches Board", show: pageEnabled("coaches_board") },
-              { href: "/committee", label: "President & Board", show: pageEnabled("committee") },
-              { href: "/juniors", label: "Juniors",       show: pageEnabled("juniors") },
-              { href: "/contact", label: "Contact",       show: true },
+              { href: "/",        label: t("nav_label_home"),          show: true },
+              { href: "/about",   label: t("nav_label_about"),         show: true },
+              { href: "/calendar",label: t("nav_label_calendar"),      show: true },
+              { href: "/fixtures",label: t("nav_label_fixtures"),      show: pageEnabled("fixtures") },
+              { href: "/gallery", label: t("nav_label_gallery"), show: pageEnabled("gallery") },
+              { href: "/store",   label: t("nav_label_store"),         show: pageEnabled("store") },
+              { href: "/coaches-board", label: t("nav_label_coaches_board"), show: pageEnabled("coaches_board") },
+              { href: "/committee", label: t("nav_label_committee"), show: pageEnabled("committee") },
+              { href: "/juniors", label: t("nav_label_juniors"),       show: pageEnabled("juniors") },
+              { href: "/contact", label: t("nav_label_contact"),       show: true },
               // Custom pages listed anywhere except "hidden" appear on mobile,
               // where there's no separate dropdown/footer distinction.
               ...customPages
@@ -169,7 +171,7 @@ export default function Navigation() {
               </Link>
             ))}
             <Link href="/sign-up" onClick={() => setOpen(false)}>
-              <Button size="sm" variant="gold" className="w-full mt-1">Join Up</Button>
+              <Button size="sm" variant="gold" className="w-full mt-1">{t("nav_label_signup")}</Button>
             </Link>
             {user && (
               <Link href={ADMIN_PATH} onClick={() => setOpen(false)}>

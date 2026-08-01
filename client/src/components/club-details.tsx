@@ -11,40 +11,32 @@
 // =============================================================================
 
 import { useSettings } from "@/hooks/use-settings";
+import { resolveText } from "@shared/club-config";
 
-// Sensible fallbacks — used until an admin sets their own.
-const FALLBACK = {
-  venue: "Rosalie Park",
-  address: "Shenton Park WA 6008",
-  email: "subiacolacrosseclub@outlook.com",
-  mapQuery: "Rosalie Park, Shenton Park WA 6008",
-  clubName: "Subiaco Lions",
-  clubNameSuffix: "Lacrosse Club",
-};
 
 /** Reads the club's contact details from Settings, with safe defaults. */
 export function useClubDetails() {
   const { settings } = useSettings();
   return {
-    venue: settings?.venue_name?.trim() || FALLBACK.venue,
-    address: settings?.venue_address?.trim() || FALLBACK.address,
-    email: settings?.contact_email?.trim() || FALLBACK.email,
-    mapQuery: settings?.map_query?.trim() || FALLBACK.mapQuery,
+    venue: resolveText(settings, "venue_name"),
+    address: resolveText(settings, "venue_address"),
+    email: resolveText(settings, "contact_email"),
+    mapQuery: resolveText(settings, "map_query"),
     // "Rosalie Park, Shenton Park WA 6008" — for one-line displays
     fullAddress: [
-      settings?.venue_name?.trim() || FALLBACK.venue,
-      settings?.venue_address?.trim() || FALLBACK.address,
+      resolveText(settings, "venue_name"),
+      resolveText(settings, "venue_address"),
     ].filter(Boolean).join(", "),
 
     // Club branding — used in the nav logo, footer and page titles so the club
     // can rename itself (or another club can reuse the site) without code.
-    clubName: settings?.club_name?.trim() || FALLBACK.clubName,
-    clubNameSuffix: settings?.club_name_suffix?.trim() || FALLBACK.clubNameSuffix,
-    clubTagline: settings?.club_tagline?.trim() || "",
+    clubName: resolveText(settings, "club_name"),
+    clubNameSuffix: resolveText(settings, "club_name_suffix"),
+    clubTagline: resolveText(settings, "club_tagline"),
     // "Subiaco Lions Lacrosse Club"
     clubFullName: [
-      settings?.club_name?.trim() || FALLBACK.clubName,
-      settings?.club_name_suffix?.trim() || FALLBACK.clubNameSuffix,
+      resolveText(settings, "club_name"),
+      resolveText(settings, "club_name_suffix"),
     ].filter(Boolean).join(" "),
   };
 }

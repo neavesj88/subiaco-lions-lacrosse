@@ -21,7 +21,8 @@ npm run dev                # → http://localhost:5000
 ```
 
 Then log in at **http://localhost:5000/admin/login**
-Default credentials: **`admin` / `lions2024!`** — change this immediately.
+Default credentials: **`admin` / `changeme123!`** — change this immediately.
+(Set `SEED_ADMIN_PASSWORD` in `.env` before seeding to choose your own.)
 
 ---
 

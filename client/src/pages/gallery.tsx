@@ -6,9 +6,11 @@ import { ImageIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
+import { useSiteText } from "@/hooks/use-site-text";
 import type { MediaUpload } from "@shared/schema";
 
 export default function Gallery() {
+  const t = useSiteText(); // club-configurable wording
   const [selected, setSelected] = useState<number | null>(null);
   const { get } = usePageContent("gallery");
 
@@ -31,10 +33,10 @@ export default function Gallery() {
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <ImageIcon className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <EditableSection page="gallery" section="hero_title" value={get("hero_title", "Photo Gallery")} label="Hero heading">
+          <EditableSection page="gallery" section="hero_title" value={get("hero_title", t("page_gallery_title"))} label="Hero heading">
             {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
           </EditableSection>
-          <EditableSection page="gallery" section="hero_subtitle" value={get("hero_subtitle", "Match day moments, training sessions and club life.")} label="Hero subtitle">
+          <EditableSection page="gallery" section="hero_subtitle" value={get("hero_subtitle", t("page_gallery_subtitle"))} label="Hero subtitle">
             {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
           </EditableSection>
         </div>

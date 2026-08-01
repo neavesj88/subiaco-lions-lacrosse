@@ -7,6 +7,7 @@ import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
 import { injectSeo, getOrigin } from "./seo-inject";
 import { injectRuntimeConfig } from "./runtime-config";
+import { getSettingsSync } from "./site-settings";
 
 const viteLogger = createLogger();
 
@@ -55,7 +56,7 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx?v=${nanoid()}"`
       );
       // Inject per-route SEO tags so dev matches production behaviour
-      template = injectSeo(template, url.split("?")[0], getOrigin(req));
+      template = injectSeo(template, url.split("?")[0], getOrigin(req), getSettingsSync());
       template = injectRuntimeConfig(template);
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
@@ -79,7 +80,7 @@ export function serveStatic(app: Express) {
   const indexPath = path.resolve(distPath, "index.html");
   const baseHtml = fs.readFileSync(indexPath, "utf-8");
   app.use("*", (req, res) => {
-    let html = injectSeo(baseHtml, req.originalUrl.split("?")[0], getOrigin(req));
+    let html = injectSeo(baseHtml, req.originalUrl.split("?")[0], getOrigin(req), getSettingsSync());
     html = injectRuntimeConfig(html);
     res.status(200).set({ "Content-Type": "text/html" }).end(html);
   });

@@ -168,7 +168,7 @@ const GUIDE: GuideSection[] = [
     icon: PenTool,
     title: "The Coaches Board (tactical whiteboard)",
     intro:
-      "Under the Club menu there's a full tactical whiteboard for coaches — a lacrosse field where you drag players around, draw plays and plan set pieces. It's a tool, not a page you edit: there's nothing to manage in this panel.",
+      "Under the Club menu there's a full tactical whiteboard for coaches — a playing field where you drag players around, draw plays and plan set pieces. It's a tool, not a page you edit: there's nothing to manage in this panel.",
     tips: [
       "It works great on phones and tablets on the sideline — and even keeps working with no internet.",
       "Saved plays live on each coach's own device, not on the website.",

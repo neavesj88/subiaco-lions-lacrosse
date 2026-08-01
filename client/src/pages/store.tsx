@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { usePageContent } from "@/hooks/use-page-content";
 import { useListItems } from "@/hooks/use-list-items";
 import EditableSection from "@/components/editable-section";
+import { useSiteText } from "@/hooks/use-site-text";
 import { useClubDetails } from "@/components/club-details";
 
 export default function Store() {
+  const t = useSiteText(); // club-configurable wording
   const { data: settings } = useQuery<Record<string, string>>({
     queryKey: ["/api/settings"],
     queryFn: () => apiRequest("GET", "/api/settings"),
@@ -26,10 +28,10 @@ export default function Store() {
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <ShoppingBag className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <EditableSection page="store" section="hero_title" value={get("hero_title", "Club Store")} label="Hero heading">
+          <EditableSection page="store" section="hero_title" value={get("hero_title", t("page_store_title"))} label="Hero heading">
             {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
           </EditableSection>
-          <EditableSection page="store" section="hero_subtitle" value={get("hero_subtitle", "Official Subiaco Lions Lacrosse Club apparel and equipment.")} label="Hero subtitle">
+          <EditableSection page="store" section="hero_subtitle" value={get("hero_subtitle", t("page_store_subtitle"))} label="Hero subtitle">
             {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
           </EditableSection>
           {storeUrl && (
@@ -61,7 +63,7 @@ export default function Store() {
       {/* Apparel grid */}
       <section className="py-16 px-4 bg-white">
         <div className="max-w-7xl mx-auto">
-          <h2 className="section-title">Available Apparel</h2>
+          <h2 className="section-title">{t("store_apparel_title")}</h2>
           <div className="gold-bar" />
           <p className="section-subtitle">
             {storeUrl
@@ -110,12 +112,12 @@ export default function Store() {
       {/* Sizing & ordering info */}
       <section className="py-12 px-4 bg-stone-50">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-xl font-bold text-stone-900 mb-6 text-center">Ordering Information</h2>
+          <h2 className="text-xl font-bold text-stone-900 mb-6 text-center">{t("store_ordering_title")}</h2>
           <div className="grid sm:grid-cols-3 gap-4 text-center">
             {[
               { title: "Custom Sizing", desc: "All playing kit is available in men's, women's and junior sizes. Contact us for custom orders." },
               { title: "Bulk Orders", desc: "Team kit orders for full squads. Talk to us about bulk pricing for clubs and group orders." },
-              { title: "Delivery", desc: "Perth metro delivery or pickup at Rosalie Park on training days. Contact us to arrange." },
+              { title: "Delivery", desc: `Local delivery or pickup at ${club.venue} on training days. Contact us to arrange.` },
             ].map((info) => (
               <div key={info.title} className="bg-white rounded-xl p-5 border">
                 <h3 className="font-semibold text-maroon-700 mb-2 text-sm">{info.title}</h3>

@@ -12,6 +12,7 @@ import { RichTextDisplay } from "@/components/rich-text-display";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
 import { useClubDetails } from "@/components/club-details";
+import { useSiteText } from "@/hooks/use-site-text";
 import { formatDate, formatDateShort } from "@/lib/utils";
 import { CalendarDays, UserPlus, MapPin, Megaphone, Trophy, Mail } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
@@ -45,10 +46,11 @@ export default function Home() {
   const { settings, pageEnabled } = useSettings();
   const { get } = usePageContent("home");
   const club = useClubDetails(); // address from Admin → Settings
+  const t = useSiteText();       // club-configurable wording
 
   // Default hero text — editable by admins, saved to DB once changed
-  const HERO_TITLE = "Subiaco Lions";
-  const HERO_TAGLINE = "Perth's home of lacrosse since 1940. Men's, Women's and Junior teams competing across all divisions at Rosalie Park, Shenton Park.";
+  const HERO_TITLE = t("home_hero_title");
+  const HERO_TAGLINE = t("home_hero_tagline");
 
   const { data: announcements = [] } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements"],
@@ -88,7 +90,7 @@ export default function Home() {
       <section
         className="hero-gradient text-white py-24 px-4 relative overflow-hidden"
         style={settings?.hero_image_url
-          ? { backgroundImage: `linear-gradient(rgba(123,30,50,0.82),rgba(58,12,23,0.88)), url(${settings.hero_image_url})`, backgroundSize: "cover", backgroundPosition: "center" }
+          ? { backgroundImage: `linear-gradient(color-mix(in srgb, var(--brand-primary) 82%, transparent), color-mix(in srgb, var(--brand-primary-dark) 88%, transparent)), url(${settings.hero_image_url})`, backgroundSize: "cover", backgroundPosition: "center" }
           : undefined
         }
       >
@@ -98,15 +100,15 @@ export default function Home() {
         </div>
         <div className="max-w-4xl mx-auto text-center relative z-10">
           {settings?.club_logo_url ? (
-            <img src={settings.club_logo_url} alt="Club logo" className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-xl" />
+            <img src={settings.club_logo_url} alt={club.clubFullName} className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-xl" />
           ) : (
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gold-500 text-maroon-900 font-black text-4xl shadow-xl mb-6">L</div>
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gold-500 text-maroon-900 font-black text-4xl shadow-xl mb-6">{club.clubName.charAt(0)}</div>
           )}
           <EditableSection page="home" section="hero_title" value={get("hero_title", HERO_TITLE)} label="Hero club name">
             {(c) => (
               <h1 className="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight">
                 {c}<br />
-                <span className="text-gold-400">Lacrosse Club</span>
+                <span className="text-gold-400">{club.clubNameSuffix}</span>
               </h1>
             )}
           </EditableSection>
@@ -116,12 +118,12 @@ export default function Home() {
           <div className="flex flex-wrap gap-4 justify-center">
             <Link href="/sign-up">
               <Button size="lg" variant="gold" className="shadow-lg">
-                <UserPlus className="h-5 w-5" /> Join the Lions
+                <UserPlus className="h-5 w-5" /> {t("nav_label_signup")}
               </Button>
             </Link>
             <Link href="/calendar">
               <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
-                <CalendarDays className="h-5 w-5" /> View Calendar
+                <CalendarDays className="h-5 w-5" /> {t("nav_label_calendar")}
               </Button>
             </Link>
           </div>
@@ -132,8 +134,8 @@ export default function Home() {
       <section className="bg-gold-500 text-white py-4 px-4">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm font-medium">
           <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {club.fullAddress}</span>
-          <span>Men's · Women's · Juniors U11–U17</span>
-          <span>All skill levels welcome · Loan equipment available</span>
+          <span>{t("home_strip_line2")}</span>
+          <span>{t("home_strip_line3")}</span>
         </div>
       </section>
 
@@ -145,7 +147,7 @@ export default function Home() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Megaphone className="h-5 w-5 text-gold-500" />
-                  <h2 className="section-title mb-0">Club News</h2>
+                  <h2 className="section-title mb-0">{t("home_news_heading")}</h2>
                 </div>
                 <div className="gold-bar" />
               </div>
@@ -179,7 +181,7 @@ export default function Home() {
           <div className="max-w-7xl mx-auto">
             <div className="mb-8 flex items-end justify-between">
               <div>
-                <h2 className="section-title">Upcoming Events</h2>
+                <h2 className="section-title">{t("home_events_heading")}</h2>
                 <div className="gold-bar" />
               </div>
               <Link href="/calendar" className="text-sm text-maroon-600 hover:text-maroon-800 font-medium">View all →</Link>
@@ -215,18 +217,21 @@ export default function Home() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Trophy className="h-5 w-5 text-gold-500" />
-                  <h2 className="section-title mb-0">Recent Results</h2>
+                  <h2 className="section-title mb-0">{t("home_results_heading")}</h2>
                 </div>
                 <div className="gold-bar" />
               </div>
-              <a
-                href={settings?.gameday_url || "https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-maroon-600 hover:text-maroon-800 font-medium"
-              >
-                All fixtures on GameDay →
-              </a>
+              {/* Hidden until the club adds its fixtures provider in Settings */}
+              {(settings?.gameday_url || t("gameday_url")) && (
+                <a
+                  href={settings?.gameday_url || t("gameday_url")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-maroon-600 hover:text-maroon-800 font-medium"
+                >
+                  All fixtures on {t("fixtures_provider_name")} →
+                </a>
+              )}
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {recentResults.map((r) => (
@@ -257,7 +262,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <h2 className="section-title text-center">Follow Us on Instagram</h2>
           <p className="section-subtitle text-center">Stay up to date with club news, game highlights and behind-the-scenes moments</p>
-          <InstagramFeed feedId={settings?.behold_feed_id || ""} handle={settings?.instagram_handle || "subiacolacrosse_official"} />
+          <InstagramFeed feedId={settings?.behold_feed_id || ""} handle={t("instagram_handle")} />
         </div>
       </section>
 
@@ -296,7 +301,7 @@ export default function Home() {
             <p className="text-stone-500 mb-6">Get club updates, event reminders and news straight to your inbox.</p>
             {subDone ? (
               <div className="bg-green-50 border border-green-200 rounded-xl p-6">
-                <p className="text-green-700 font-semibold">✓ You're subscribed! Welcome to the Lions community.</p>
+                <p className="text-green-700 font-semibold">✓ You're subscribed! Welcome to the {t("club_short_name")} community.</p>
               </div>
             ) : (
               <form
@@ -330,8 +335,8 @@ export default function Home() {
       {/* ── CTA ─────────────────────────────────────────────────────── */}
       <section className="py-16 px-4 hero-gradient text-white">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to Join the Lions?</h2>
-          <p className="text-maroon-100 mb-8 text-lg">No experience needed. All ages welcome. Loan equipment available for new players.</p>
+          <h2 className="text-3xl font-bold mb-4">{t("home_cta_heading")}</h2>
+          <p className="text-maroon-100 mb-8 text-lg">{t("home_cta_text")}</p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link href="/sign-up"><Button size="lg" variant="gold">Join Now</Button></Link>
             {pageEnabled("juniors") && (

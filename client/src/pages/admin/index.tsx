@@ -14,6 +14,7 @@ import ImagePicker from "@/components/image-picker";
 import ChangePasswordDialog from "@/components/change-password-dialog";
 import { ADMIN_LOGIN_PATH } from "@/lib/admin-path";
 import { useSessionKeepalive } from "@/hooks/use-session-keepalive";
+import { useSiteText } from "@/hooks/use-site-text";
 import AdminHelp from "@/pages/admin/help";
 import AdminSecurity from "@/pages/admin/security";
 import MediaLibrary from "@/pages/admin/media-library";
@@ -21,6 +22,7 @@ import AdminPages from "@/pages/admin/pages";
 import AdminCommittee from "@/pages/admin/committee";
 import { ADMIN_GROUPS, ALL_SECTIONS } from "@/pages/admin/nav-config";
 import { ROLES, ROLE_INFO } from "@shared/roles";
+import SetupWizard from "@/pages/admin/setup-wizard";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,7 +80,7 @@ function ResultForm({ onDone }: { onDone: () => void }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1"><Label>Division</Label><Input placeholder="e.g. State League" {...register("division")} /></div>
-        <div className="space-y-1"><Label>Venue</Label><Input placeholder="e.g. Rosalie Park" {...register("venue")} /></div>
+        <div className="space-y-1"><Label>Venue</Label><Input placeholder="e.g. your home ground" {...register("venue")} /></div>
       </div>
       <div className="space-y-1"><Label>Notes</Label><Input placeholder="Optional notes or summary" {...register("notes")} /></div>
       <div className="flex gap-2 pt-1">
@@ -223,7 +225,7 @@ function EventForm({ event, onDone }: { event?: Event; onDone: () => void }) {
       </div>
       <div className="space-y-1.5">
         <Label>Location</Label>
-        <Input placeholder="Rosalie Park, Shenton Park" {...register("location")} />
+        <Input placeholder="Ground name, suburb" {...register("location")} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
@@ -417,6 +419,9 @@ export default function AdminDashboard() {
   const [, navigate] = useLocation();
   const { user, isLoading, logoutMutation, can } = useAuth();
   const qc = useQueryClient();
+  // Club-configurable wording, so admin labels match the club's own terms
+  // (e.g. their league's name) instead of hardcoded lacrosse ones.
+  const t = useSiteText();
 
   // Keeps an ACTIVE admin logged in past the 2h idle timeout (pings the server
   // while they're working), while an abandoned session still expires.
@@ -432,7 +437,9 @@ export default function AdminDashboard() {
   // Open the first section they're allowed to see (falls back to Help).
   const firstSection = visibleGroups[0]?.sections[0]?.id ?? "help";
   const [activeTab, setActiveTab] = useState(firstSection);
+  const [wizardDone, setWizardDone] = useState(false);
   const currentSection = ALL_SECTIONS.find((sec) => sec.id === activeTab);
+
 
   useEffect(() => {
     if (!isLoading && !user) navigate(ADMIN_LOGIN_PATH);
@@ -598,8 +605,20 @@ export default function AdminDashboard() {
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
   useEffect(() => { if (settings) setSettingsForm(settings); }, [settings]);
 
+  // First-run wizard: only on a brand-new install where setup was never done.
+  const showWizard =
+    !wizardDone && can("settings") && settings?.setup_completed === "false";
+
   if (isLoading) return <div className="min-h-[60vh] flex items-center justify-center text-stone-400">Loading...</div>;
   if (!user) return null;
+
+  // FIRST RUN: a brand-new install shows the setup wizard instead of the panel.
+  // Existing sites (like Subiaco) are marked setup_completed=true by the
+  // migration, so they never see this. Only super admins get it, and it can
+  // be skipped.
+  if (showWizard) {
+    return <SetupWizard onDone={() => setWizardDone(true)} />;
+  }
 
   const newRegs = registrations.filter((r) => r.status === "new").length;
   const unreadMsgs = contactMsgs.filter((m) => !m.isRead).length;
@@ -1086,7 +1105,7 @@ export default function AdminDashboard() {
                   fields={[
                     { key: "group", label: "Team (Men's / Women's / Juniors)", placeholder: "Men's", required: true },
                     { key: "title", label: "Division name", placeholder: "Division 1", required: true },
-                    { key: "url", label: "Fixtures link (optional)", placeholder: "https://lacrossewa.com.au/..." },
+                    { key: "url", label: "Fixtures link (optional)", placeholder: "https://..." },
                   ]}
                 />
                 <ListManager
@@ -1223,7 +1242,7 @@ export default function AdminDashboard() {
                 <CardContent className="pt-6 space-y-4">
                   {/* Club identity — the name shown in the nav, footer and page titles */}
                   {[
-                    { key: "club_name", label: "Club name", help: "Main name in the logo and footer, e.g. Subiaco Lions." },
+                    { key: "club_name", label: "Club name", help: "Main name in the logo and footer, e.g. Riverside Rovers." },
                     { key: "club_name_suffix", label: "Club name — second line", help: "The smaller line beneath it, e.g. Lacrosse Club." },
                     { key: "club_tagline", label: "Footer tagline", help: "The short description in the footer." },
                   ].map(({ key, label, help }) => (
@@ -1254,17 +1273,17 @@ export default function AdminDashboard() {
                   {/* Text settings */}
                   {[
                     { key: "google_calendar_embed_url", label: "Google Calendar Embed URL", help: "In Google Calendar → Settings → your calendar → 'Integrate calendar' → copy the Embed URL (starts with https://calendar.google.com/calendar/embed?...)." },
-                    { key: "behold_feed_id", label: "Behold.so Feed ID (Instagram)", help: "Create a free feed at behold.so, connect @subiacolacrosse_official, then paste the Feed ID here." },
+                    { key: "behold_feed_id", label: "Behold.so Feed ID (Instagram)", help: "Create a free feed at behold.so, connect your club’s Instagram account, then paste the Feed ID here." },
                     { key: "store_url", label: "Online Store URL", help: "Link to your online merch store (e.g. Shopify, Redbubble, PrintFul). Leave blank to show the 'coming soon' message." },
-                    { key: "venue_name", label: "Home ground name", help: "e.g. Rosalie Park. Shown on About, Contact, the home page strip and the footer." },
-                    { key: "venue_address", label: "Ground address", help: "e.g. Shenton Park WA 6008. Displayed under the ground name." },
-                    { key: "map_query", label: "Map location", help: "What to show on the embedded maps — an address, place name or coordinates. e.g. Rosalie Park, Shenton Park WA 6008" },
+                    { key: "venue_name", label: "Home ground name", help: "Your home ground or venue name. Shown on About, Contact, the home page strip and the footer." },
+                    { key: "venue_address", label: "Ground address", help: "Street address or suburb, postcode and state. Displayed under the ground name." },
+                    { key: "map_query", label: "Map location", help: "What to show on the embedded maps — an address, place name or coordinates. Leave blank to hide the map." },
                     { key: "contact_email", label: "Club email address", help: "Every 'email us' link on the site points here." },
                     { key: "instagram_handle", label: "Instagram Handle" },
                     { key: "facebook_url", label: "Facebook URL" },
                     { key: "gameday_registration_url", label: "GameDay Registration URL", help: "The GameDay form players use to register/pay." },
                     { key: "gameday_url", label: "GameDay Fixtures & Results URL", help: "The club's GameDay page — powers the main Fixtures & Results links across the site." },
-                    { key: "lacrossewa_fixtures_url", label: "Lacrosse WA Fixtures URL", help: "League-wide fixtures page on the Lacrosse WA website." },
+                    { key: "lacrossewa_fixtures_url", label: `${t("league_name") || "League"} Fixtures URL`, help: "League-wide fixtures page on your governing body’s website. Leave blank to hide the link." },
                   ].map(({ key, label, help }) => (
                     <div key={key} className="space-y-1.5">
                       <Label>{label}</Label>
@@ -1296,7 +1315,7 @@ export default function AdminDashboard() {
                 <CardContent className="space-y-4">
                   {[
                     { key: "nav_show_gallery",    label: "Photo Gallery",    desc: "The /gallery page showing uploaded photos" },
-                    { key: "nav_show_fixtures",   label: "Fixtures",         desc: "The /fixtures page linking to LacrosseWA & GameDay" },
+                    { key: "nav_show_fixtures",   label: "Fixtures",         desc: "The /fixtures page linking to your league & fixtures provider" },
                     { key: "nav_show_store",      label: "Club Store",       desc: "The /store merchandise page" },
                     { key: "nav_show_coaches_board", label: "Coaches Board", desc: "The tactical whiteboard app for coaches (under the Club menu)" },
                     { key: "nav_show_committee", label: "President & Board", desc: "The committee page listing your club's office bearers" },
@@ -1393,7 +1412,7 @@ export default function AdminDashboard() {
                         background: `linear-gradient(${settingsForm.theme_gradient_angle || "135deg"}, ${settingsForm.theme_primary || "#7B1E32"} 0%, ${settingsForm.theme_primary_dark || "#3A0C17"} 100%)`,
                       }}
                     >
-                      <p className="text-xl font-extrabold">Subiaco Lions</p>
+                      <p className="text-xl font-extrabold">{settingsForm.club_name || t("club_name")}</p>
                       <div
                         className="h-1 w-16 mx-auto mt-2 rounded-full"
                         style={{ background: settingsForm.theme_accent || "#C5942A" }}

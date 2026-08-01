@@ -6,7 +6,7 @@ interface InstagramFeedProps {
   handle?: string;
 }
 
-export default function InstagramFeed({ feedId, handle = "subiacolacrosse_official" }: InstagramFeedProps) {
+export default function InstagramFeed({ feedId, handle = "" }: InstagramFeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

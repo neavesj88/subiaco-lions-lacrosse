@@ -36,3 +36,32 @@ export function injectRuntimeConfig(html: string): string {
   // Fallback: place it just before </head>
   return html.replace("</head>", `  ${tag}\n  </head>`);
 }
+
+// =============================================================================
+// SEEDED ADMIN PASSWORD
+// =============================================================================
+// The password given to the "admin" account created by `npm run db:seed` on a
+// brand new install. Set SEED_ADMIN_PASSWORD in .env before seeding to choose
+// your own; otherwise the generic default below is used.
+//
+// Whatever it is, it's only ever a starting point: the admin panel shows a
+// prominent warning banner until the account's password has been changed.
+export const SEED_ADMIN_PASSWORD =
+  (process.env.SEED_ADMIN_PASSWORD || "").trim() || "changeme123!";
+
+// Passwords that count as "still the factory default" for that warning banner.
+// "lions2024!" is the historical default shipped to the first club — kept here
+// so their site keeps nagging them until it's changed.
+const LEGACY_DEFAULT_PASSWORDS = ["lions2024!"];
+
+/** True if `hash` matches any known factory-default password. */
+export async function isDefaultPassword(
+  hash: string | null | undefined,
+  compare: (plain: string, hash: string) => Promise<boolean>,
+): Promise<boolean> {
+  if (!hash) return false;
+  for (const pw of [SEED_ADMIN_PASSWORD, ...LEGACY_DEFAULT_PASSWORDS]) {
+    if (await compare(pw, hash)) return true;
+  }
+  return false;
+}

@@ -1,29 +1,24 @@
 // =============================================================================
 // SEO CONFIG — shared/seo.ts
 // =============================================================================
-// Central per-route SEO metadata, shared by BOTH the client and the server.
+// Per-page titles and descriptions, written as TEMPLATES rather than fixed
+// text so they stay correct for whatever club is running the site.
 //
-// Why shared?
-//   - The client (<SEO> component) uses it to update the page title/description
-//     as the user navigates between pages.
-//   - The server uses it to inject the correct <title> + Open Graph tags into
-//     the HTML *before* it's sent — so Google's crawler and social scrapers
-//     (Facebook, WhatsApp, LinkedIn, etc.), which don't run JavaScript, still
-//     see proper per-page titles, descriptions and share previews.
+// Placeholders filled at runtime from the club's settings:
+//   {club}       full club name          e.g. "Subiaco Lions Lacrosse Club"
+//   {clubShort}  short name              e.g. "Lions"
+//   {sport}      lowercase sport         e.g. "lacrosse"
+//   {sportTitle} capitalised sport       e.g. "Lacrosse"
+//   {region}     city/region             e.g. "Perth"
+//   {state}      state                   e.g. "WA"
+//   {venue}      home ground             e.g. "Rosalie Park"
 //
-// To add SEO for a new page: add an entry to PAGE_SEO keyed by its path.
+// The server injects the finished tags into the HTML before sending it, so
+// Google and social scrapers (which don't run JavaScript) see the right
+// per-page metadata. See server/seo-inject.ts.
 // =============================================================================
 
-export const SITE_NAME = "Subiaco Lions Lacrosse Club";
-
-// Default/fallback metadata used when a route isn't listed below.
-export const DEFAULT_SEO = {
-  title: "Subiaco Lions Lacrosse Club | Perth Lacrosse",
-  description:
-    "Subiaco Lions Lacrosse Club — Perth's home of lacrosse since 1940 at Rosalie Park, Shenton Park. Men's, Women's and Junior teams. New players welcome, loan equipment available.",
-  keywords:
-    "Subiaco lacrosse, lacrosse Perth, lacrosse Western Australia, junior lacrosse Perth, Subiaco Lions, lacrosse club Perth, Rosalie Park lacrosse, learn lacrosse Perth",
-};
+import { CLUB_DEFAULTS, renderTemplate, seoTemplateValues } from "./club-config";
 
 export interface PageSeo {
   title: string;
@@ -31,87 +26,101 @@ export interface PageSeo {
   keywords?: string;
 }
 
-// Per-route metadata. Keys are the URL paths.
+// Templates. Nothing here names a specific club or sport.
 export const PAGE_SEO: Record<string, PageSeo> = {
   "/": {
-    title: "Subiaco Lions Lacrosse Club | Perth Lacrosse Since 1940",
+    title: "{club} | {region} {sportTitle}",
     description:
-      "Join the Subiaco Lions — Perth's longest-running lacrosse club. Men's, Women's and Junior teams at Rosalie Park, Shenton Park. All skill levels welcome, loan gear provided.",
-    keywords: DEFAULT_SEO.keywords,
+      "{club} — {sport} in {region}, {state}. Men's, Women's and Junior teams. All skill levels welcome.",
   },
   "/about": {
-    title: "About the Club | Subiaco Lions Lacrosse",
+    title: "About the Club | {club}",
     description:
-      "Founded in 1940, the Subiaco Lions are one of WA's most successful lacrosse clubs. Learn our history, teams and what makes the Lions a Perth lacrosse institution.",
-    keywords: "Subiaco lacrosse history, lacrosse club Perth, Lacrosse WA club, about Subiaco Lions",
+      "Learn about {club} — our history, our teams, and what makes us part of the {region} {sport} community.",
+    keywords: "{club} history, {sport} club {region}, about {clubShort}",
   },
   "/calendar": {
-    title: "Club Calendar | Subiaco Lions Lacrosse",
+    title: "Club Calendar | {club}",
     description:
-      "Upcoming games, training sessions and club events for Subiaco Lions Lacrosse Club. Stay up to date with everything happening at the club.",
-    keywords: "Subiaco lacrosse training times, lacrosse fixtures Perth, club calendar",
+      "Upcoming games, training sessions and club events for {club}. Stay up to date with everything happening at the club.",
+    keywords: "{club} training times, {sport} fixtures {region}, club calendar",
   },
   "/fixtures": {
-    title: "Fixtures & Results | Subiaco Lions Lacrosse",
+    title: "Fixtures & Results | {club}",
     description:
-      "Game schedules, scores and ladders for all Subiaco Lions teams across Men's, Women's and Junior divisions, hosted on GameDay and Lacrosse WA.",
-    keywords: "Subiaco lacrosse fixtures, lacrosse results Perth, Lacrosse WA ladder, GameDay lacrosse",
+      "Game schedules, scores and ladders for all {club} teams across Men's, Women's and Junior divisions.",
+    keywords: "{club} fixtures, {sport} results {region}, {sport} ladder",
   },
   "/gallery": {
-    title: "Photo Gallery | Subiaco Lions Lacrosse",
-    description:
-      "Match day moments, training sessions and club life at the Subiaco Lions Lacrosse Club. Browse our photo gallery.",
-    keywords: "Subiaco lacrosse photos, lacrosse club gallery Perth",
+    title: "Photo Gallery | {club}",
+    description: "Match day moments, training sessions and club life at {club}. Browse our photo gallery.",
+    keywords: "{club} photos, {sport} club gallery {region}",
   },
   "/juniors": {
-    title: "Junior Lacrosse Programs (U11–U17) | Subiaco Lions",
+    title: "Junior {sportTitle} Programs | {club}",
     description:
-      "Junior lacrosse for boys and girls aged 8–17 in Perth. Fun, safe and inclusive programs with loan equipment and KidSport support. Register your child with the Subiaco Lions.",
+      "Junior {sport} for boys and girls in {region}. Fun, safe and inclusive programs with loan equipment available. Register your child with {club}.",
     keywords:
-      "junior lacrosse Perth, kids lacrosse Perth, lacrosse for children WA, KidSport lacrosse, U11 U13 U15 U17 lacrosse, youth lacrosse Subiaco",
+      "junior {sport} {region}, kids {sport} {region}, {sport} for children {state}, youth {sport}",
   },
   "/store": {
-    title: "Club Store | Subiaco Lions Lacrosse",
-    description:
-      "Official Subiaco Lions Lacrosse Club apparel and equipment — playing kit, training gear, hoodies, caps and more.",
-    keywords: "Subiaco lacrosse merchandise, lacrosse apparel Perth, club kit",
+    title: "Club Store | {club}",
+    description: "Official {club} apparel and equipment — playing kit, training gear and supporter merchandise.",
+    keywords: "{club} merchandise, {sport} apparel {region}, club kit",
   },
   "/sign-up": {
-    title: "Join the Lions — Sign Up to Play Lacrosse | Subiaco Lions",
+    title: "Join Us — Sign Up to Play {sportTitle} | {club}",
     description:
-      "New to lacrosse? Join the Subiaco Lions. No experience needed, loan equipment provided, all ages welcome. Register your interest and we'll be in touch within 48 hours.",
+      "New to {sport}? Join {club}. No experience needed, loan equipment provided, all ages welcome. Register your interest today.",
     keywords:
-      "join lacrosse Perth, learn lacrosse, play lacrosse WA, lacrosse beginners Perth, sign up lacrosse Subiaco",
+      "join {sport} {region}, learn {sport}, play {sport} {state}, {sport} beginners {region}",
   },
   "/coaches-board": {
-    title: "Coaches Board — Tactical Whiteboard | Subiaco Lions Lacrosse",
+    title: "Coaches Board — Tactical Whiteboard | {club}",
     description:
-      "Free interactive lacrosse tactical whiteboard from the Subiaco Lions. Draw plays, position players and plan set pieces — works on phones and tablets, even offline.",
-    keywords: "lacrosse whiteboard, lacrosse tactics board, lacrosse coaching app, lacrosse play designer",
+      "Interactive {sport} tactical whiteboard from {club}. Draw plays, position players and plan set pieces — works on phones and tablets.",
+    keywords: "{sport} whiteboard, {sport} tactics board, {sport} coaching app",
   },
   "/committee": {
-    title: "President & Board | Subiaco Lions Lacrosse",
-    description:
-      "Meet the committee behind the Subiaco Lions Lacrosse Club — our President, board members and coaches.",
-    keywords: "Subiaco lacrosse committee, lacrosse club president Perth, club board",
+    title: "President & Board | {club}",
+    description: "Meet the committee behind {club} — our President, board members and coaches.",
+    keywords: "{club} committee, {sport} club president {region}, club board",
   },
   "/contact": {
-    title: "Contact Us | Subiaco Lions Lacrosse Club",
+    title: "Contact Us | {club}",
     description:
-      "Get in touch with the Subiaco Lions Lacrosse Club. Questions about joining, junior programs or sponsorship? Find us at Rosalie Park, Shenton Park WA.",
-    keywords: "contact Subiaco lacrosse, lacrosse club Perth contact, Rosalie Park lacrosse",
+      "Get in touch with {club}. Questions about joining, junior programs or sponsorship? Find us at {venue}.",
+    keywords: "contact {club}, {sport} club {region} contact, {venue}",
   },
 };
 
-// Returns the SEO metadata for a given path, falling back to DEFAULT_SEO.
-export function getSeoForPath(path: string): PageSeo {
-  // Normalise trailing slash (except root)
+/**
+ * Returns the SEO for a path with all placeholders filled from the club's
+ * settings. Pass the settings map (server) or leave undefined to use defaults.
+ */
+export function getSeoForPath(path: string, settings?: Record<string, string>): PageSeo {
   const clean = path !== "/" && path.endsWith("/") ? path.slice(0, -1) : path;
-  return PAGE_SEO[clean] ?? DEFAULT_SEO;
+  const values = seoTemplateValues(settings);
+
+  const tpl = PAGE_SEO[clean] ?? {
+    title: CLUB_DEFAULTS.seo_home_title,
+    description: CLUB_DEFAULTS.seo_default_description,
+    keywords: CLUB_DEFAULTS.seo_keywords,
+  };
+
+  return {
+    title: renderTemplate(tpl.title, values),
+    description: renderTemplate(tpl.description, values),
+    keywords: tpl.keywords ? renderTemplate(tpl.keywords, values) : undefined,
+  };
 }
 
-// Public pages that should appear in the sitemap, with crawl priority.
-// (Admin pages are intentionally excluded.)
+/** The site name used in Open Graph tags. */
+export function getSiteName(settings?: Record<string, string>): string {
+  return seoTemplateValues(settings).club;
+}
+
+// Public pages for the sitemap, with crawl priority.
 export const SITEMAP_PAGES: { path: string; priority: number; changefreq: string }[] = [
   { path: "/", priority: 1.0, changefreq: "weekly" },
   { path: "/about", priority: 0.7, changefreq: "monthly" },

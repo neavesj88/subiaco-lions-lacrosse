@@ -13,10 +13,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
+import { useSiteText } from "@/hooks/use-site-text";
 import { Users, Mail } from "lucide-react";
 import type { CommitteeMember } from "@shared/schema";
 
 export default function Committee() {
+  const t = useSiteText(); // club-configurable wording
   const { get } = usePageContent("committee");
 
   const { data: members = [], isLoading } = useQuery<CommitteeMember[]>({
@@ -42,10 +44,10 @@ export default function Committee() {
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <Users className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <EditableSection page="committee" section="hero_title" value={get("hero_title", "President & Board")} label="Hero heading">
+          <EditableSection page="committee" section="hero_title" value={get("hero_title", t("page_committee_title"))} label="Hero heading">
             {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
           </EditableSection>
-          <EditableSection page="committee" section="hero_subtitle" value={get("hero_subtitle", "The volunteers who run the club.")} label="Hero subtitle">
+          <EditableSection page="committee" section="hero_subtitle" value={get("hero_subtitle", t("page_committee_subtitle"))} label="Hero subtitle">
             {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
           </EditableSection>
         </div>

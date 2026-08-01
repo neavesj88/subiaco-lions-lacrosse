@@ -6,17 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { CalendarDays, MapPin, Clock, ExternalLink } from "lucide-react";
+import { useSiteText } from "@/hooks/use-site-text";
 import type { Event } from "@shared/schema";
 
 type Category = "all" | "mens" | "womens" | "juniors";
 type EventType = "all" | "game" | "training" | "social" | "meeting" | "other";
-
-const categoryLabels: Record<string, string> = {
-  all: "All Teams",
-  mens: "Men's",
-  womens: "Women's",
-  juniors: "Juniors",
-};
 
 const typeLabels: Record<string, string> = {
   all: "All Types",
@@ -37,7 +31,7 @@ function GoogleCalendarEmbed({ embedUrl }: { embedUrl: string }) {
         height="600"
         frameBorder="0"
         scrolling="no"
-        title="Subiaco Lions Club Calendar"
+        title="Club Calendar"
         className="w-full"
       />
       <div className="px-4 py-3 bg-stone-50 border-t flex items-center justify-between">
@@ -59,6 +53,12 @@ export default function Calendar() {
   const [categoryFilter, setCategoryFilter] = useState<Category>("all");
   const [typeFilter, setTypeFilter] = useState<EventType>("all");
   const [view, setView] = useState<"list" | "google">("list");
+  const t = useSiteText();
+  // Team labels are configurable so any club's terminology fits.
+  const categoryLabels: Record<string, string> = {
+    all: t("team_label_all"), mens: t("team_label_mens"),
+    womens: t("team_label_womens"), juniors: t("team_label_juniors"),
+  };
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
@@ -89,8 +89,8 @@ export default function Calendar() {
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <CalendarDays className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <h1 className="text-4xl font-extrabold mb-4">Club Calendar</h1>
-          <p className="text-maroon-100 text-lg">Games, training and social events for all teams.</p>
+          <h1 className="text-4xl font-extrabold mb-4">{t("page_calendar_title")}</h1>
+          <p className="text-maroon-100 text-lg">{t("page_calendar_subtitle")}</p>
         </div>
       </section>
 

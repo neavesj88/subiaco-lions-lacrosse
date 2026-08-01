@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
+import { useSiteText } from "@/hooks/use-site-text";
 import { RichTextDisplay } from "@/components/rich-text-display";
 import { useListItems } from "@/hooks/use-list-items";
 import { useClubDetails, ClubMap } from "@/components/club-details";
@@ -15,15 +16,8 @@ const teamColors: Record<string, string> = {
   "Juniors": "bg-green-600",
 };
 
-// Default text — used until an admin edits a section. Stored in DB once edited.
-const DEFAULTS = {
-  hero_title: "About the Club",
-  hero_subtitle: "Perth's longest-running lacrosse club — over 80 years of Lions pride.",
-  history_title: "Our History",
-  history_body: `<p>Subiaco Lacrosse Club was formed in 1940 by Mr J.L. Carden, drawing from the foundations of the Nedlands Lacrosse Club established in 1930. After World War II, Nedlands fielded only senior men while Subiaco had a large group of junior boys graduating to senior lacrosse — the two clubs merged to create the strong, unified club we know today.</p><p>Based at Rosalie Park in Shenton Park, the Lions have been a cornerstone of lacrosse in Western Australia for over eight decades. The club is known for its ANZAC Day lacrosse traditions and has consistently developed players who go on to represent at national and international level.</p><p>Today, Subiaco fields teams and develops players across all levels of the Women's and Men's competitions, including Modcrosse — fostering a love for lacrosse through inclusivity, sportsmanship and community.</p>`,
-};
-
 export default function About() {
+  const t = useSiteText(); // club-configurable wording
   const { get } = usePageContent("about");
   // Address / email / map from Admin → Settings → Club Details
   const club = useClubDetails();
@@ -45,10 +39,10 @@ export default function About() {
       {/* Hero */}
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <EditableSection page="about" section="hero_title" value={get("hero_title", DEFAULTS.hero_title)} label="Hero heading">
+          <EditableSection page="about" section="hero_title" value={get("hero_title", t("page_about_title"))} label="Hero heading">
             {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
           </EditableSection>
-          <EditableSection page="about" section="hero_subtitle" value={get("hero_subtitle", DEFAULTS.hero_subtitle)} label="Hero subtitle">
+          <EditableSection page="about" section="hero_subtitle" value={get("hero_subtitle", t("page_about_subtitle"))} label="Hero subtitle">
             {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
           </EditableSection>
         </div>
@@ -59,20 +53,20 @@ export default function About() {
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <EditableSection page="about" section="history_title" value={get("history_title", DEFAULTS.history_title)} label="History heading">
+              <EditableSection page="about" section="history_title" value={get("history_title", t("about_history_title"))} label="History heading">
                 {(c) => <h2 className="section-title">{c}</h2>}
               </EditableSection>
               <div className="gold-bar" />
-              <EditableSection page="about" section="history_body" value={get("history_body", DEFAULTS.history_body)} label="History text" richText>
+              <EditableSection page="about" section="history_body" value={get("history_body", t("about_history_body"))} label="History text" richText>
                 {(c) => <RichTextDisplay html={c} className="space-y-4 text-stone-600 leading-relaxed" />}
               </EditableSection>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { icon: Trophy, label: "Founded", value: "1940" },
-                { icon: Users, label: "Teams", value: "10+" },
-                { icon: Shield, label: "Divisions", value: "State to Div 3" },
-                { icon: MapPin, label: "Home Ground", value: club.venue },
+                { icon: Trophy, label: t("about_stat1_label"), value: t("about_stat1_value") },
+                { icon: Users, label: t("about_stat2_label"), value: t("about_stat2_value") },
+                { icon: Shield, label: t("about_stat3_label"), value: t("about_stat3_value") },
+                { icon: MapPin, label: t("about_stat4_label"), value: club.venue },
               ].map((s) => (
                 <div key={s.label} className="bg-stone-50 rounded-xl p-5 text-center border">
                   <s.icon className="h-8 w-8 text-maroon-700 mx-auto mb-2" />
@@ -88,11 +82,11 @@ export default function About() {
       {/* Teams */}
       <section className="py-16 px-4 bg-stone-50">
         <div className="max-w-7xl mx-auto">
-          <EditableSection page="about" section="teams_title" value={get("teams_title", "Our Teams")} label="Teams heading">
+          <EditableSection page="about" section="teams_title" value={get("teams_title", t("about_teams_title"))} label="Teams heading">
             {(c) => <h2 className="section-title text-center">{c}</h2>}
           </EditableSection>
           <div className="gold-bar mx-auto" />
-          <EditableSection page="about" section="teams_subtitle" value={get("teams_subtitle", "Competing across all divisions of Lacrosse WA. New players welcome at every level.")} label="Teams subtitle">
+          <EditableSection page="about" section="teams_subtitle" value={get("teams_subtitle", t("about_teams_subtitle"))} label="Teams subtitle">
             {(c) => <p className="section-subtitle text-center">{c}</p>}
           </EditableSection>
           <div className="grid md:grid-cols-3 gap-6 mt-8">
@@ -125,7 +119,7 @@ export default function About() {
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12">
             <div>
-              <h2 className="section-title">Find Us</h2>
+              <h2 className="section-title">{t("about_find_us_title")}</h2>
               <div className="gold-bar" />
               <div className="space-y-3 text-stone-600">
                 <div className="flex items-start gap-3">
@@ -150,22 +144,22 @@ export default function About() {
               <div className="space-y-4">
                 <Card>
                   <CardContent className="pt-5">
-                    <p className="font-semibold text-stone-900 mb-1">Lacrosse WA</p>
-                    <p className="text-sm text-stone-500 mb-2">Western Australia's governing body for lacrosse. Fixtures, results and rules.</p>
+                    <p className="font-semibold text-stone-900 mb-1">{t("league_name")}</p>
+                    <p className="text-sm text-stone-500 mb-2">Our governing body — fixtures, results and competition rules.</p>
                     <a
-                      href="https://lacrossewa.com.au"
+                      href={t("league_url")}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-maroon-600 hover:underline font-medium"
                     >
-                      lacrossewa.com.au →
+                      {t("league_name")} →
                     </a>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-5">
                     <p className="font-semibold text-stone-900 mb-1">Act Belong Commit</p>
-                    <p className="text-sm text-stone-500">Subiaco Lions is a registered Act Belong Commit club, supporting the mental health and wellbeing of all members.</p>
+                    <p className="text-sm text-stone-500">Our club is a registered Act Belong Commit club, supporting the mental health and wellbeing of all members.</p>
                   </CardContent>
                 </Card>
                 <Card>

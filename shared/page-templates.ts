@@ -81,7 +81,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
 <p>Useful links for players, parents and volunteers.</p>
 <h3>For players and parents</h3>
 <ul>
-<li><a href="https://lacrossewa.com.au">Lacrosse WA</a> — fixtures, results and competition info</li>
+<li><a href="#">Your league or governing body</a> — fixtures, results and competition info (replace this link)</li>
 <li><a href="/sign-up">Join the club</a> — register to play with us</li>
 <li>Add another link by typing the text, selecting it, and clicking the link button</li>
 </ul>

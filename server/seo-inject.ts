@@ -15,7 +15,7 @@
 // Used by both dev (vite middleware) and production (static serving).
 // =============================================================================
 
-import { getSeoForPath, SITE_NAME, type PageSeo } from "@shared/seo";
+import { getSeoForPath, getSiteName, type PageSeo } from "@shared/seo";
 
 // Escape text so it's safe inside an HTML attribute
 function esc(s: string): string {
@@ -27,7 +27,7 @@ function esc(s: string): string {
 }
 
 // Build the <head> meta block for a given path + site origin
-function buildMetaTags(path: string, origin: string, seo: PageSeo): string {
+function buildMetaTags(path: string, origin: string, seo: PageSeo, siteName: string): string {
   const url = origin + path;
   const ogImage = origin + "/og-image.jpg";
   const t = esc(seo.title);
@@ -43,7 +43,7 @@ function buildMetaTags(path: string, origin: string, seo: PageSeo): string {
     `<meta property="og:description" content="${d}" />`,
     `<meta property="og:url" content="${esc(url)}" />`,
     `<meta property="og:type" content="website" />`,
-    `<meta property="og:site_name" content="${esc(SITE_NAME)}" />`,
+    `<meta property="og:site_name" content="${esc(siteName)}" />`,
     `<meta property="og:image" content="${esc(ogImage)}" />`,
     // Twitter
     `<meta name="twitter:card" content="summary_large_image" />`,
@@ -64,9 +64,15 @@ export function getOrigin(req: { headers: Record<string, any>; protocol?: string
 // Take the raw index.html and replace the default <title>/<meta description>
 // with route-specific SEO tags. The base index.html should contain a marker
 // comment <!--SEO--> where these tags go (we also strip the default title).
-export function injectSeo(html: string, path: string, origin: string): string {
-  const seo = getSeoForPath(path);
-  const metaBlock = buildMetaTags(path, origin, seo);
+// `settings` are the club's saved settings — they fill the {club}/{sport}
+// placeholders in the SEO templates so the metadata matches whichever club is
+// running the site.
+export function injectSeo(
+  html: string, path: string, origin: string,
+  settings?: Record<string, string>,
+): string {
+  const seo = getSeoForPath(path, settings);
+  const metaBlock = buildMetaTags(path, origin, seo, getSiteName(settings));
 
   // Replace everything between the SEO markers if present, else replace the
   // default <title> tag. Using markers keeps the base HTML clean and explicit.

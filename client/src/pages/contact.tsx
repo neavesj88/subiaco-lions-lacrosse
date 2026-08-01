@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mail, MapPin, Facebook, Instagram, CheckCircle, Clock } from "lucide-react";
 import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
+import { useSiteText } from "@/hooks/use-site-text";
 import { useClubDetails, ClubMap } from "@/components/club-details";
 import { useSettings } from "@/hooks/use-settings";
 
@@ -26,6 +27,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Contact() {
+  const t = useSiteText(); // club-configurable wording
   const [submitted, setSubmitted] = useState(false);
   const { get } = usePageContent("contact");
   // Club address / email / map come from Admin → Settings → Club Details
@@ -51,10 +53,10 @@ export default function Contact() {
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <Mail className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <EditableSection page="contact" section="hero_title" value={get("hero_title", "Contact Us")} label="Hero heading">
+          <EditableSection page="contact" section="hero_title" value={get("hero_title", t("page_contact_title"))} label="Hero heading">
             {(c) => <h1 className="text-4xl font-extrabold mb-4">{c}</h1>}
           </EditableSection>
-          <EditableSection page="contact" section="hero_subtitle" value={get("hero_subtitle", "Questions about joining, junior programs, sponsorship or anything else — we'd love to hear from you.")} label="Hero subtitle">
+          <EditableSection page="contact" section="hero_subtitle" value={get("hero_subtitle", t("page_contact_subtitle"))} label="Hero subtitle">
             {(c) => <p className="text-maroon-100 text-lg">{c}</p>}
           </EditableSection>
         </div>
@@ -108,24 +110,24 @@ export default function Contact() {
 
             {/* Social */}
             <div>
-              <p className="text-sm font-semibold text-stone-700 mb-3">Follow the Lions</p>
+              <p className="text-sm font-semibold text-stone-700 mb-3">Follow {t("club_short_name")}</p>
               <div className="flex gap-3">
-                <a
-                  href={settings?.facebook_url || "https://www.facebook.com/SubiacoLacrosse/"}
+                {(settings?.facebook_url || t("facebook_url")) && <a
+                  href={settings?.facebook_url || t("facebook_url")}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-white hover:border-blue-400 hover:text-blue-600 transition-colors text-sm font-medium"
                 >
                   <Facebook className="h-4 w-4" /> Facebook
-                </a>
-                <a
-                  href={`https://www.instagram.com/${settings?.instagram_handle || "subiacolacrosse_official"}/`}
+                </a>}
+                {(settings?.instagram_handle || t("instagram_handle")) && <a
+                  href={`https://www.instagram.com/${settings?.instagram_handle || t("instagram_handle")}/`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-white hover:border-pink-400 hover:text-pink-600 transition-colors text-sm font-medium"
                 >
                   <Instagram className="h-4 w-4" /> Instagram
-                </a>
+                </a>}
               </div>
             </div>
           </div>

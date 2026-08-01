@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, UserPlus, Zap, Heart, Shield } from "lucide-react";
+import { useSiteText } from "@/hooks/use-site-text";
 
 const formSchema = z
   .object({
@@ -41,6 +42,7 @@ type FormData = z.infer<typeof formSchema>;
 export default function SignUp() {
   const [submitted, setSubmitted] = useState(false);
   const [isJunior, setIsJunior] = useState(false);
+  const t = useSiteText(); // club-configurable wording
 
   const { data: settings } = useQuery<Record<string, string>>({
     queryKey: ["/api/settings"],
@@ -71,7 +73,7 @@ export default function SignUp() {
       <div className="min-h-[60vh] flex items-center justify-center px-4">
         <div className="text-center max-w-md">
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-stone-900 mb-2">Welcome to the Lions!</h2>
+          <h2 className="text-2xl font-bold text-stone-900 mb-2">Welcome to the {t("club_short_name")}!</h2>
           <p className="text-stone-600 mb-6">
             Thanks for your interest. One of our team will be in touch within 48 hours with next steps.
           </p>
@@ -86,9 +88,9 @@ export default function SignUp() {
       <section className="hero-gradient text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <UserPlus className="h-12 w-12 text-gold-400 mx-auto mb-4" />
-          <h1 className="text-4xl font-extrabold mb-4">Join the Lions</h1>
+          <h1 className="text-4xl font-extrabold mb-4">{t("page_signup_title")}</h1>
           <p className="text-maroon-100 text-lg">
-            New to lacrosse? No worries — we provide loan equipment and a welcoming environment for all skill levels.
+            {t("page_signup_subtitle")}
           </p>
         </div>
       </section>
@@ -101,14 +103,14 @@ export default function SignUp() {
               <CardContent className="pt-5">
                 <Zap className="h-7 w-7 text-gold-500 mb-2" />
                 <h3 className="font-semibold mb-1">What to Bring</h3>
-                <p className="text-sm text-stone-500">Just runners and a water bottle. The club provides sticks and helmets for your first few sessions.</p>
+                <p className="text-sm text-stone-500">{t("signup_what_to_bring")}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-5">
                 <Heart className="h-7 w-7 text-maroon-600 mb-2" />
                 <h3 className="font-semibold mb-1">All Welcome</h3>
-                <p className="text-sm text-stone-500">Men's, Women's and Juniors (U11–U17). Complete beginners are especially welcome.</p>
+                <p className="text-sm text-stone-500">{t("signup_all_welcome")}</p>
               </CardContent>
             </Card>
             <Card>
@@ -124,14 +126,14 @@ export default function SignUp() {
                 <CardContent className="pt-5">
                   <h3 className="font-semibold mb-1 text-gold-800">Already decided?</h3>
                   <p className="text-sm text-gold-700 mb-3">
-                    Register directly through GameDay to get your membership sorted immediately.
+                    Register directly through {t("fixtures_provider_name")} to get your membership sorted immediately.
                   </p>
                   <a
                     href={settings.gameday_registration_url}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <Button variant="gold" size="sm" className="w-full">Register on GameDay →</Button>
+                    <Button variant="gold" size="sm" className="w-full">Register on {t("fixtures_provider_name")} →</Button>
                   </a>
                 </CardContent>
               </Card>
@@ -199,7 +201,7 @@ export default function SignUp() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="beginner">Beginner — never played lacrosse</SelectItem>
+                      <SelectItem value="beginner">Beginner — never played before</SelectItem>
                       <SelectItem value="intermediate">Intermediate — played before</SelectItem>
                       <SelectItem value="experienced">Experienced — played competitively</SelectItem>
                     </SelectContent>

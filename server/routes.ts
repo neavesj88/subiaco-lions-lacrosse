@@ -56,7 +56,8 @@ import { requireAuth, requirePermission } from "./middleware";
 import { notifyContactMessage, notifyNewRegistration, sendTestEmail } from "./email";
 import { SITEMAP_PAGES } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
-import { getAdminPath } from "./runtime-config";
+import { getAdminPath, isDefaultPassword} from "./runtime-config";
+import { invalidateSettingsCache } from "./site-settings";
 import {
   getClientIP, isBlocked, recordFailedAttempt, recordSuccessfulLogin,
   formatTime, getSuspiciousIPs, unblockIP,
@@ -318,10 +319,7 @@ export async function registerRoutes(app: Express) {
     // Flag if this account still uses the default seeded password. The admin UI
     // shows a prominent warning banner until it's changed — important for a
     // gifted/handed-over site so it never sits on the public default password.
-    let usingDefaultPassword = false;
-    if (user.passwordHash) {
-      usingDefaultPassword = await bcrypt.compare("lions2024!", user.passwordHash);
-    }
+    const usingDefaultPassword = await isDefaultPassword(user.passwordHash, bcrypt.compare);
 
     res.json({
       id: user.id, name: user.name, role: user.role,
@@ -342,9 +340,7 @@ export async function registerRoutes(app: Express) {
 
     // Verify the current password (skip the check only if still on the default,
     // so a freshly-handed-over admin can set their own without friction).
-    const onDefault = user.passwordHash
-      ? await bcrypt.compare("lions2024!", user.passwordHash)
-      : false;
+    const onDefault = await isDefaultPassword(user.passwordHash, bcrypt.compare);
     if (!onDefault) {
       const ok = user.passwordHash && (await bcrypt.compare(currentPassword ?? "", user.passwordHash));
       if (!ok) return res.status(400).json({ message: "Current password is incorrect." });
@@ -622,6 +618,9 @@ export async function registerRoutes(app: Express) {
         await db.insert(siteSettings).values({ key, value });
       }
     }
+    // Drop the server-side cache so the SEO tags injected into the HTML use
+    // the new club name/sport straight away instead of up to 30s later.
+    invalidateSettingsCache();
     res.json({ ok: true });
   });
 

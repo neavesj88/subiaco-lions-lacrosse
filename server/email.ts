@@ -11,7 +11,7 @@
 //   Copy .env.example to .env and fill in:
 //     CONTACT_EMAIL_USER=contact@mail.yourdomain.com.au
 //     CONTACT_EMAIL_PASS=your_mailgun_smtp_password
-//     CLUB_NOTIFY_EMAIL=subiacolacrosseclub@outlook.com
+//     CLUB_NOTIFY_EMAIL=committee@yourclub.org.au
 //
 //   If these vars are missing, emails are silently skipped and a warning is
 //   printed — the form submissions still save to the database, nothing is lost.
@@ -31,6 +31,7 @@
 import nodemailer from "nodemailer";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
+import { getSiteText } from "./site-settings";
 import { siteSettings } from "@shared/schema";
 
 // ---------------------------------------------------------------------------
@@ -65,7 +66,29 @@ async function getMailConfig() {
     user: pick("mail_user", "CONTACT_EMAIL_USER"),
     pass: pick("mail_pass", "CONTACT_EMAIL_PASS"),
     from: pick("mail_from") || pick("mail_user", "CONTACT_EMAIL_USER"),
-    notify: pick("mail_notify", "CLUB_NOTIFY_EMAIL") || "subiacolacrosseclub@outlook.com",
+    notify: pick("mail_notify", "CLUB_NOTIFY_EMAIL") || getSiteText()("contact_email"),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// emailBrand — the club's identity and colours for use in email templates
+// ---------------------------------------------------------------------------
+// Every string a member reads in an email comes from the club's own settings,
+// so a club that renames itself (or a different club reusing this site) never
+// has to touch these templates. Blank values simply drop the line they're on.
+// ---------------------------------------------------------------------------
+function emailBrand() {
+  const t = getSiteText();
+  return {
+    t,
+    clubName: t("club_name"),
+    clubFullName: t.clubFullName,
+    suffix: t("club_name_suffix"),
+    email: t("contact_email"),
+    venueLine: [t("venue_name"), t("venue_address")].filter(Boolean).join(", "),
+    instagram: t("instagram_handle"),
+    primary: t("theme_primary") || "#7B1E32",
+    accent: t("theme_accent") || "#C5942A",
   };
 }
 
@@ -112,10 +135,10 @@ export async function sendTestEmail(to: string): Promise<void> {
   await transporter.sendMail({
     from: cfg.from,
     to,
-    subject: "Test email — Subiaco Lions website",
+    subject: `Test email — ${emailBrand().clubName} website`,
     text: "This is a test email from your club website. If you're reading this, email is working correctly.",
     html: `<div style="font-family:sans-serif">
-      <h2 style="color:#7B1E32">Email is working ✓</h2>
+      <h2 style="color:${emailBrand().primary}">Email is working ✓</h2>
       <p>This is a test message from your club website. If you're reading this,
       your email settings are correct and the site can send notifications.</p>
     </div>`,
@@ -186,7 +209,7 @@ export async function notifyContactMessage(data: {
     subject: `Contact form: ${data.subject} — from ${data.name}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px">
-        <h2 style="color:#7B1E32">New contact message — Subiaco Lions</h2>
+        <h2 style="color:${emailBrand().primary}">New contact message — ${emailBrand().clubName}</h2>
         <table style="width:100%;border-collapse:collapse">
           <tr><td style="padding:6px 0;color:#666;width:100px">Name</td><td style="padding:6px 0;font-weight:bold">${data.name}</td></tr>
           <tr><td style="padding:6px 0;color:#666">Email</td><td style="padding:6px 0"><a href="mailto:${data.email}">${data.email}</a></td></tr>
@@ -226,6 +249,7 @@ export async function notifyNewRegistration(data: {
   message?: string | null;
 }) {
   const clubEmail = (await getMailConfig()).notify;
+  const brand = emailBrand();
   const fullName = `${data.firstName} ${data.lastName}`;
 
   // --- 1. Notify the club ---
@@ -234,7 +258,7 @@ export async function notifyNewRegistration(data: {
     subject: `New sign-up enquiry: ${fullName}${data.isJunior ? " (Junior)" : ""}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px">
-        <h2 style="color:#7B1E32">New sign-up enquiry — Subiaco Lions</h2>
+        <h2 style="color:${emailBrand().primary}">New sign-up enquiry — ${emailBrand().clubName}</h2>
         <table style="width:100%;border-collapse:collapse">
           <tr><td style="padding:6px 0;color:#666;width:160px">Name</td><td style="padding:6px 0;font-weight:bold">${fullName}</td></tr>
           <tr><td style="padding:6px 0;color:#666">Email</td><td style="padding:6px 0"><a href="mailto:${data.email}">${data.email}</a></td></tr>
@@ -258,31 +282,39 @@ export async function notifyNewRegistration(data: {
   const replyTo = data.isJunior && data.parentEmail ? data.parentEmail : data.email;
   await sendEmail({
     to: replyTo,
-    subject: "Thanks for your interest — Subiaco Lions Lacrosse",
+    subject: `Thanks for your interest — ${brand.clubFullName}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px">
-        <div style="background:#7B1E32;padding:24px;border-radius:8px 8px 0 0;text-align:center">
-          <h1 style="color:#C5942A;margin:0;font-size:24px">Subiaco Lions</h1>
-          <p style="color:#f5dde2;margin:4px 0 0">Lacrosse Club</p>
+        <div style="background:${brand.primary};padding:24px;border-radius:8px 8px 0 0;text-align:center">
+          <h1 style="color:${brand.accent};margin:0;font-size:24px">${brand.clubName}</h1>
+          ${brand.suffix ? `<p style="color:#f0e6e8;margin:4px 0 0">${brand.suffix}</p>` : ""}
         </div>
         <div style="padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 8px 8px">
           <p>Hi ${data.firstName},</p>
-          <p>Thanks for your interest in joining the Subiaco Lions Lacrosse Club!</p>
+          <p>Thanks for your interest in joining ${brand.clubFullName}!</p>
           <p>We've received your enquiry and one of our team will be in touch within <strong>48 hours</strong> with everything you need to get started.</p>
           ${data.isJunior ? `<p>As a junior enquiry, we'll also have info about our <strong>KidSport</strong> subsidy available.</p>` : ""}
           <p>In the meantime, feel free to check out:</p>
           <ul>
-            <li>Our <a href="/juniors" style="color:#7B1E32">Juniors page</a> for program info</li>
-            <li>Our <a href="/calendar" style="color:#7B1E32">Club Calendar</a> for upcoming training sessions</li>
-            <li>Follow us on <a href="https://www.instagram.com/subiacolacrosse_official/" style="color:#7B1E32">Instagram</a> for the latest news</li>
+            <li>Our <a href="/juniors" style="color:${brand.primary}">Juniors page</a> for program info</li>
+            <li>Our <a href="/calendar" style="color:${brand.primary}">Club Calendar</a> for upcoming training sessions</li>
+            ${brand.instagram ? `<li>Follow us on <a href="https://www.instagram.com/${brand.instagram}/" style="color:${brand.primary}">Instagram</a> for the latest news</li>` : ""}
           </ul>
-          <p>See you on the field! 🥍</p>
-          <p><strong>Subiaco Lions Lacrosse Club</strong><br>
-          Rosalie Park, Shenton Park WA<br>
-          <a href="mailto:subiacolacrosseclub@outlook.com" style="color:#7B1E32">subiacolacrosseclub@outlook.com</a></p>
+          <p>See you at training!</p>
+          <p><strong>${brand.clubFullName}</strong><br>
+          ${brand.venueLine ? `${brand.venueLine}<br>` : ""}
+          ${brand.email ? `<a href="mailto:${brand.email}" style="color:${brand.primary}">${brand.email}</a>` : ""}</p>
         </div>
       </div>
     `,
-    text: `Hi ${data.firstName},\n\nThanks for your interest in the Subiaco Lions Lacrosse Club!\n\nWe'll be in touch within 48 hours.\n\nSubiaco Lions Lacrosse Club\nRosalie Park, Shenton Park WA\nsubiacolacrosseclub@outlook.com`,
+    text: `Hi ${data.firstName},
+
+Thanks for your interest in ${brand.clubFullName}!
+
+We'll be in touch within 48 hours.
+
+${brand.clubFullName}
+${brand.venueLine}
+${brand.email}`,
   });
 }

@@ -13,11 +13,15 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'fs';
 
-mkdirSync('./data', { recursive: true });
+// Respect DATABASE_URL exactly like the server does (server/db.ts), so the
+// migration can never run against a different file than the app uses.
+import path from 'path';
+const dbPath = process.env.DATABASE_URL ?? './data/club.db';
+mkdirSync(path.dirname(dbPath), { recursive: true });
 mkdirSync('./public/uploads', { recursive: true });
 mkdirSync('./data/backups', { recursive: true });
 
-const db = new Database('./data/club.db');
+const db = new Database(dbPath);
 
 // Helper: add a column only if it doesn't already exist
 function addCol(table, column, definition) {
@@ -34,6 +38,100 @@ function addSetting(key, value) {
 }
 
 console.log('Running migrations...');
+
+// ── v0: base tables ──────────────────────────────────────────────────────────
+// These six tables are the original core of the site. On an existing install
+// they already exist and every statement below does nothing.
+//
+// They are listed here because a brand-new club installing from a fresh clone
+// has an empty database, and the ALTER/seed steps further down all assume these
+// tables are present (adding a column to a table that doesn't exist throws
+// "no such table: users"). Keep these in sync with shared/schema.ts — see rule 1
+// in CLAUDE.md.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL DEFAULT '',
+    google_id TEXT UNIQUE,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'content_manager',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS site_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL UNIQUE,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS announcements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    featured_image_url TEXT,
+    is_pinned INTEGER NOT NULL DEFAULT 0,
+    is_published INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    start_date TEXT NOT NULL,
+    end_date TEXT,
+    location TEXT,
+    event_type TEXT NOT NULL DEFAULT 'other',
+    team_category TEXT NOT NULL DEFAULT 'all',
+    is_published INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS juniors_content (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section TEXT NOT NULL UNIQUE,
+    title TEXT,
+    content TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by INTEGER REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS registrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    date_of_birth TEXT,
+    is_junior INTEGER NOT NULL DEFAULT 0,
+    parent_name TEXT,
+    parent_email TEXT,
+    parent_phone TEXT,
+    team_preference TEXT DEFAULT 'unsure',
+    experience_level TEXT NOT NULL DEFAULT 'beginner',
+    kidsport_eligible INTEGER NOT NULL DEFAULT 0,
+    how_heard TEXT,
+    message TEXT,
+    status TEXT NOT NULL DEFAULT 'new',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// Is this a brand-new install, or an existing club's database?
+//
+// This MUST be measured here — before the migration seeds any of its own
+// default settings below — otherwise the script's own writes make every
+// database look "established" and a new club never sees the setup wizard.
+const isNewInstall =
+  db.prepare('SELECT COUNT(*) AS n FROM site_settings').get().n === 0 &&
+  db.prepare('SELECT COUNT(*) AS n FROM announcements').get().n === 0 &&
+  db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0;
 
 // ── v1: google_id on users, contact_messages table ───────────────────────────
 addCol('users', 'google_id', 'TEXT');
@@ -140,16 +238,22 @@ addSetting('nav_show_coaches_board', 'true');   // Coaches Board tactical whiteb
 
 // ── v5: club contact details (used on About, Contact, Juniors, Footer) ───────
 // Previously hardcoded in the page files — now editable in Admin → Settings.
-addSetting('venue_name', 'Rosalie Park');
-addSetting('venue_address', 'Shenton Park WA 6008');
-// Anything Google Maps understands: an address, a place name, or coordinates.
-addSetting('map_query', 'Rosalie Park, Shenton Park WA 6008');
+// Venue details also come from club-config defaults on a fresh install.
+
+// ── v8: first-run setup wizard flag ──────────────────────────────────────────
+// The wizard only shows on a BRAND NEW install. If this database already has
+// content (an existing club like Subiaco), mark setup as complete so they are
+// never interrupted by a setup screen for a site they've already been running.
+addSetting('setup_completed', isNewInstall ? 'false' : 'true');
+console.log(isNewInstall
+  ? '  (new install — setup wizard will run on first admin login)'
+  : '  (existing install detected — setup wizard disabled)');
 
 // ── v7: club branding (name shown across the site) + committee ───────────────
 // The club name used to be hardcoded in the nav, footer and page titles.
-addSetting('club_name', 'Subiaco Lions');            // main name in the logo/nav
-addSetting('club_name_suffix', 'Lacrosse Club');     // smaller line under it
-addSetting('club_tagline', "Perth's home of lacrosse since 1940. Men's, Women's and Junior teams competing across all divisions of Lacrosse WA.");
+// NOTE: club name/tagline are deliberately NOT seeded here. Existing installs
+// already have their own rows (untouched), and a brand-new club should inherit
+// the templated defaults from shared/club-config.ts rather than Subiaco's copy.
 addSetting('nav_show_committee', 'true');            // the /committee page
 
 db.exec(`
@@ -206,10 +310,11 @@ addSetting('mail_user', '');       // full sending address
 addSetting('mail_pass', '');       // SMTP password (stored in the DB, admin-only)
 addSetting('mail_from', '');       // "From" address if different to mail_user
 addSetting('mail_notify', '');     // where club notifications go (blank = CLUB_NOTIFY_EMAIL)
-// GameDay is the third-party that hosts the club's fixtures & results.
-// Admins can update this in Admin → Settings if the club ID ever changes.
-addSetting('gameday_url', 'https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0');
-addSetting('lacrossewa_fixtures_url', 'https://lacrossewa.com.au/fixtures-results/club-fixtures/');
+// Fixtures links are per-club accounts on third-party sites, so they start
+// blank and each club enters its own in Admin → Settings (or the setup wizard).
+// Existing clubs already have their values stored and are not affected.
+addSetting('gameday_url', '');
+addSetting('lacrossewa_fixtures_url', '');
 
 // ── v5: list_items table (team divisions, store apparel, juniors FAQ) ─────────
 db.exec(`
@@ -236,9 +341,12 @@ if (listCount === 0) {
     'INSERT INTO list_items (list_type, "group", title, body, label, url, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
 
-  // Divisions link to GameDay (the third-party that hosts fixtures & results).
-  // Left as NULL so each row falls back to the club-wide gameday_url setting,
-  // which means changing the GameDay URL in Settings updates every division link.
+  // Starter team divisions — a common shape for an Australian club. Every club
+  // renames, adds or deletes these in Admin → Teams.
+  //
+  // The URL is left as NULL so each row falls back to the club-wide fixtures
+  // URL setting, which means updating that one setting re-points every
+  // division link at once.
   const divisions = [
     ["Men's", "State League"], ["Men's", "Division 1"], ["Men's", "Division 2"], ["Men's", "Division 3"],
     ["Women's", "State League"], ["Women's", "Division 1"], ["Women's", "Division 2"],
@@ -246,14 +354,16 @@ if (listCount === 0) {
   ];
   divisions.forEach(([group, name], i) => ins.run("team_division", group, name, null, null, null, i));
 
-  // Store apparel items (title = name, body = description, label = badge)
+  // Store apparel items (title = name, body = description, label = badge).
+  // Generic starters so the Store page isn't empty — every club edits these in
+  // Admin → Store to match what they actually sell.
   const apparel = [
-    ["Club Playing Jersey", "Official maroon and gold match jersey. Available in men's, women's and junior sizes.", "Playing Kit"],
+    ["Club Playing Jersey", "Official match jersey in club colours. Available in senior and junior sizes.", "Playing Kit"],
     ["Training Singlet", "Lightweight training singlet in club colours. Perfect for pre-season and training sessions.", "Training"],
-    ["Club Hoodie", "Premium fleece hoodie with embroidered Lions crest. Great for sideline days.", "Casual Wear"],
-    ["Supporter Cap", "Structured cap in maroon with gold Lions embroidery.", "Supporter Gear"],
-    ["Junior Playing Kit", "Full junior playing kit including jersey and shorts. Sized for U11-U17 divisions.", "Juniors"],
-    ["Lacrosse Stick Bag", "Club-branded stick bag fits up to 3 sticks. Perfect for training days.", "Equipment"],
+    ["Club Hoodie", "Premium fleece hoodie with the embroidered club crest. Great for sideline days.", "Casual Wear"],
+    ["Supporter Cap", "Structured cap with embroidered club logo.", "Supporter Gear"],
+    ["Junior Playing Kit", "Full junior playing kit including jersey and shorts.", "Juniors"],
+    ["Club Kit Bag", "Club-branded kit bag, roomy enough for a full set of gear.", "Equipment"],
   ];
   apparel.forEach(([title, body, label], i) => ins.run("store_item", null, title, body, label, null, i));
 
@@ -261,8 +371,8 @@ if (listCount === 0) {
   const faqs = [
     ["What age can my child start?", "We welcome players from age 8 upwards. Our U11 program is designed as a gentle introduction with modified rules."],
     ["Do they need to know how to play?", "Not at all! Most of our junior players start as complete beginners. Our coaches will teach everything from scratch."],
-    ["Is lacrosse safe?", "Field lacrosse is a contact sport for older age groups, but junior divisions use modified, non-contact rules. All players wear helmets and protective equipment."],
-    ["What about KidSport?", "We're a registered KidSport club. Eligible WA families can receive up to $200 per child per year to help cover registration fees. Ask us at sign-up."],
+    ["Is it safe?", "Junior divisions use modified rules appropriate to their age group, and our coaches are accredited. Describe your club's safety approach and any protective equipment required here."],
+    ["What about KidSport?", "If your club is a registered KidSport provider, say so here. Eligible WA families can receive up to $200 per child per year towards registration fees."],
     ["When is training?", "Training schedules vary by division. Check the Club Calendar for current sessions, or ask us when you register."],
   ];
   faqs.forEach(([title, body], i) => ins.run("faq", null, title, body, null, null, i));

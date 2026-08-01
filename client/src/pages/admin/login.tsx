@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Lock } from "lucide-react";
 import { ADMIN_PATH } from "@/lib/admin-path";
+import { useSiteText } from "@/hooks/use-site-text";
 
 const schema = z.object({
   username: z.string().min(1, "Required"),
@@ -34,6 +35,7 @@ function GoogleIcon() {
 }
 
 export default function AdminLogin() {
+  const t = useSiteText(); // club name shown under the "Admin Login" heading
   const [location, navigate] = useLocation();
   const { user, loginMutation } = useAuth();
 
@@ -78,7 +80,7 @@ export default function AdminLogin() {
             <Shield className="h-8 w-8" />
           </div>
           <h1 className="text-2xl font-bold text-stone-900">Admin Login</h1>
-          <p className="text-stone-500 text-sm mt-1">Subiaco Lions Lacrosse Club</p>
+          <p className="text-stone-500 text-sm mt-1">{t.clubFullName}</p>
         </div>
 
         <Card>

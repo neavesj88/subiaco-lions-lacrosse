@@ -139,7 +139,7 @@ Give DNS a minute, then open `https://lions-domain.com` — it's live with HTTPS
 
 1. Go to your secret admin path: `https://lions-domain.com<ADMIN_PATH>/login`
    (e.g. `/pick-a-secret-path/login` — whatever you set in `.env`).
-2. Log in: **`admin` / `lions2024!`**
+2. Log in: **`admin` / `changeme123!`** (or your `SEED_ADMIN_PASSWORD`)
 3. **Change the password immediately** — a yellow warning banner will prompt you,
    or use the **Password** button in the admin top bar. Then set club details in
    Settings.

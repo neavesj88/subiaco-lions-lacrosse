@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { db } from "./db";
 import { users, juniorsContent, siteSettings, announcements, events } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { SEED_ADMIN_PASSWORD } from "./runtime-config";
 
 async function seed() {
   console.log("Seeding database...");
@@ -9,28 +10,37 @@ async function seed() {
   // Default super admin
   const existing = await db.select().from(users).where(eq(users.username, "admin")).limit(1);
   if (existing.length === 0) {
-    const passwordHash = await bcrypt.hash("lions2024!", 12);
+    const passwordHash = await bcrypt.hash(SEED_ADMIN_PASSWORD, 12);
     await db.insert(users).values({
       username: "admin",
       passwordHash,
       name: "Club Administrator",
-      email: "subiacolacrosseclub@outlook.com",
+      email: "",
       role: "super_admin",
     });
-    console.log("Created default admin: admin / lions2024!");
+    console.log(`Created default admin: admin / ${SEED_ADMIN_PASSWORD}`);
     console.log("IMPORTANT: Change the admin password immediately after first login.");
   }
 
-  // Default site settings
+  // Default site settings.
+  //
+  // These are deliberately BLANK. Each one points at a specific club's own
+  // account on a third-party service (Instagram, Facebook, GameDay, Google
+  // Calendar), so there is no sensible shared default — every club fills these
+  // in during the setup wizard or in Admin -> Settings. Anything left blank
+  // simply hides the feature it powers rather than showing a broken link.
+  //
+  // Existing installs are never touched: the loop below only inserts a key that
+  // is missing, so a club that has already configured these keeps its values.
   const defaultSettings = [
-    { key: "instagram_handle", value: "subiacolacrosse_official" },
+    { key: "instagram_handle", value: "" },
     { key: "behold_feed_id", value: "" },
-    { key: "facebook_url", value: "https://www.facebook.com/SubiacoLacrosse/" },
-    { key: "contact_email", value: "subiacolacrosseclub@outlook.com" },
-    { key: "location", value: "Rosalie Park, Shenton Park WA 6008" },
-    { key: "gameday_registration_url", value: "https://membership.mygameday.app/regoform.cgi?formID=101320" },
-    { key: "gameday_url", value: "https://websites.mygameday.app/club_info.cgi?clubID=139526&c=0-4051-0-0-0" },
-    { key: "lacrossewa_fixtures_url", value: "https://lacrossewa.com.au/fixtures-results/club-fixtures/" },
+    { key: "facebook_url", value: "" },
+    { key: "contact_email", value: "" },
+    { key: "location", value: "" },
+    { key: "gameday_registration_url", value: "" },
+    { key: "gameday_url", value: "" },
+    { key: "lacrossewa_fixtures_url", value: "" },
     { key: "google_calendar_embed_url", value: "" },
     { key: "store_url", value: "" },
   ];
@@ -53,26 +63,26 @@ async function seed() {
       section: "programs",
       title: "Our Programs",
       content: JSON.stringify([
-        { age: "U11", description: "Modified rules to focus on fun and skill development. Perfect introduction to lacrosse." },
-        { age: "U13", description: "Building core lacrosse skills with more structured competition." },
+        { age: "U11", description: "Modified rules to focus on fun and skill development. A perfect introduction to the game." },
+        { age: "U13", description: "Building core skills with more structured competition." },
         { age: "U15", description: "Competitive play with a focus on teamwork and game strategy." },
-        { age: "U17", description: "High-level junior competition preparing players for senior lacrosse." },
+        { age: "U17", description: "High-level junior competition preparing players for senior teams." },
       ]),
     },
     {
       section: "kidsport",
       title: "KidSport",
-      content: "Subiaco Lions Lacrosse is registered with KidSport, a WA Government initiative providing eligible children with up to $200 per year to help cover club registration fees. Ask us about eligibility at signup.",
+      content: "If your club is a registered KidSport provider, describe it here. KidSport is a WA Government initiative providing eligible children with up to $200 per year towards club registration fees. Edit or delete this in Admin → Juniors.",
     },
     {
       section: "equipment",
       title: "What to Bring",
-      content: "New players don't need to buy equipment straight away. The club provides loan sticks and helmets for your first few sessions. Just bring runners, a water bottle, and plenty of enthusiasm!",
+      content: "New players don't need to buy equipment straight away. List what the club can lend here. Just bring runners, a water bottle, and plenty of enthusiasm!",
     },
     {
       section: "contact",
       title: "Junior Coordinator",
-      content: "For all junior enquiries, email us at subiacolacrosseclub@outlook.com and our Juniors Coordinator will get back to you within 48 hours.",
+      content: "For all junior enquiries, get in touch and our Juniors Coordinator will get back to you within 48 hours. Add your contact email in Admin → Settings.",
     },
   ];
 
@@ -87,8 +97,8 @@ async function seed() {
   const annCount = await db.select().from(announcements).limit(1);
   if (annCount.length === 0) {
     await db.insert(announcements).values({
-      title: "Welcome to the 2025 Season!",
-      content: "The Subiaco Lions Lacrosse Club is excited to kick off another great season. Training begins this Saturday at Rosalie Park. All new players welcome — no experience necessary.",
+      title: "Welcome to your new club website!",
+      content: "This is a sample news post so the home page isn't empty. Edit or delete it in Admin → News, then write your own — season launches, results, working bees, anything your members should see.",
       isPublished: true,
     });
   }
@@ -102,7 +112,7 @@ async function seed() {
       title: "Saturday Morning Training",
       description: "Open training session for all teams. New players welcome. Loan equipment available.",
       startDate: nextSat.toISOString().split("T")[0],
-      location: "Rosalie Park, Shenton Park",
+      location: "",
       eventType: "training",
       teamCategory: "all",
       isPublished: true,
