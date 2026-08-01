@@ -28,6 +28,13 @@ Default credentials: **`admin` / `changeme123!`** — change this immediately.
 
 ## Hosting it for real
 
+**Running it on a PC in the clubhouse?** Read **[CLUBHOUSE_SETUP.md](CLUBHOUSE_SETUP.md)**.
+That covers the whole thing end to end, including how to put the site on the
+internet when the club's connection has no fixed IP address (which is the usual
+case) — no port forwarding and no router changes needed.
+
+The rest of this section is the alternative: hosting on a rented server.
+
 Runs the same way as neaves.au (PM2 + nginx + Cloudflare) and is designed to
 sit **alongside it on the same Ubuntu VM** — it uses port **5001** so it won't
 clash with neaves.au on 5000.

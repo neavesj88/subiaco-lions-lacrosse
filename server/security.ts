@@ -134,3 +134,44 @@ export function getSuspiciousIPs(): Array<{
 export function unblockIP(ip: string): boolean {
   return loginAttempts.delete(ip);
 }
+
+// ── Public form throttling ──────────────────────────────────────────────────
+// The contact form, sign-up form and newsletter box are open to the whole
+// internet with no login. Without a limit, one bored person or a spam bot can
+// submit thousands of times — which floods the club's inbox, fills the
+// database, and (because each sign-up sends two emails) can get the club's
+// email account flagged as a spam sender.
+//
+// This is a deliberately simple fixed-window counter per IP, in memory, in the
+// same spirit as the login lockout above: no dependency, nothing to configure,
+// and the worst case if the server restarts is that someone gets a fresh
+// allowance. Genuine humans never hit these limits — a person submits the
+// contact form once, not five times an hour.
+const formSubmissions = new Map<string, { count: number; windowStart: number }>();
+const FORM_WINDOW_MS = 60 * 60 * 1000; // one hour
+
+/**
+ * Returns true if this IP is allowed to submit, false if it has hit the limit.
+ * Call once per submission — it counts the attempt as it checks.
+ */
+export function allowFormSubmission(ip: string, maxPerHour: number): boolean {
+  const now = Date.now();
+  const rec = formSubmissions.get(ip);
+
+  if (!rec || now - rec.windowStart > FORM_WINDOW_MS) {
+    formSubmissions.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  rec.count += 1;
+  return rec.count <= maxPerHour;
+}
+
+// Housekeeping: drop stale entries so the map can't grow forever on a
+// long-running server. Runs hourly and is cheap (a few hundred entries at most).
+// unref() lets the process exit normally despite this timer being scheduled.
+setInterval(() => {
+  const cutoff = Date.now() - FORM_WINDOW_MS;
+  for (const [ip, rec] of formSubmissions) {
+    if (rec.windowStart < cutoff) formSubmissions.delete(ip);
+  }
+}, FORM_WINDOW_MS).unref();

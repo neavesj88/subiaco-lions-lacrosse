@@ -72,8 +72,14 @@ export function serveStatic(app: Express) {
   if (!fs.existsSync(distPath)) {
     throw new Error(`Build directory not found: ${distPath}. Run 'npm run build' first.`);
   }
-  // Serve built assets (JS/CSS/images) normally
-  app.use(express.static(distPath));
+  // Serve built assets (JS/CSS/images) normally.
+  //
+  // index: false is important. By default express.static answers a request for
+  // "/" with index.html straight off the disk — which would skip the catch-all
+  // below, so the HOME PAGE alone would miss its SEO tags and runtime config
+  // while every other page got them. Turning that off leaves "/" to the
+  // catch-all, so every page is treated identically.
+  app.use(express.static(distPath, { index: false }));
 
   // SPA catch-all: serve index.html but inject per-route SEO tags first so
   // crawlers/social scrapers see the correct title + description for each page.

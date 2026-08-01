@@ -1,44 +1,32 @@
 #!/bin/bash
 # =============================================================================
-# DATABASE BACKUP — scripts/backup.sh
+# BACKUP — scripts/backup.sh
 # =============================================================================
-# What this does:
-#   Copies the SQLite database file (data/club.db) to data/backups/ with
-#   a date-and-time stamp so you can restore any previous version.
-#   Automatically deletes backups older than 30 to keep disk usage low.
+# A thin wrapper so backups run the same way as every other script here.
+# The real work happens in backup.mjs, which uses SQLite's own backup facility
+# so the copy is always complete and undamaged, even while the site is in use.
 #
-# Run manually:    ./scripts/backup.sh
-# Run on a schedule (recommended):
-#   Add to crontab with: crontab -e
-#   Then add this line for a 2am daily backup:
-#   0 2 * * * /home/user/subiaco-lions-lacrosse/scripts/backup.sh >> /var/log/lions-backup.log 2>&1
+# It backs up BOTH the database and the uploaded photos. (An earlier version of
+# this script copied only the database file with `cp`. That could silently
+# produce an incomplete copy, and left every photo out of the backup entirely.)
+#
+# Run it by hand:
+#   ./scripts/backup.sh
+#
+# Run it automatically every night at 2am (recommended):
+#   crontab -e
+# then add this one line, with the path changed to match where the site lives:
+#   0 2 * * * /home/club/club-website/scripts/backup.sh >> /var/log/club-backup.log 2>&1
+#
+# Back up to a USB stick or network drive rather than the club PC's own disk,
+# so a failed hard drive doesn't destroy the backups along with the site:
+#   BACKUP_DIR=/mnt/usb-backup ./scripts/backup.sh
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BACKUP_DIR="$PROJECT_DIR/data/backups"
-DB_FILE="$PROJECT_DIR/data/club.db"
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/club_$DATE.db"
 
-# Create the backups directory if it doesn't exist
-mkdir -p "$BACKUP_DIR"
-
-# Check the database file exists
-if [ ! -f "$DB_FILE" ]; then
-  echo "ERROR: Database file not found at $DB_FILE"
-  exit 1
-fi
-
-# Copy the database (SQLite WAL mode = safe to copy while app is running)
-cp "$DB_FILE" "$BACKUP_FILE"
-echo "✓ Backed up to $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
-
-# Keep only the 30 most recent backups — delete the rest
-BACKUP_COUNT=$(ls -1 "$BACKUP_DIR"/club_*.db 2>/dev/null | wc -l)
-if [ "$BACKUP_COUNT" -gt 30 ]; then
-  ls -t "$BACKUP_DIR"/club_*.db | tail -n +31 | xargs rm -f
-  echo "  Removed old backups (kept 30 most recent)"
-fi
+cd "$PROJECT_DIR"
+exec node scripts/backup.mjs "$@"

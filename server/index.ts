@@ -16,9 +16,18 @@
 //                      → React app (everything else, served as index.html)
 // =============================================================================
 
+// Load .env FIRST, before anything else looks at process.env.
+//
+// Without this the .env file is just a text file nobody reads: the admin page
+// address, the session secret, the Google sign-in keys and the mail settings
+// documented in .env.example would all be silently ignored, and the site would
+// quietly run on its built-in defaults instead.
+import "dotenv/config";
+
 import express, { type Request, type Response, type NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { backfillSanitiseContent } from "./backfill";
 
 const app = express();
 
@@ -53,10 +62,18 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     return orig(body, ...args);
   };
 
+  // Routes whose response contents must never reach a log file. Logs get
+  // copied around, pasted into support emails and kept for months, so account
+  // details and mail settings have no business sitting in them. The request
+  // line itself is still logged — just not what was sent back.
+  const SENSITIVE = ["/api/auth", "/api/settings", "/api/users", "/api/security"];
+
   res.on("finish", () => {
     if (path.startsWith("/api")) {
       let line = `${req.method} ${path} ${res.statusCode} in ${Date.now() - start}ms`;
-      if (captured) line += ` :: ${JSON.stringify(captured)}`.slice(0, 80);
+      if (captured && !SENSITIVE.some((p) => path.startsWith(p))) {
+        line += ` :: ${JSON.stringify(captured)}`.slice(0, 80);
+      }
       log(line);
     }
   });
@@ -81,6 +98,10 @@ process.on("unhandledRejection", (reason) => {
 
 // ── Start up ─────────────────────────────────────────────────────────────────
 (async () => {
+  // One-time tidy-up of content saved before HTML sanitising existed.
+  // Does nothing on every startup after the first.
+  backfillSanitiseContent();
+
   // Register all API routes and get back the HTTP server instance
   const server = await registerRoutes(app);
 

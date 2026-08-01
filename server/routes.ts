@@ -30,7 +30,6 @@
 import { type Express, type Request, type Response } from "express";
 import { createServer } from "http";
 import session from "express-session";
-import ConnectSqlite3 from "connect-sqlite3";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import bcrypt from "bcrypt";
@@ -58,12 +57,12 @@ import { SITEMAP_PAGES } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
 import { getAdminPath, isDefaultPassword} from "./runtime-config";
 import { invalidateSettingsCache } from "./site-settings";
+import { cleanHtmlFields } from "./sanitize";
+import { SqliteSessionStore } from "./session-store";
 import {
   getClientIP, isBlocked, recordFailedAttempt, recordSuccessfulLogin,
-  formatTime, getSuspiciousIPs, unblockIP,
+  formatTime, getSuspiciousIPs, unblockIP, allowFormSubmission,
 } from "./security";
-
-const SQLiteStore = ConnectSqlite3(session);
 
 // ── Passport Google OAuth ───────────────────────────────────────────────────
 function setupPassport() {
@@ -120,29 +119,103 @@ function setupPassport() {
 const uploadDir = path.resolve("public/uploads");
 mkdirSync(uploadDir, { recursive: true });
 
+// SECURITY: uploaded files are served from this site's own web address, so an
+// uploaded file that a browser treats as a *document* rather than a picture can
+// run code as if the club wrote it. Two rules keep that impossible:
+//
+//   1. The saved filename's extension comes from THIS list, never from the
+//      name the browser sent. A file called "photo.html" cannot be created.
+//   2. SVG is deliberately not allowed. It looks like an image and has an
+//      image/... content type, but it is really a document that can contain
+//      scripts. Clubs want photos and logos; PNG/JPEG/WebP/GIF cover that.
+//
+// The browser-supplied content type is only a hint and is easily faked, so it
+// is checked but never trusted on its own.
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/pjpeg": ".jpg",
+  "image/png": ".png",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "image/avif": ".avif",
+};
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const safe = path.basename(file.originalname, ext).replace(/[^a-z0-9]/gi, "-").toLowerCase();
+    // Extension is chosen by us from the allow-list above, not taken from the
+    // uploaded name — that is what stops "evil.html" ever hitting the disk.
+    const ext = ALLOWED_IMAGE_TYPES[file.mimetype] ?? ".bin";
+    const base = path.basename(file.originalname, path.extname(file.originalname));
+    const safe = base.replace(/[^a-z0-9]/gi, "-").toLowerCase().slice(0, 60) || "image";
     cb(null, `${safe}-${Date.now()}${ext}`);
   },
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB
+  limits: { fileSize: 8 * 1024 * 1024, files: 1 }, // 8 MB, one file per request
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) return cb(null, true);
-    cb(new Error("Only image files are allowed"));
+    if (ALLOWED_IMAGE_TYPES[file.mimetype]) return cb(null, true);
+    cb(new Error("Only JPEG, PNG, GIF, WebP or AVIF images can be uploaded."));
   },
 });
+
+// Every real image format starts with a known sequence of bytes ("magic
+// numbers"). Checking them proves the file genuinely IS the picture it claims
+// to be, rather than something else wearing an image label — which the browser
+// alone can't tell us, since the type it sends is trivially faked.
+function looksLikeRealImage(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  const startsWith = (...bytes: number[]) => bytes.every((b, i) => buf[i] === b);
+  if (startsWith(0xff, 0xd8, 0xff)) return true;                          // JPEG
+  if (startsWith(0x89, 0x50, 0x4e, 0x47)) return true;                    // PNG
+  if (buf.subarray(0, 3).toString("latin1") === "GIF") return true;       // GIF
+  // WebP and AVIF are containers: "RIFF....WEBP" / "....ftypavif"
+  if (buf.subarray(0, 4).toString("latin1") === "RIFF" &&
+      buf.subarray(8, 12).toString("latin1") === "WEBP") return true;
+  if (buf.subarray(4, 8).toString("latin1") === "ftyp") return true;      // AVIF/HEIF
+  return false;
+}
 
 export async function registerRoutes(app: Express) {
   const server = createServer(app);
 
-  // Serve uploaded files
-  app.use("/uploads", (await import("express")).default.static(uploadDir));
+  // Serve uploaded files.
+  //
+  // The headers are a second line of defence behind the upload allow-list: even
+  // if a file that isn't really a picture ever reached this folder, these stop a
+  // browser from running it. "sandbox" strips it of scripts and same-origin
+  // access; "nosniff" stops the browser guessing a different type to the one we
+  // send. Ordinary images are completely unaffected.
+  app.use(
+    "/uploads",
+    (_req: Request, res: Response, next) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self'; sandbox");
+      next();
+    },
+    (await import("express")).default.static(uploadDir, {
+      index: false,
+      dotfiles: "deny",
+      setHeaders: (res) => res.setHeader("Cache-Control", "public, max-age=86400"),
+    }),
+  );
+
+  // ── Behind a reverse proxy ──────────────────────────────────────────
+  // In production this app almost always sits behind something else: nginx,
+  // a Cloudflare Tunnel, or both. That front end terminates HTTPS and then
+  // talks to this app over plain HTTP on localhost.
+  //
+  // Without this line Express believes the request arrived over HTTP, so the
+  // login cookie below (which is marked "https only" in production) is never
+  // sent to the browser. The symptom is nasty and hard to diagnose: logging in
+  // appears to succeed, then you land straight back on the login page forever.
+  //
+  // "1" means: trust exactly one proxy in front of us, which is the normal
+  // setup. It must NOT be blanket-true, or a visitor could spoof their own
+  // address and defeat the login lockout.
+  app.set("trust proxy", 1);
 
   // ── Session setup ───────────────────────────────────────────────────
   // SECURITY: the session secret signs every admin login cookie. If it were
@@ -174,14 +247,18 @@ export async function registerRoutes(app: Express) {
 
   app.use(
     session({
-      store: new (SQLiteStore as any)({ db: "sessions.db", dir: "./data" }),
+      store: new SqliteSessionStore("./data/sessions.db"),
       secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
       rolling: true, // refresh the expiry on every request (sliding idle window)
       cookie: {
         secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
+        httpOnly: true,   // JavaScript on the page can never read the cookie
+        // "lax" means the cookie is not sent on requests started by another
+        // website, which blocks cross-site request forgery: a malicious page
+        // cannot make a logged-in admin's browser POST to this site.
+        sameSite: "lax",
         maxAge: idleHours * 60 * 60 * 1000,
       },
     })
@@ -293,11 +370,26 @@ export async function registerRoutes(app: Express) {
     // 3. Success — clear this IP's failed-attempt record
     recordSuccessfulLogin(ip);
 
-    req.session.userId = user.id;
-    req.session.userRole = user.role;
-    req.session.userName = user.name;
+    // Issue a BRAND NEW session id now that this browser has become an admin.
+    // Reusing the id the browser turned up with would allow "session fixation":
+    // if someone managed to plant a known session id in an admin's browser
+    // beforehand, that same id would silently become a logged-in admin session
+    // the moment the real admin signed in. Regenerating makes the planted id
+    // worthless.
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ message: "Could not start session" });
 
-    res.json({ id: user.id, name: user.name, role: user.role, email: user.email });
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+      req.session.userName = user.name;
+
+      // Wait for the new session to be written before replying, so the very
+      // next request from this browser is already recognised as logged in.
+      req.session.save((saveErr) => {
+        if (saveErr) return res.status(500).json({ message: "Could not start session" });
+        res.json({ id: user.id, name: user.name, role: user.role, email: user.email });
+      });
+    });
   });
 
   app.post("/api/auth/logout", (req: Request, res: Response) => {
@@ -425,7 +517,10 @@ export async function registerRoutes(app: Express) {
   });
 
   app.post("/api/announcements", requireAuth, requirePermission("news"), async (req: Request, res: Response) => {
-    const parsed = insertAnnouncementSchema.safeParse({ ...req.body, createdBy: req.session.userId });
+    // Rich text is sanitised before validation so only safe HTML is ever stored.
+    const parsed = insertAnnouncementSchema.safeParse({
+      ...cleanHtmlFields(req.body, ["content"]), createdBy: req.session.userId,
+    });
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
     const [row] = await db.insert(announcements).values(parsed.data).returning();
     res.status(201).json(row);
@@ -433,7 +528,7 @@ export async function registerRoutes(app: Express) {
 
   app.put("/api/announcements/:id", requireAuth, requirePermission("news"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    const parsed = insertAnnouncementSchema.partial().safeParse(req.body);
+    const parsed = insertAnnouncementSchema.partial().safeParse(cleanHtmlFields(req.body, ["content"]));
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
     const [row] = await db.update(announcements).set(parsed.data).where(eq(announcements.id, id)).returning();
     if (!row) return res.status(404).json({ message: "Not found" });
@@ -451,6 +546,13 @@ export async function registerRoutes(app: Express) {
   // auto-reply to the person who registered (or their parent if it's a junior).
   // Requires CONTACT_EMAIL_USER + CONTACT_EMAIL_PASS in .env for emails to fire.
   app.post("/api/registrations", async (req: Request, res: Response) => {
+    // Anyone on the internet can post here, and each submission sends two
+    // emails, so cap how often one address may do it.
+    if (!allowFormSubmission(getClientIP(req), 5)) {
+      return res.status(429).json({
+        message: "Too many sign-ups from this connection. Please try again later, or email the club directly.",
+      });
+    }
     const parsed = insertRegistrationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
 
@@ -496,9 +598,24 @@ export async function registerRoutes(app: Express) {
   // Email requires CONTACT_EMAIL_USER + CONTACT_EMAIL_PASS in .env.
   // If email isn't configured the message is still saved to the database.
   app.post("/api/contact", async (req: Request, res: Response) => {
+    if (!allowFormSubmission(getClientIP(req), 5)) {
+      return res.status(429).json({
+        message: "Too many messages from this connection. Please try again later.",
+      });
+    }
     const { name, email, subject, message } = req.body;
     if (!name || !email || !subject || !message)
       return res.status(400).json({ message: "All fields are required" });
+
+    // Length caps: without them a bot could push megabytes into the database
+    // with a single request. These are far above anything a real person sends.
+    const tooLong =
+      String(name).length > 100 || String(email).length > 200 ||
+      String(subject).length > 200 || String(message).length > 5000;
+    if (tooLong) return res.status(400).json({ message: "One of those fields is too long." });
+    if (!/^\S+@\S+\.\S+$/.test(String(email))) {
+      return res.status(400).json({ message: "Please enter a valid email address." });
+    }
 
     // Always save to DB first — never lose a message even if email fails
     const [row] = await db.insert(contactMessages).values({ name, email, subject, message }).returning();
@@ -528,7 +645,7 @@ export async function registerRoutes(app: Express) {
 
   app.put("/api/juniors-content/:section", requireAuth, requirePermission("juniors"), async (req: Request, res: Response) => {
     const { section } = req.params;
-    const { title, content } = req.body;
+    const { title, content } = cleanHtmlFields(req.body, ["content"]);
     const existing = await db.select().from(juniorsContent).where(eq(juniorsContent.section, section)).limit(1);
     if (existing.length > 0) {
       const [row] = await db.update(juniorsContent)
@@ -545,6 +662,20 @@ export async function registerRoutes(app: Express) {
     upload.single("file"),
     async (req: Request, res: Response) => {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+      // Confirm the saved file really is an image; if not, delete it again and
+      // tell the admin plainly, rather than leaving a broken picture in the
+      // media library for someone to puzzle over later.
+      const { readFile, unlink: removeFile } = await import("fs/promises");
+      const diskPath = path.join(uploadDir, req.file.filename);
+      const head = await readFile(diskPath).then((b) => b.subarray(0, 16)).catch(() => Buffer.alloc(0));
+      if (!looksLikeRealImage(head)) {
+        await removeFile(diskPath).catch(() => {});
+        return res.status(400).json({
+          message: "That file isn't a valid image. Please upload a JPEG, PNG, GIF, WebP or AVIF photo.",
+        });
+      }
+
       const url = `/uploads/${req.file.filename}`;
       const [row] = await db.insert(mediaUploads).values({
         filename: req.file.filename,
@@ -701,8 +832,11 @@ export async function registerRoutes(app: Express) {
   // Public: POST /api/newsletter/subscribe
   // Admin: GET list + CSV export (club_admin+)
   app.post("/api/newsletter/subscribe", async (req: Request, res: Response) => {
+    if (!allowFormSubmission(getClientIP(req), 10)) {
+      return res.status(429).json({ message: "Too many attempts. Please try again later." });
+    }
     const { email, name } = req.body;
-    if (!email || !/\S+@\S+\.\S+/.test(email))
+    if (!email || !/\S+@\S+\.\S+/.test(email) || String(email).length > 200)
       return res.status(400).json({ message: "Valid email required" });
     try {
       await db.insert(newsletterSubscribers).values({ email: email.toLowerCase().trim(), name }).onConflictDoNothing();
@@ -756,7 +890,7 @@ export async function registerRoutes(app: Express) {
 
   app.put("/api/page-content/:page/:section", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
     const { page, section } = req.params;
-    const { content } = req.body;
+    const { content } = cleanHtmlFields(req.body, ["content"]);
     if (!content && content !== "") return res.status(400).json({ message: "content is required" });
 
     // Upsert — insert if new, update if exists
@@ -976,7 +1110,9 @@ export async function registerRoutes(app: Express) {
   });
 
   app.post("/api/pages", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
-    const parsed = insertCustomPageSchema.safeParse({ ...req.body, createdBy: req.session.userId });
+    const parsed = insertCustomPageSchema.safeParse({
+      ...cleanHtmlFields(req.body, ["content"]), createdBy: req.session.userId,
+    });
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
 
     // Slugs must be unique — they're the page's web address.
@@ -992,7 +1128,7 @@ export async function registerRoutes(app: Express) {
 
   app.put("/api/pages/:id", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    const parsed = insertCustomPageSchema.partial().safeParse(req.body);
+    const parsed = insertCustomPageSchema.partial().safeParse(cleanHtmlFields(req.body, ["content"]));
     if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
 
     // If the slug is changing, make sure it doesn't collide with another page.
