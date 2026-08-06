@@ -12,6 +12,7 @@
 import {
   Rocket, Pencil, Megaphone, ImageIcon, Calendar, ClipboardList, Trophy,
   ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool, Palette, FilePlus, UserCheck,
+  ShoppingBag, CreditCard, Receipt,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -155,9 +156,9 @@ const GUIDE: GuideSection[] = [
   },
   {
     icon: ListChecks,
-    title: "Page Lists — divisions, store items, FAQ",
+    title: "Page Lists — divisions and FAQ",
     intro:
-      "Some content is a list rather than a paragraph. The Page Lists tab manages these: the team divisions (shown on About and Fixtures), the Store's apparel cards, and the Juniors page FAQ.",
+      "Some content is a list rather than a paragraph. The Page Lists tab manages these: the team divisions (shown on About and Fixtures) and the Juniors page FAQ. Things you SELL are no longer here — they live under Shop.",
     steps: [
       "Open Page Lists and pick the list you want.",
       "Add, edit, remove or re-order rows with the arrows.",
@@ -173,6 +174,63 @@ const GUIDE: GuideSection[] = [
       "It works great on phones and tablets on the sideline — and even keeps working with no internet.",
       "Saved plays live on each coach's own device, not on the website.",
       "Don't want it in the menu? Turn it off under Settings → Page Visibility.",
+    ],
+  },
+  {
+    icon: ShoppingBag,
+    title: "The Shop — what you sell",
+    intro:
+      "The Shop tab decides how the store page behaves, and lists what's for sale. You can run it four ways, and switch whenever you like: Closed (hidden), Enquiries only (items listed, people email to order — this is how it starts), Link to another shop, or Take card payments.",
+    steps: [
+      "Open Shop and pick how you want it to work at the top.",
+      "Click 'Add product'. Give it a name, a price, and a photo from your Photos library.",
+      "Add the sizes underneath. Every product needs at least one — leave the single 'One size' row if it doesn't come in sizes.",
+      "Type how many you have of each size. LEAVE IT BLANK for made-to-order things that never run out.",
+      "Save. It appears on the store page straight away.",
+    ],
+    tips: [
+      "A product priced at $0 can't be bought. That's on purpose — it stops a half-finished item selling for nothing by accident.",
+      "When a size runs out it shows as crossed out and can't be ordered. You don't have to do anything.",
+      "Untick 'Show in the shop' to hide something for the off-season without deleting it and losing the details.",
+      "Turn 'Needs posting' off for things like memberships or event tickets, so buyers aren't asked for a delivery address.",
+      "Only Super Admins and Club Admins see the Shop. A Social Media Manager can't touch prices or orders.",
+    ],
+  },
+  {
+    icon: CreditCard,
+    title: "Taking card payments (Stripe)",
+    intro:
+      "To take money on the site you need a free Stripe account in the club's name. Your website never sees anyone's card — people type their card on Stripe's own page. There's a full walkthrough in SETUP_SHOP.md, and this is the short version.",
+    steps: [
+      "Sign up at stripe.com in the club's name and finish their ID checks.",
+      "In Stripe: Developers → API keys. Copy the Secret key into Shop → Stripe secret key here.",
+      "In Stripe: Developers → Webhooks → Add endpoint. Paste the address shown in the Shop tab (there's a copy button), and tick the three events it lists.",
+      "Copy that endpoint's Signing secret into Shop → Webhook signing secret here.",
+      "Do a test purchase first — see the tips below.",
+    ],
+    tips: [
+      "START WITH TEST KEYS. A key beginning sk_test_ puts a bright 'Test mode' banner on the shop and no real money moves. Use card number 4242 4242 4242 4242 with any future expiry and any 3-digit code.",
+      "The webhook step is the one people skip. Without it, orders stay stuck on 'Pending' forever, because the site refuses to believe a payment happened until Stripe itself confirms it.",
+      "The Shop tab tells you exactly what's still missing — read the coloured status line at the top.",
+      "Test mode and live mode have SEPARATE webhooks and separate signing secrets. When you go live you must redo both keys.",
+      "Stripe takes a small fee from each payment, and pays the rest into the club's bank account every few days.",
+    ],
+  },
+  {
+    icon: Receipt,
+    title: "Orders — getting things to people",
+    intro:
+      "The Orders tab is your working list. It shows what was bought, in which size, whether they're collecting it or having it posted, their address, and anything they told you.",
+    steps: [
+      "Open Orders. Anything marked 'Paid' is money received and needs handing over.",
+      "Get the order ready, hand it over or post it.",
+      "Click 'Mark as handed over'. It moves to 'Fulfilled' and drops off your to-do count.",
+    ],
+    tips: [
+      "'Pending' means someone started paying and didn't finish. Nothing was charged and there's nothing to do — those tidy themselves up.",
+      "Stock comes down by itself when a payment succeeds. You don't need to adjust it after a sale.",
+      "To refund someone, do it in your Stripe dashboard. This page updates itself once Stripe confirms it.",
+      "The club and the customer both get an email the moment an order is paid for.",
     ],
   },
   {
