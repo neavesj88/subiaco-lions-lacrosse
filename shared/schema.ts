@@ -290,6 +290,100 @@ export const committeeMembers = sqliteTable("committee_members", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+
+// ── Store: products ──────────────────────────────────────────────────────────
+// The club's shop. A product is a thing for sale (a jersey); a VARIANT is the
+// specific version someone actually buys (that jersey in Medium). Every product
+// has at least one variant, even if it's a one-size item.
+//
+// MONEY IS ALWAYS STORED IN CENTS, as a whole number. Never store money as a
+// decimal: 0.1 + 0.2 does not equal 0.3 in any programming language, and those
+// tiny errors turn into real ones once you're totalling an order. $24.50 is
+// stored as 2450 and only ever turned into "$24.50" for display.
+export const products = sqliteTable("products", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  description: text("description"),
+  // Base price in cents. A variant may override it (e.g. XXL costs more).
+  priceCents: integer("price_cents").notNull().default(0),
+  imageUrl: text("image_url"),                 // from the media library
+  badge: text("badge"),                        // small tag, e.g. "New" / "Playing Kit"
+  category: text("category"),                  // optional grouping on the page
+  // Postage only applies to things that physically ship. A membership or a
+  // ticket doesn't, so this decides whether an address is asked for.
+  requiresShipping: integer("requires_shipping", { mode: "boolean" }).notNull().default(true),
+  maxPerOrder: integer("max_per_order").notNull().default(10),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ── Store: product variants (sizes) ──────────────────────────────────────────
+export const productVariants = sqliteTable("product_variants", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),              // "Small", "Youth 12", "One size"
+  sku: text("sku"),                            // optional club stock code
+  // Blank = charge the product's own price. Set it to charge something different.
+  priceCents: integer("price_cents"),
+  // NULL means "we never run out" (made to order). A number is a real stock
+  // count and is reduced when an order is paid for.
+  stock: integer("stock"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+// ── Store: orders ────────────────────────────────────────────────────────────
+// One row per attempted purchase. A row is created BEFORE the customer is sent
+// to pay, with status "pending", so nothing is ever lost if they close the tab
+// mid-payment. It only becomes "paid" when the payment provider confirms it —
+// never because the browser said so.
+export const orders = sqliteTable("orders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  reference: text("reference").notNull().unique(),   // human-friendly, e.g. "SLC-4F2A9C"
+  status: text("status", {
+    enum: ["pending", "paid", "fulfilled", "cancelled", "refunded"],
+  }).notNull().default("pending"),
+
+  customerName: text("customer_name"),
+  customerEmail: text("customer_email"),
+  customerPhone: text("customer_phone"),
+
+  // "pickup" (collect at training) or "shipping" (posted out).
+  fulfilmentMethod: text("fulfilment_method").notNull().default("pickup"),
+  shippingAddress: text("shipping_address"),
+
+  subtotalCents: integer("subtotal_cents").notNull().default(0),
+  shippingCents: integer("shipping_cents").notNull().default(0),
+  totalCents: integer("total_cents").notNull().default(0),
+  currency: text("currency").notNull().default("AUD"),
+
+  paymentProvider: text("payment_provider").notNull().default("stripe"),
+  paymentRef: text("payment_ref"),                   // provider's session id
+  paymentIntent: text("payment_intent"),             // provider's payment id (for refunds)
+
+  notes: text("notes"),                              // customer's note at checkout
+  adminNotes: text("admin_notes"),                   // club's own note
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  paidAt: text("paid_at"),
+});
+
+// ── Store: order lines ───────────────────────────────────────────────────────
+// The product name, size and price are COPIED onto each line rather than only
+// linked. If the club later renames a product or changes its price, last
+// season's orders must still show what was actually bought and paid.
+export const orderItems = sqliteTable("order_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: integer("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  productId: integer("product_id").references(() => products.id),
+  variantId: integer("variant_id").references(() => productVariants.id),
+  productName: text("product_name").notNull(),
+  variantLabel: text("variant_label"),
+  unitPriceCents: integer("unit_price_cents").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+});
+
 // ── Zod validation schemas (used in routes for input validation) ───────────────
 export const insertCommitteeMemberSchema = createInsertSchema(committeeMembers).omit({ id: true, createdAt: true });
 export const insertCustomPageSchema = createInsertSchema(customPages).omit({ id: true, createdAt: true, updatedAt: true });
@@ -299,6 +393,8 @@ export const insertRegistrationSchema = createInsertSchema(registrations).omit({
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, createdAt: true });
 export const insertSponsorSchema = createInsertSchema(sponsors).omit({ id: true, createdAt: true });
 export const insertMatchResultSchema = createInsertSchema(matchResults).omit({ id: true, createdAt: true });
+export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProductVariantSchema = createInsertSchema(productVariants).omit({ id: true });
 
 export const loginSchema = z.object({
   username: z.string().min(1),
@@ -329,3 +425,12 @@ export type PageContent = typeof pageContent.$inferSelect;
 export type ListItem = typeof listItems.$inferSelect;
 export type CustomPage = typeof customPages.$inferSelect;
 export type CommitteeMember = typeof committeeMembers.$inferSelect;
+export type Product = typeof products.$inferSelect;
+export type ProductVariant = typeof productVariants.$inferSelect;
+export type Order = typeof orders.$inferSelect;
+export type OrderItem = typeof orderItems.$inferSelect;
+
+/** A product with its sizes attached — what the store page and admin both use. */
+export type ProductWithVariants = Product & { variants: ProductVariant[] };
+/** An order with its lines attached — what the admin orders screen uses. */
+export type OrderWithItems = Order & { items: OrderItem[] };

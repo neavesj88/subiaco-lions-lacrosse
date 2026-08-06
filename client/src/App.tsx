@@ -42,6 +42,9 @@ const Gallery = lazy(() => import("@/pages/gallery"));
 const SignUp = lazy(() => import("@/pages/sign-up"));
 const Juniors = lazy(() => import("@/pages/juniors"));
 const Store = lazy(() => import("@/pages/store"));
+const StoreCheckout = lazy(() => import("@/pages/store-checkout"));
+const StoreThankYou = lazy(() => import("@/pages/store-result").then((m) => ({ default: m.StoreThankYou })));
+const StoreCancelled = lazy(() => import("@/pages/store-result").then((m) => ({ default: m.StoreCancelled })));
 const Contact = lazy(() => import("@/pages/contact"));
 const CoachesBoard = lazy(() => import("@/pages/coaches-board"));
 // Pages the club creates themselves in Admin → Pages, served at /p/<slug>
@@ -99,6 +102,9 @@ function Router() {
             <Route path="/sign-up" component={SignUp} />
             <Route path="/juniors" component={Juniors} />
             <Route path="/store" component={Store} />
+            <Route path="/store/checkout" component={StoreCheckout} />
+            <Route path="/store/thank-you" component={StoreThankYou} />
+            <Route path="/store/cancelled" component={StoreCancelled} />
             <Route path="/contact" component={Contact} />
             <Route path="/coaches-board" component={CoachesBoard} />
             <Route path="/committee" component={Committee} />

@@ -31,7 +31,7 @@
 import nodemailer from "nodemailer";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
-import { getSiteText } from "./site-settings";
+import { getSiteText, getSettingsSync } from "./site-settings";
 import { siteSettings } from "@shared/schema";
 
 // ---------------------------------------------------------------------------
@@ -316,5 +316,108 @@ We'll be in touch within 48 hours.
 ${brand.clubFullName}
 ${brand.venueLine}
 ${brand.email}`,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// notifyOrderPaid
+// ---------------------------------------------------------------------------
+// Sent once, when a shop payment is confirmed. Two emails go out:
+//   1. to the club, so someone knows to get the order ready
+//   2. to the customer, as their own record of what they bought
+//
+// Stripe already sends its own payment receipt, so this deliberately covers
+// what Stripe cannot know: the sizes ordered, and whether it's being collected
+// at training or posted out.
+// ---------------------------------------------------------------------------
+export async function notifyOrderPaid(order: {
+  reference: string;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  fulfilmentMethod: string;
+  shippingAddress?: string | null;
+  subtotalCents: number;
+  shippingCents: number;
+  totalCents: number;
+  currency: string;
+  notes?: string | null;
+  items: Array<{ productName: string; variantLabel?: string | null; quantity: number; unitPriceCents: number }>;
+}) {
+  const brand = emailBrand();
+  const settings = getSettingsSync();
+  const symbol = settings.store_currency_symbol?.trim() || "$";
+  const money = (cents: number) => `${symbol}${(cents / 100).toFixed(2)}`;
+
+  const isPickup = order.fulfilmentMethod !== "shipping";
+  const rows = order.items.map((i) => `
+    <tr>
+      <td style="padding:6px 0">${i.quantity} &times; ${i.productName}${i.variantLabel && i.variantLabel !== "One size" ? ` <span style="color:#666">(${i.variantLabel})</span>` : ""}</td>
+      <td style="padding:6px 0;text-align:right">${money(i.unitPriceCents * i.quantity)}</td>
+    </tr>`).join("");
+
+  const totals = `
+    <tr><td style="padding:6px 0;border-top:1px solid #eee">Subtotal</td>
+        <td style="padding:6px 0;text-align:right;border-top:1px solid #eee">${money(order.subtotalCents)}</td></tr>
+    ${order.shippingCents > 0 ? `<tr><td style="padding:6px 0">Postage</td><td style="padding:6px 0;text-align:right">${money(order.shippingCents)}</td></tr>` : ""}
+    <tr><td style="padding:6px 0;font-weight:bold">Total paid</td>
+        <td style="padding:6px 0;text-align:right;font-weight:bold">${money(order.totalCents)}</td></tr>`;
+
+  // Where the club wants order notifications — falls back to the general
+  // notification address if they haven't set a separate one.
+  const clubInbox = settings.store_order_notify_email?.trim() || (await getMailConfig()).notify;
+
+  await sendEmail({
+    to: clubInbox,
+    subject: `New order ${order.reference} — ${money(order.totalCents)}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px">
+        <h2 style="color:${brand.primary}">New paid order — ${brand.clubName}</h2>
+        <p style="margin:0 0 4px"><strong>Reference:</strong> ${order.reference}</p>
+        <p style="margin:0 0 4px"><strong>From:</strong> ${order.customerName ?? "—"}
+           &lt;<a href="mailto:${order.customerEmail ?? ""}">${order.customerEmail ?? "—"}</a>&gt;
+           ${order.customerPhone ? ` · ${order.customerPhone}` : ""}</p>
+        <p style="margin:0 0 16px"><strong>${isPickup ? "COLLECTING at the club" : "POST TO"}:</strong>
+           ${isPickup ? "—" : (order.shippingAddress ?? "no address given")}</p>
+        <table style="width:100%;border-collapse:collapse">${rows}${totals}</table>
+        ${order.notes ? `<div style="margin-top:16px;padding:12px;background:#f5f5f5;border-radius:8px"><strong>Their note:</strong><br>${order.notes}</div>` : ""}
+        <p style="margin-top:20px;color:#888;font-size:12px">
+          Mark this order as fulfilled in your admin panel once it has been handed over or posted.
+        </p>
+      </div>`,
+    text: `New paid order ${order.reference} — ${money(order.totalCents)}\n`
+      + `${order.customerName ?? ""} <${order.customerEmail ?? ""}>\n`
+      + `${isPickup ? "Collecting at the club" : "Post to: " + (order.shippingAddress ?? "")}\n\n`
+      + order.items.map((i) => `${i.quantity} x ${i.productName}${i.variantLabel ? ` (${i.variantLabel})` : ""} — ${money(i.unitPriceCents * i.quantity)}`).join("\n"),
+  });
+
+  if (!order.customerEmail) return;
+
+  await sendEmail({
+    to: order.customerEmail,
+    subject: `Your ${brand.clubName} order ${order.reference}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px">
+        <div style="background:${brand.primary};padding:24px;border-radius:8px 8px 0 0;text-align:center">
+          <h1 style="color:${brand.accent};margin:0;font-size:24px">${brand.clubName}</h1>
+        </div>
+        <div style="padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 8px 8px">
+          <p>Hi ${order.customerName ?? "there"},</p>
+          <p>Thanks for your order — your payment came through and we're on it.</p>
+          <p style="margin:0 0 16px"><strong>Order reference:</strong> ${order.reference}</p>
+          <table style="width:100%;border-collapse:collapse">${rows}${totals}</table>
+          <p style="margin-top:16px">
+            ${isPickup
+              ? `You've chosen to <strong>collect this at the club</strong>. We'll be in touch when it's ready${brand.venueLine ? ` — pick up from ${brand.venueLine}` : ""}.`
+              : `We'll post this to:<br><strong>${order.shippingAddress ?? ""}</strong>`}
+          </p>
+          <p style="color:#888;font-size:13px">Questions? Just reply to this email.</p>
+          <p><strong>${brand.clubFullName}</strong>${brand.email ? `<br><a href="mailto:${brand.email}" style="color:${brand.primary}">${brand.email}</a>` : ""}</p>
+        </div>
+      </div>`,
+    text: `Hi ${order.customerName ?? "there"},\n\nThanks for your order — payment received.\n\n`
+      + `Reference: ${order.reference}\n\n`
+      + order.items.map((i) => `${i.quantity} x ${i.productName}${i.variantLabel ? ` (${i.variantLabel})` : ""} — ${money(i.unitPriceCents * i.quantity)}`).join("\n")
+      + `\n\nTotal paid: ${money(order.totalCents)}\n\n${brand.clubFullName}`,
   });
 }

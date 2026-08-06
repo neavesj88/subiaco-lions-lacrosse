@@ -20,7 +20,9 @@ React 18 + Vite SPA (wouter routing, TanStack Query, shadcn/Radix, TipTap editor
 4. All API endpoints live in `server/routes.ts` under `/api/*`. Everything else falls through to the SPA's `index.html`. New client routes go in `client/src/App.tsx` (wouter).
 5. Path aliases: `@/` → `client/src/`, `@shared/` → `shared/`.
 6. This codebase is maintained by non-developers after handover — keep the existing heavily-commented file-header style when editing `server/` and `shared/` files, and keep code boring and explicit.
-7. Config comes from `.env` (see `.env.example` for every variable and setup instructions). Email, Google OAuth, and Cloudflare Tunnel are all optional — code must degrade gracefully when their vars are blank (existing patterns do this; follow them).
+7. Config comes from `.env` (see `.env.example` for every variable and setup instructions). Email, Google OAuth, Stripe, and Cloudflare Tunnel are all optional — code must degrade gracefully when their vars are blank (existing patterns do this; follow them). `.env` is loaded by `dotenv` at the top of `server/index.ts`; nothing else reads it.
+8. **Shop money rules.** Prices are stored in whole cents, never decimals. The browser may only send product/variant IDs and quantities — `server/store.ts` re-prices every cart from the database, so never trust a price from a request. An order becomes `paid` ONLY via the signature-verified Stripe webhook, never from the browser returning to the success page. The webhook needs the raw request body, which `server/index.ts` captures via `express.json({ verify })` for that one path — do not parse or re-serialise it.
+9. Secrets (`mail_pass`, `stripe_secret_key`, `stripe_webhook_secret`) are write-only: stripped from `/api/settings`, masked as `********` in `/api/settings/secure`, and a submitted `********` is ignored so re-saving a form can't blank them.
 
 ## Layout
 

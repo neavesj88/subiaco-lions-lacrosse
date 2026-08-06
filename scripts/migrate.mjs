@@ -380,5 +380,128 @@ if (listCount === 0) {
   console.log("  Seeded list_items (divisions, apparel, FAQ)");
 }
 
+// ── v9: the shop (products, sizes, orders) ───────────────────────────────────
+// Money is stored in CENTS as whole numbers throughout — see the note in
+// shared/schema.ts for why.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    price_cents INTEGER NOT NULL DEFAULT 0,
+    image_url TEXT,
+    badge TEXT,
+    category TEXT,
+    requires_shipping INTEGER NOT NULL DEFAULT 1,
+    max_per_order INTEGER NOT NULL DEFAULT 10,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS product_variants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    sku TEXT,
+    price_cents INTEGER,
+    stock INTEGER,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS product_variants_product_idx ON product_variants (product_id);
+
+  CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    customer_name TEXT,
+    customer_email TEXT,
+    customer_phone TEXT,
+    fulfilment_method TEXT NOT NULL DEFAULT 'pickup',
+    shipping_address TEXT,
+    subtotal_cents INTEGER NOT NULL DEFAULT 0,
+    shipping_cents INTEGER NOT NULL DEFAULT 0,
+    total_cents INTEGER NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'AUD',
+    payment_provider TEXT NOT NULL DEFAULT 'stripe',
+    payment_ref TEXT,
+    payment_intent TEXT,
+    notes TEXT,
+    admin_notes TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    paid_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS orders_status_idx ON orders (status);
+  -- Looking an order up by the payment provider's id happens on every webhook,
+  -- and must be unique so a repeated webhook can't create a second order.
+  CREATE UNIQUE INDEX IF NOT EXISTS orders_payment_ref_idx ON orders (payment_ref)
+    WHERE payment_ref IS NOT NULL;
+
+  CREATE TABLE IF NOT EXISTS order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id),
+    variant_id INTEGER REFERENCES product_variants(id),
+    product_name TEXT NOT NULL,
+    variant_label TEXT,
+    unit_price_cents INTEGER NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE INDEX IF NOT EXISTS order_items_order_idx ON order_items (order_id);
+`);
+
+// Shop settings. All blank/off by default: a club that never sets up payments
+// simply keeps the "enquire by email" store page it already had.
+addSetting('store_mode', 'enquiry');       // off | enquiry | external | checkout
+addSetting('store_currency', 'AUD');
+addSetting('store_currency_symbol', '$');
+addSetting('stripe_publishable_key', '');
+addSetting('stripe_secret_key', '');       // SECRET — never sent to the browser
+addSetting('stripe_webhook_secret', '');   // SECRET — never sent to the browser
+addSetting('store_pickup_enabled', 'true');
+addSetting('store_shipping_enabled', 'false');
+addSetting('store_shipping_label', 'Postage');
+addSetting('store_shipping_cents', '1200');
+addSetting('store_free_shipping_over_cents', '');
+addSetting('store_order_notify_email', '');
+addSetting('store_tax_note', '');
+addSetting('store_terms', '');
+
+// Carry the old brochure-style store items over into real products, so a club
+// that had listed apparel keeps it rather than opening the page to an empty
+// shop. They arrive priced at zero and switched OFF, so nothing can be bought
+// for $0 by accident — the club sets a price and ticks "available" when ready.
+{
+  const alreadyMigrated = db.prepare("SELECT value FROM site_settings WHERE key = 'store_items_migrated'").get();
+  const productCount = db.prepare('SELECT COUNT(*) AS n FROM products').get().n;
+
+  if (!alreadyMigrated && productCount === 0) {
+    const legacy = db.prepare(
+      "SELECT title, body, label, sort_order FROM list_items WHERE list_type = 'store_item' ORDER BY sort_order"
+    ).all();
+
+    if (legacy.length > 0) {
+      const insertProduct = db.prepare(
+        `INSERT INTO products (name, description, badge, price_cents, is_active, sort_order)
+         VALUES (?, ?, ?, 0, 0, ?)`
+      );
+      const insertVariant = db.prepare(
+        "INSERT INTO product_variants (product_id, label, sort_order) VALUES (?, 'One size', 0)"
+      );
+      const migrate = db.transaction((rows) => {
+        for (const row of rows) {
+          const res = insertProduct.run(row.title, row.body ?? null, row.label ?? null, row.sort_order ?? 0);
+          insertVariant.run(res.lastInsertRowid);
+        }
+      });
+      migrate(legacy);
+      console.log(`  Copied ${legacy.length} old store item(s) into the new shop (hidden until priced)`);
+    }
+    addSetting('store_items_migrated', 'true');
+  }
+}
+
 db.close();
 console.log('Migration complete.');

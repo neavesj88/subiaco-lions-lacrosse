@@ -60,6 +60,15 @@ export const ADMIN_GROUPS: AdminGroup[] = [
     ],
   },
   {
+    name: "Shop",
+    sections: [
+      { id: "shop", label: "Shop", icon: "ShoppingBag", permission: "store",
+        description: "What's for sale, sizes, stock and how the shop takes money." },
+      { id: "orders", label: "Orders", icon: "Receipt", permission: "store",
+        description: "What people have bought, and what still needs handing over." },
+    ],
+  },
+  {
     name: "People & Enquiries",
     sections: [
       { id: "signups", label: "Sign-Ups", icon: "ClipboardList", permission: "signups",

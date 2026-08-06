@@ -31,8 +31,20 @@ import { backfillSanitiseContent } from "./backfill";
 
 const app = express();
 
-// Parse JSON and URL-encoded request bodies (needed for all API routes)
-app.use(express.json());
+// Parse JSON and URL-encoded request bodies (needed for all API routes).
+//
+// The `verify` step keeps a copy of the untouched bytes for the payment
+// webhook. Stripe signs the EXACT text it sends, so once JSON.parse has turned
+// it into an object the original text can't be reconstructed reliably —
+// re-serialising it changes spacing and key order, and the signature check
+// then fails. Only that one route needs it, so only that one route is stored.
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    if ((req as Request).originalUrl?.startsWith("/api/store/webhook")) {
+      (req as Request & { rawBody?: Buffer }).rawBody = buf;
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: false }));
 
 // ── Security headers (production only) ──────────────────────────────────────

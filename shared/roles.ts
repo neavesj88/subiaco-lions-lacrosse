@@ -44,6 +44,7 @@ export type Permission =
   | "committee"   // president & board page
   | "pages"       // create/edit custom pages
   | "lists"       // team divisions, store items, FAQ
+  | "store"       // shop products, prices, stock and customer orders
   | "settings"    // club details, colours, email config
   | "users"       // manage admin accounts
   | "security";   // email kill-switch, lockouts, password resets
@@ -54,14 +55,14 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   // Full access to everything.
   super_admin: [
     "news", "media", "events", "results", "signups", "messages", "sponsors",
-    "newsletter", "juniors", "committee", "pages", "lists", "settings",
+    "newsletter", "juniors", "committee", "pages", "lists", "store", "settings",
     "users", "security",
   ],
 
   // Runs the club day to day. Everything except user management and security.
   club_admin: [
     "news", "media", "events", "results", "signups", "messages", "sponsors",
-    "newsletter", "juniors", "committee", "pages", "lists", "settings",
+    "newsletter", "juniors", "committee", "pages", "lists", "store", "settings",
   ],
 
   // Looks after the juniors program, plus general content.
@@ -85,7 +86,7 @@ export const ROLE_INFO: Record<Role, { label: string; description: string }> = {
   },
   club_admin: {
     label: "Club Admin",
-    description: "Runs the site day to day — events, results, sign-ups, sponsors, pages and club settings.",
+    description: "Runs the site day to day — events, results, sign-ups, sponsors, pages, the shop and club settings.",
   },
   juniors_coordinator: {
     label: "Juniors Coordinator",

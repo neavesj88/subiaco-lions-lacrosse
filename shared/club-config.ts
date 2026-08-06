@@ -158,6 +158,35 @@ export const CLUB_DEFAULTS: Record<string, string> = {
   store_apparel_title: "Available Apparel",
   store_ordering_title: "Ordering Information",
 
+  // ── Shop wording ──────────────────────────────────────────────────────────
+  // Every word a customer sees while buying. All editable so a club can talk
+  // about "merch", "kit" or "uniform" in their own voice.
+  store_add_to_cart: "Add to cart",
+  store_sold_out: "Sold out",
+  store_out_of_stock_size: "Out of stock",
+  store_low_stock: "Only {n} left",
+  store_choose_size: "Choose a size",
+  store_cart_title: "Your order",
+  store_cart_empty: "Nothing in your order yet.",
+  store_cart_checkout: "Checkout",
+  store_cart_continue: "Keep shopping",
+  store_subtotal: "Subtotal",
+  store_shipping_line: "Postage",
+  store_total: "Total",
+  store_checkout_title: "Checkout",
+  store_checkout_subtitle: "Just your details, then you'll be taken to our payment provider.",
+  store_pickup_option: "Collect at the club",
+  store_pickup_note: "We'll let you know when it's ready to collect.",
+  store_shipping_option: "Post it to me",
+  store_pay_button: "Pay securely",
+  store_secure_note: "Payment is handled by Stripe. Your card details never touch this website.",
+  store_thanks_title: "Thanks — your order is confirmed",
+  store_thanks_body: "We've emailed you a confirmation. Your order reference is {ref}.",
+  store_cancelled_title: "Payment cancelled",
+  store_cancelled_body: "Nothing has been charged. Your order is still here if you'd like to try again.",
+  store_enquiry_note: "Contact us to order — full online ordering is coming soon.",
+  store_closed_note: "The club shop is closed at the moment.",
+
   // ── Theme ─────────────────────────────────────────────────────────────────
   theme_primary: "#7B1E32",
   theme_primary_dark: "#3A0C17",

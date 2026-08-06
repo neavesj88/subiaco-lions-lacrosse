@@ -37,7 +37,7 @@ import multer from "multer";
 import path from "path";
 import { mkdirSync } from "fs";
 import { randomBytes } from "crypto";
-import { eq, desc, gte, and } from "drizzle-orm";
+import { eq, desc, gte, and, inArray } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, events, registrations, announcements, juniorsContent,
@@ -45,20 +45,30 @@ import {
   sponsors, matchResults, newsletterSubscribers, pageContent,
   customPages, listItems,
   committeeMembers,
+  products, productVariants, orders, orderItems,
   insertEventSchema, insertRegistrationSchema, insertAnnouncementSchema,
   insertSponsorSchema, insertMatchResultSchema, insertListItemSchema,
   insertCustomPageSchema,
   insertCommitteeMemberSchema,
+  insertProductSchema, insertProductVariantSchema,
   loginSchema, createUserSchema,
 } from "@shared/schema";
 import { requireAuth, requirePermission } from "./middleware";
-import { notifyContactMessage, notifyNewRegistration, sendTestEmail } from "./email";
+import { notifyContactMessage, notifyNewRegistration, sendTestEmail, notifyOrderPaid } from "./email";
 import { SITEMAP_PAGES } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
 import { getAdminPath, isDefaultPassword} from "./runtime-config";
-import { invalidateSettingsCache } from "./site-settings";
-import { cleanHtmlFields } from "./sanitize";
+import { invalidateSettingsCache, getSettingsSync } from "./site-settings";
+import { cleanHtmlFields, cleanText } from "./sanitize";
 import { SqliteSessionStore } from "./session-store";
+import {
+  getStoreConfig, canTakePayments, isTestMode, paymentSetupStatus,
+  createCheckout, verifyWebhook,
+} from "./payments";
+import {
+  priceCart, CartError, generateOrderReference, decrementStockForOrder,
+  listProducts, getOrderWithItems,
+} from "./store";
 import {
   getClientIP, isBlocked, recordFailedAttempt, recordSuccessfulLogin,
   formatTime, getSuspiciousIPs, unblockIP, allowFormSubmission,
@@ -712,6 +722,10 @@ export async function registerRoutes(app: Express) {
   // /api/settings/secure, with the password masked.
   const SECRET_SETTING_KEYS = [
     "mail_pass", "mail_user", "mail_host", "mail_port", "mail_from", "mail_notify",
+    // The Stripe SECRET key can create charges and issue refunds on the club's
+    // account. It must never be sent to a browser. (The PUBLISHABLE key is
+    // designed to be public and is served via /api/store/config.)
+    "stripe_secret_key", "stripe_webhook_secret",
   ];
 
   app.get("/api/settings", async (_req: Request, res: Response) => {
@@ -731,7 +745,10 @@ export async function registerRoutes(app: Express) {
     const rows = await db.select().from(siteSettings);
     const map: Record<string, string> = {};
     for (const row of rows) {
-      map[row.key] = row.key === "mail_pass" ? (row.value ? "********" : "") : row.value;
+      // Secrets are shown only as "set" or "not set" — the stored value is
+      // written to, never read back out, even for a super admin.
+      const isSecret = ["mail_pass", "stripe_secret_key", "stripe_webhook_secret"].includes(row.key);
+      map[row.key] = isSecret ? (row.value ? "********" : "") : row.value;
     }
     res.json(map);
   });
@@ -740,7 +757,9 @@ export async function registerRoutes(app: Express) {
     const updates = req.body as Record<string, string>;
     // Ignore the masked placeholder so re-saving the form doesn't overwrite the
     // real SMTP password with literal asterisks.
-    if (updates.mail_pass === "********") delete updates.mail_pass;
+    for (const key of ["mail_pass", "stripe_secret_key", "stripe_webhook_secret"]) {
+      if (updates[key] === "********") delete updates[key];
+    }
     for (const [key, value] of Object.entries(updates)) {
       const existing = await db.select().from(siteSettings).where(eq(siteSettings.key, key)).limit(1);
       if (existing.length > 0) {
@@ -1226,6 +1245,314 @@ export async function registerRoutes(app: Express) {
 
     await db.update(users).set({ isActive }).where(eq(users.id, id));
     res.json({ ok: true, message: `${target.name} ${isActive ? "unlocked" : "locked out"}.` });
+  });
+
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE SHOP
+  // ═══════════════════════════════════════════════════════════════════════
+  // Public: what's for sale, and starting a payment.
+  // Admin:  products, sizes, stock and orders (needs the "store" permission).
+  //
+  // The golden rule, enforced in server/store.ts: the browser only ever tells
+  // us WHICH item and HOW MANY. Prices always come from the database.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // What the store page needs to render itself. Safe for anyone to read — the
+  // publishable key is designed to be public; the secret key never appears.
+  app.get("/api/store/config", async (_req: Request, res: Response) => {
+    const cfg = getStoreConfig();
+    const s = getSettingsSync();
+    res.json({
+      mode: cfg.mode,
+      currency: cfg.currency,
+      currencySymbol: cfg.currencySymbol,
+      canPay: canTakePayments(cfg),
+      testMode: isTestMode(cfg),
+      pickupEnabled: s.store_pickup_enabled !== "false",
+      shippingEnabled: s.store_shipping_enabled === "true",
+      shippingCents: parseInt(s.store_shipping_cents ?? "0", 10) || 0,
+      freeShippingOverCents: parseInt(s.store_free_shipping_over_cents ?? "", 10) || 0,
+      taxNote: s.store_tax_note ?? "",
+      terms: s.store_terms ?? "",
+      externalUrl: s.store_url ?? "",
+    });
+  });
+
+  // Everything currently for sale.
+  app.get("/api/products", async (_req: Request, res: Response) => {
+    res.json(listProducts(true));
+  });
+
+  // ── Start a payment ─────────────────────────────────────────────────────
+  app.post("/api/store/checkout", async (req: Request, res: Response) => {
+    // Same throttle as the other public forms: creating a checkout makes an
+    // outbound API call, so it shouldn't be free to trigger in bulk.
+    if (!allowFormSubmission(getClientIP(req), 20)) {
+      return res.status(429).json({ message: "Too many attempts. Please wait a moment and try again." });
+    }
+
+    const cfg = getStoreConfig();
+    if (!canTakePayments(cfg)) {
+      return res.status(503).json({ message: "Online payment isn't available right now. Please contact the club." });
+    }
+
+    const { cart, customer, fulfilmentMethod, notes } = req.body ?? {};
+    const method = fulfilmentMethod === "shipping" ? "shipping" : "pickup";
+
+    const settings = getSettingsSync();
+    if (method === "pickup" && settings.store_pickup_enabled === "false") {
+      return res.status(400).json({ message: "Pickup isn't available." });
+    }
+    if (method === "shipping" && settings.store_shipping_enabled !== "true") {
+      return res.status(400).json({ message: "Postage isn't available." });
+    }
+
+    const email = String(customer?.email ?? "").trim();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email) || email.length > 200) {
+      return res.status(400).json({ message: "Please enter a valid email address." });
+    }
+    const name = cleanText(customer?.name).slice(0, 100);
+    if (!name) return res.status(400).json({ message: "Please enter your name." });
+
+    const address = cleanText(customer?.address).slice(0, 500);
+    if (method === "shipping" && !address) {
+      return res.status(400).json({ message: "Please enter a postal address." });
+    }
+
+    let priced;
+    try {
+      priced = priceCart(cart, method);          // prices re-read from the database
+    } catch (err) {
+      if (err instanceof CartError) return res.status(400).json({ message: err.message });
+      throw err;
+    }
+
+    // Record the order BEFORE sending anyone to pay, so an interrupted payment
+    // still leaves a trace the club can follow up rather than vanishing.
+    const reference = generateOrderReference();
+    const [order] = await db.insert(orders).values({
+      reference,
+      status: "pending",
+      customerName: name,
+      customerEmail: email,
+      customerPhone: cleanText(customer?.phone).slice(0, 50) || null,
+      fulfilmentMethod: method,
+      shippingAddress: method === "shipping" ? address : null,
+      subtotalCents: priced.subtotalCents,
+      shippingCents: priced.shippingCents,
+      totalCents: priced.totalCents,
+      currency: cfg.currency,
+      paymentProvider: "stripe",
+      notes: cleanText(notes).slice(0, 1000) || null,
+    }).returning();
+
+    await db.insert(orderItems).values(
+      priced.items.map((i) => ({
+        orderId: order.id,
+        productId: i.productId,
+        variantId: i.variantId,
+        productName: i.productName,
+        variantLabel: i.variantLabel,
+        unitPriceCents: i.unitPriceCents,
+        quantity: i.quantity,
+      })),
+    );
+
+    const origin = getOrigin(req);
+    try {
+      const { url, paymentRef } = await createCheckout({
+        reference,
+        currency: cfg.currency,
+        lines: priced.lines,
+        shippingCents: priced.shippingCents,
+        shippingLabel: settings.store_shipping_label?.trim() || "Postage",
+        customerEmail: email,
+        successUrl: `${origin}/store/thank-you?ref=${encodeURIComponent(reference)}`,
+        cancelUrl: `${origin}/store/cancelled?ref=${encodeURIComponent(reference)}`,
+      });
+
+      await db.update(orders).set({ paymentRef }).where(eq(orders.id, order.id));
+      res.json({ url, reference });
+    } catch (err) {
+      // The payment company refused or is unreachable. Remove the pending order
+      // so it doesn't sit in the admin list looking like a real sale.
+      await db.delete(orders).where(eq(orders.id, order.id));
+      console.error("[store] Could not create payment page:", (err as Error).message);
+      res.status(502).json({ message: "Couldn't reach the payment provider. Please try again shortly." });
+    }
+  });
+
+  // ── Payment confirmation from Stripe ────────────────────────────────────
+  // This is the ONLY thing that marks an order paid. The customer's browser
+  // returning to the "thank you" page proves nothing — anyone can visit a URL.
+  app.post("/api/store/webhook", async (req: Request, res: Response) => {
+    const signature = req.headers["stripe-signature"];
+    const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+
+    if (typeof signature !== "string" || !rawBody) {
+      return res.status(400).json({ message: "Missing signature" });
+    }
+
+    let event;
+    try {
+      event = await verifyWebhook(rawBody, signature);
+    } catch (err) {
+      // Either not from Stripe, or altered in transit. Never act on it.
+      console.warn("[store] Rejected an unverified payment webhook:", (err as Error).message);
+      return res.status(400).json({ message: "Invalid signature" });
+    }
+
+    try {
+      if (event.kind === "paid" && event.paymentRef) {
+        const [order] = await db.select().from(orders)
+          .where(eq(orders.paymentRef, event.paymentRef)).limit(1);
+
+        if (order && order.status === "pending") {
+          // Stripe retries webhooks until it gets a 200, and may deliver the
+          // same event twice. Only acting while the order is still "pending"
+          // makes that harmless — stock can never be decremented twice.
+          await db.update(orders).set({
+            status: "paid",
+            paidAt: new Date().toISOString(),
+            paymentIntent: event.paymentIntent ?? null,
+            shippingAddress: order.shippingAddress ?? event.shippingAddress ?? null,
+          }).where(eq(orders.id, order.id));
+
+          decrementStockForOrder(order.id);
+
+          const full = getOrderWithItems(order.id);
+          if (full) notifyOrderPaid(full).catch(() => {});
+        }
+      } else if (event.kind === "expired" && event.paymentRef) {
+        await db.update(orders).set({ status: "cancelled" })
+          .where(and(eq(orders.paymentRef, event.paymentRef), eq(orders.status, "pending")));
+      } else if (event.kind === "refunded" && event.paymentIntent) {
+        await db.update(orders).set({ status: "refunded" })
+          .where(eq(orders.paymentIntent, event.paymentIntent));
+      }
+    } catch (err) {
+      // Tell Stripe we failed so it retries, rather than losing the payment.
+      console.error("[store] Failed handling a confirmed payment:", (err as Error).message);
+      return res.status(500).json({ message: "Processing failed" });
+    }
+
+    res.json({ received: true });
+  });
+
+  // Order status for the "thank you" page. Deliberately returns no personal
+  // details — just enough to confirm the order came through.
+  app.get("/api/store/order/:reference", async (req: Request, res: Response) => {
+    const [order] = await db.select().from(orders)
+      .where(eq(orders.reference, req.params.reference)).limit(1);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+    res.json({
+      reference: order.reference,
+      status: order.status,
+      totalCents: order.totalCents,
+      currency: order.currency,
+      fulfilmentMethod: order.fulfilmentMethod,
+      items: items.map((i) => ({
+        productName: i.productName, variantLabel: i.variantLabel,
+        quantity: i.quantity, unitPriceCents: i.unitPriceCents,
+      })),
+    });
+  });
+
+  // ── Admin: products & sizes ─────────────────────────────────────────────
+  app.get("/api/admin/products", requireAuth, requirePermission("store"), async (_req: Request, res: Response) => {
+    res.json(listProducts(false));
+  });
+
+  app.get("/api/admin/store-status", requireAuth, requirePermission("store"), async (_req: Request, res: Response) => {
+    const cfg = getStoreConfig();
+    res.json({
+      mode: cfg.mode,
+      canPay: canTakePayments(cfg),
+      testMode: isTestMode(cfg),
+      message: paymentSetupStatus(cfg),
+      webhookPath: "/api/store/webhook",
+    });
+  });
+
+  app.post("/api/admin/products", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const parsed = insertProductSchema.safeParse(cleanHtmlFields(req.body, ["description"]));
+    if (!parsed.success) return res.status(400).json({ message: "Invalid product details", errors: parsed.error.issues });
+    const [row] = await db.insert(products).values(parsed.data).returning();
+    res.status(201).json(row);
+  });
+
+  app.put("/api/admin/products/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const parsed = insertProductSchema.partial().safeParse(cleanHtmlFields(req.body, ["description"]));
+    if (!parsed.success) return res.status(400).json({ message: "Invalid product details" });
+    const [row] = await db.update(products)
+      .set({ ...parsed.data, updatedAt: new Date().toISOString() })
+      .where(eq(products.id, parseInt(req.params.id))).returning();
+    if (!row) return res.status(404).json({ message: "Product not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/admin/products/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    // Past orders keep their own copy of the name and price, so deleting a
+    // product never rewrites history — but the order lines still point at it,
+    // so clear those links before removing the rows.
+    const variantIds = (await db.select({ id: productVariants.id }).from(productVariants)
+      .where(eq(productVariants.productId, id))).map((v) => v.id);
+
+    await db.update(orderItems).set({ productId: null }).where(eq(orderItems.productId, id));
+    if (variantIds.length > 0) {
+      await db.update(orderItems).set({ variantId: null }).where(inArray(orderItems.variantId, variantIds));
+    }
+    await db.delete(productVariants).where(eq(productVariants.productId, id));
+    await db.delete(products).where(eq(products.id, id));
+    res.json({ ok: true });
+  });
+
+  app.post("/api/admin/variants", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const parsed = insertProductVariantSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid size details", errors: parsed.error.issues });
+    const [row] = await db.insert(productVariants).values(parsed.data).returning();
+    res.status(201).json(row);
+  });
+
+  app.put("/api/admin/variants/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const parsed = insertProductVariantSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid size details" });
+    const [row] = await db.update(productVariants).set(parsed.data)
+      .where(eq(productVariants.id, parseInt(req.params.id))).returning();
+    if (!row) return res.status(404).json({ message: "Size not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/admin/variants/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    await db.update(orderItems).set({ variantId: null }).where(eq(orderItems.variantId, id));
+    await db.delete(productVariants).where(eq(productVariants.id, id));
+    res.json({ ok: true });
+  });
+
+  // ── Admin: orders ───────────────────────────────────────────────────────
+  app.get("/api/admin/orders", requireAuth, requirePermission("store"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(500);
+    const lines = await db.select().from(orderItems);
+    res.json(rows.map((o) => ({ ...o, items: lines.filter((l) => l.orderId === o.id) })));
+  });
+
+  app.put("/api/admin/orders/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const { status, adminNotes } = req.body ?? {};
+    const allowed = ["pending", "paid", "fulfilled", "cancelled", "refunded"];
+    const update: Record<string, unknown> = {};
+    if (typeof status === "string" && allowed.includes(status)) update.status = status;
+    if (typeof adminNotes === "string") update.adminNotes = cleanText(adminNotes).slice(0, 2000);
+    if (Object.keys(update).length === 0) return res.status(400).json({ message: "Nothing to update" });
+
+    const [row] = await db.update(orders).set(update).where(eq(orders.id, id)).returning();
+    if (!row) return res.status(404).json({ message: "Order not found" });
+    res.json(row);
   });
 
   return server;

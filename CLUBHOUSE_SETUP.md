@@ -342,5 +342,7 @@ Delete unused photos in Admin → Photos. Old backups prune themselves.
   knowledge assumed
 - **`SETUP_INTEGRATIONS.md`** — optional extras: Google sign-in for admins, and
   email notifications for contact-form messages
+- **`SETUP_SHOP.md`** — selling club apparel online and taking card payments
+  through Stripe (works from the clubhouse PC via the same tunnel)
 - **`SETUP_HOSTING.md`** — the alternative setup, for hosting on a rented server
   with a fixed IP instead of a clubhouse PC

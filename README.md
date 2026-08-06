@@ -82,6 +82,12 @@ Integrations (email, Google login): [SETUP_INTEGRATIONS.md](./SETUP_INTEGRATIONS
 
 ---
 
+## Selling things
+
+The store page can run as a brochure, a link to an existing shop, or a full
+cart with card payments via Stripe — see **[SETUP_SHOP.md](SETUP_SHOP.md)**.
+Card details never touch this site; Stripe hosts the payment page.
+
 ## What admins can manage (no code required)
 
 Log in at `/admin` to manage everything:
