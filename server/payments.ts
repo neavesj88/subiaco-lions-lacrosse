@@ -69,6 +69,8 @@ export interface PaymentEvent {
 
 export interface StoreConfig {
   mode: "off" | "enquiry" | "external" | "checkout";
+  /** The emergency switch from Admin → Security. False = take no money at all. */
+  paymentsEnabled: boolean;
   currency: string;
   currencySymbol: string;
   secretKey: string;
@@ -84,6 +86,9 @@ export function getStoreConfig(): StoreConfig {
   const mode = (s.store_mode?.trim() || "enquiry") as StoreConfig["mode"];
   return {
     mode,
+    // Only the literal string "false" disables it, so a missing or malformed
+    // value can never silently switch the shop off.
+    paymentsEnabled: s.payments_enabled !== "false",
     currency: (s.store_currency?.trim() || "AUD").toUpperCase(),
     currencySymbol: s.store_currency_symbol?.trim() || "$",
     secretKey: pick("stripe_secret_key", "STRIPE_SECRET_KEY"),
@@ -101,11 +106,16 @@ export function getStoreConfig(): StoreConfig {
  * limping along in a state where orders silently never complete.
  */
 export function canTakePayments(cfg = getStoreConfig()): boolean {
+  // The emergency switch is checked FIRST and overrides everything else.
+  if (!cfg.paymentsEnabled) return false;
   return cfg.mode === "checkout" && !!cfg.secretKey && !!cfg.webhookSecret;
 }
 
 /** A one-line explanation for the admin panel of what's still missing. */
 export function paymentSetupStatus(cfg = getStoreConfig()): string {
+  if (!cfg.paymentsEnabled) {
+    return "STOPPED from Admin → Security. No payments can be taken until it's switched back on.";
+  }
   if (cfg.mode !== "checkout") return "Card payment is switched off for this store.";
   if (!cfg.secretKey) return "Add your Stripe secret key to take payments.";
   if (!cfg.webhookSecret) return "Add your Stripe webhook signing secret — without it, paid orders can never be confirmed.";

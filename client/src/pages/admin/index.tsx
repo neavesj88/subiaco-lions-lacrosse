@@ -21,6 +21,7 @@ import MediaLibrary from "@/pages/admin/media-library";
 import AdminPages from "@/pages/admin/pages";
 import AdminCommittee from "@/pages/admin/committee";
 import AdminStore, { AdminOrders } from "@/pages/admin/store";
+import AdminStock from "@/pages/admin/stock";
 import { ADMIN_GROUPS, ALL_SECTIONS } from "@/pages/admin/nav-config";
 import { ROLES, ROLE_INFO } from "@shared/roles";
 import SetupWizard from "@/pages/admin/setup-wizard";
@@ -36,14 +37,14 @@ import {
   ClipboardList, Star, CheckCircle, Phone, Mail, User, MessageSquare, Eye,
   Pin, ImageIcon, Trophy, Heart, Download, ToggleLeft, List as ListIcon,
   KeyRound, AlertTriangle, HelpCircle, Shield, Palette, FileText, UserCog,
-  ShoppingBag, Receipt,
+  ShoppingBag, Receipt, Boxes,
 } from "lucide-react";
 
 // Sidebar icon names (from nav-config.ts) → the actual components
 const ADMIN_ICONS: Record<string, any> = {
   Megaphone, ImageIcon, FileText, Star, ListIcon, Calendar, Trophy, Heart,
   Users, ClipboardList, MessageSquare, Mail, Settings, UserCog, Shield,
-  ShoppingBag, Receipt,
+  ShoppingBag, Receipt, Boxes,
 };
 import { Switch } from "@/components/ui/switch";
 import ListManager from "@/components/list-manager";
@@ -1506,6 +1507,11 @@ export default function AdminDashboard() {
           {can("store") && (
             <TabsContent value="shop">
               <AdminStore />
+            </TabsContent>
+          )}
+          {can("store") && (
+            <TabsContent value="stock">
+              <AdminStock />
             </TabsContent>
           )}
           {can("store") && (

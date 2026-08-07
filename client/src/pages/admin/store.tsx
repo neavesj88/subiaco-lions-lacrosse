@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ImagePicker from "@/components/image-picker";
 import {
   Plus, Pencil, Trash2, Info, ArrowUp, ArrowDown, ShoppingBag,
-  CreditCard, CheckCircle, AlertTriangle, Package, Copy,
+  CreditCard, CheckCircle, AlertTriangle, Package, PackageX, PackageCheck, Copy, Download,
 } from "lucide-react";
 import type { Product, ProductVariant, ProductWithVariants, OrderWithItems } from "@shared/schema";
 
@@ -139,6 +139,12 @@ export default function AdminStore() {
                         <p className="font-medium text-stone-900">{p.name}</p>
                         {p.badge && <Badge variant="secondary" className="text-xs">{p.badge}</Badge>}
                         {!p.isActive && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                        {p.soldOut && (
+                          <Badge className="text-xs bg-red-100 text-red-800">Sold out</Badge>
+                        )}
+                        {p.variants.some((v) => v.isActive === false) && (
+                          <Badge variant="secondary" className="text-xs">Some sizes off</Badge>
+                        )}
                         {p.priceCents === 0 && (
                           <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">No price set</Badge>
                         )}
@@ -158,6 +164,11 @@ export default function AdminStore() {
                     <div className="flex items-center gap-1 shrink-0">
                       <Button size="sm" variant="ghost" onClick={() => move(p, -1)} aria-label="Move up"><ArrowUp className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => move(p, 1)} aria-label="Move down"><ArrowDown className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="outline"
+                        title={p.soldOut ? "Put back on sale" : "Mark as sold out"}
+                        onClick={() => save.mutate({ id: p.id, soldOut: !p.soldOut })}>
+                        {p.soldOut ? <PackageCheck className="h-3.5 w-3.5" /> : <PackageX className="h-3.5 w-3.5" />}
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => setEditing(p)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="text-red-600"
                         onClick={() => { if (confirm(`Delete "${p.name}"? Past orders keep their record of it.`)) remove.mutate(p.id); }}>
@@ -382,7 +393,7 @@ function ProductEditor({
 }: { product: Partial<ProductWithVariants>; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<Partial<Product>>({
     name: "", description: "", priceCents: 0, badge: "", imageUrl: "",
-    isActive: true, maxPerOrder: 10, requiresShipping: true, sortOrder: 0,
+    isActive: true, soldOut: false, maxPerOrder: 10, requiresShipping: true, sortOrder: 0,
     ...product,
   });
   const [variants, setVariants] = useState<Partial<ProductVariant>[]>(
@@ -479,6 +490,18 @@ function ProductEditor({
 
           <div className="flex items-center justify-between border rounded-lg p-3">
             <div>
+              <Label>Sold out</Label>
+              <p className="text-xs text-stone-500">
+                Keeps it on the page, clearly unavailable, so members know you
+                normally stock it. Use this rather than hiding it when you're
+                just waiting on more.
+              </p>
+            </div>
+            <Switch checked={form.soldOut === true} onCheckedChange={(c) => set("soldOut", c)} />
+          </div>
+
+          <div className="flex items-center justify-between border rounded-lg p-3">
+            <div>
               <Label>Needs posting</Label>
               <p className="text-xs text-stone-500">Turn off for things collected only (e.g. event tickets).</p>
             </div>
@@ -492,7 +515,7 @@ function ProductEditor({
                 <Label>Sizes &amp; stock</Label>
                 <p className="text-xs text-stone-500">Leave stock blank for "made to order" (never sells out).</p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setVariants([...variants, { label: "", stock: null }])}>
+              <Button size="sm" variant="outline" onClick={() => setVariants([...variants, { label: "", stock: null, isActive: true }])}>
                 <Plus className="h-3.5 w-3.5" /> Add size
               </Button>
             </div>
@@ -524,6 +547,14 @@ function ProductEditor({
                         const priceCents = raw === "" ? null : toCents(raw);
                         setVariants(variants.map((x, n) => n === i ? { ...x, priceCents } : x));
                       }} />
+                  </div>
+                  <div className="flex flex-col items-center gap-1 mb-0.5">
+                    {i === 0 && <p className="text-xs text-stone-500">Sell it</p>}
+                    <Switch
+                      checked={v.isActive !== false}
+                      onCheckedChange={(c) => setVariants(variants.map((x, n) => n === i ? { ...x, isActive: c } : x))}
+                      aria-label={`Available: ${v.label || "size"}`}
+                    />
                   </div>
                   <Button size="sm" variant="ghost" className="text-red-600 mb-0.5"
                     onClick={() => setVariants(variants.filter((_, n) => n !== i))} aria-label="Remove size">
@@ -560,6 +591,7 @@ const STATUS_STYLES: Record<string, string> = {
 export function AdminOrders() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
 
   const { data: orders = [] } = useQuery<OrderWithItems[]>({
     queryKey: ["/api/admin/orders"],
@@ -575,7 +607,13 @@ export function AdminOrders() {
     },
   });
 
-  const shown = filter === "all" ? orders : orders.filter((o) => o.status === filter);
+  const byStatus = filter === "all" ? orders : orders.filter((o) => o.status === filter);
+  // Search covers the things someone actually has to hand when a member rings
+  // up: the reference they were emailed, their name, or their email address.
+  const needle = search.trim().toLowerCase();
+  const shown = needle === "" ? byStatus : byStatus.filter((o) =>
+    [o.reference, o.customerName, o.customerEmail, o.customerPhone]
+      .some((f) => (f ?? "").toLowerCase().includes(needle)));
   const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 
   // Money actually taken — pending and cancelled orders were never charged.
@@ -602,15 +640,26 @@ export function AdminOrders() {
         </CardContent></Card>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {["all", "paid", "fulfilled", "pending", "cancelled", "refunded"].map((f) => (
           <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => setFilter(f)}
             className="capitalize">{f}</Button>
         ))}
+        <div className="flex-1 min-w-[180px]">
+          <Input placeholder="Search reference, name or email…" value={search}
+            onChange={(e) => setSearch(e.target.value)} className="h-9" />
+        </div>
+        <a href="/api/admin/orders/export" download>
+          <Button size="sm" variant="outline" className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Export
+          </Button>
+        </a>
       </div>
 
       {shown.length === 0 && (
-        <p className="text-sm text-stone-500 border rounded-xl p-6 text-center">No orders here yet.</p>
+        <p className="text-sm text-stone-500 border rounded-xl p-6 text-center">
+          {needle ? `Nothing matching "${search}".` : "No orders here yet."}
+        </p>
       )}
 
       <div className="space-y-3">

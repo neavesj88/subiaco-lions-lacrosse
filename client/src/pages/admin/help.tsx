@@ -12,7 +12,7 @@
 import {
   Rocket, Pencil, Megaphone, ImageIcon, Calendar, ClipboardList, Trophy,
   ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool, Palette, FilePlus, UserCheck,
-  ShoppingBag, CreditCard, Receipt,
+  ShoppingBag, CreditCard, Receipt, Boxes,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -231,6 +231,43 @@ const GUIDE: GuideSection[] = [
       "Stock comes down by itself when a payment succeeds. You don't need to adjust it after a sale.",
       "To refund someone, do it in your Stripe dashboard. This page updates itself once Stripe confirms it.",
       "The club and the customer both get an email the moment an order is paid for.",
+      "Use the search box to find an order by its reference, the member's name or their email — handy when someone rings up asking about theirs.",
+      "'Export' downloads every order as a spreadsheet, one row per item. That's the file to hand the treasurer for reconciling against the Stripe payouts.",
+    ],
+  },
+  {
+    icon: Boxes,
+    title: "Stock — counting what's left",
+    intro:
+      "The Stock tab is one screen for every size you sell, so counting up after a delivery doesn't mean opening each product in turn. Tracking stock is entirely OPTIONAL — leave a box empty and that item is treated as made to order, never sells out, and is never chased.",
+    steps: [
+      "Open Stock. Anything sold out or running low is listed at the top.",
+      "Use + and − after selling something at the clubhouse.",
+      "Or type the real number straight in after a count — it saves when you click away.",
+      "Set 'Warn me at or below' to whatever number gives you enough time to reorder.",
+    ],
+    tips: [
+      "Online sales reduce stock automatically. You only need to adjust it here for things sold in person.",
+      "The 'Sell it' switch beside each size takes that size off sale without deleting it — useful when a size is away being reprinted.",
+      "Empty box = made to order. Use it for anything you order in on demand.",
+    ],
+  },
+  {
+    icon: ShieldAlert,
+    title: "Emergency stops (Security tab)",
+    intro:
+      "At the top of the Security tab are two switches that stop things immediately: outgoing email, and card payments. Use them first if something is going wrong, then work out what happened.",
+    steps: [
+      "Open Security. The two switches are at the top under 'Emergency stops'.",
+      "Switch off whatever needs stopping. It takes effect straight away.",
+      "Sort out the problem, then switch it back on.",
+    ],
+    tips: [
+      "Nothing is lost either way. With email off, form submissions and orders are still saved — you just read them in the tabs instead of getting an email.",
+      "With payments off, the shop still shows everything; only the checkout is refused.",
+      "Neither switch loses any settings, so turning it back on restores exactly what was there before.",
+      "IMPORTANT: these only stop NEW activity. To refund someone, or to stop payouts, use the club's Stripe dashboard.",
+      "A red banner stays on the page while anything is switched off, so it can't be forgotten.",
     ],
   },
   {

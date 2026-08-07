@@ -155,6 +155,51 @@ days). The website has no access to the club's money at any point.
 
 ---
 
+## Stopping everything in a hurry
+
+**Admin → Security → Emergency stops** has two switches:
+
+- **Outgoing email** — stops every email the site sends
+- **Card payments** — stops anyone being charged
+
+Both take effect immediately, and neither loses any settings, so switching back
+on restores exactly what was there before. With payments off the shop still
+lists everything; only the checkout is refused. With email off, orders and
+messages are still saved — you just read them in the admin panel.
+
+Use them if you spot a pricing mistake, a flood of spam sign-ups, or anything
+you don't understand yet. Stop first, work it out afterwards.
+
+**They only stop NEW activity.** To refund a payment already taken, or to halt
+payouts entirely, use the club's Stripe dashboard.
+
+---
+
+## Keeping stock straight
+
+**Admin → Stock** is one screen listing every size, so counting up after a
+delivery doesn't mean opening each product.
+
+- **+ / −** after selling something at the clubhouse
+- Or type the real number in after a count
+- Anything sold out or low is listed at the top
+- **Warn me at or below** sets when something counts as "low"
+
+Online sales reduce stock by themselves — you only adjust it here for sales
+made in person.
+
+**Tracking stock is optional.** Leave a box empty and that size is treated as
+made to order: it never sells out and never appears in the restock list. A club
+that orders everything in on demand can leave every box empty and ignore this
+screen completely.
+
+To take a size off sale without deleting it, use the **Sell it** switch beside
+it. To take a whole item off sale but leave it on display, tick **Sold out** in
+the product editor — better than hiding it, because members can still see it's
+something you normally stock.
+
+---
+
 ## Common questions
 
 **Can two people buy the last one?**

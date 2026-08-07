@@ -60,6 +60,7 @@ import { getOrigin } from "./seo-inject";
 import { getAdminPath, isDefaultPassword} from "./runtime-config";
 import { invalidateSettingsCache, getSettingsSync } from "./site-settings";
 import { cleanHtmlFields, cleanText } from "./sanitize";
+import { csvFile, csvFilename } from "./csv";
 import { SqliteSessionStore } from "./session-store";
 import {
   getStoreConfig, canTakePayments, isTestMode, paymentSetupStatus,
@@ -877,11 +878,12 @@ export async function registerRoutes(app: Express) {
     const rows = await db.select().from(newsletterSubscribers)
       .where(eq(newsletterSubscribers.isActive, true))
       .orderBy(newsletterSubscribers.subscribedAt);
-    const csv = ["name,email,subscribed_at",
-      ...rows.map((r) => `"${r.name ?? ""}","${r.email}","${r.subscribedAt}"`)
-    ].join("\n");
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename="lions-newsletter-${new Date().toISOString().split("T")[0]}.csv"`);
+    const csv = csvFile(
+      ["name", "email", "subscribed_at"],
+      rows.map((r) => [r.name, r.email, r.subscribedAt]),
+    );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${csvFilename("newsletter")}"`);
     res.send(csv);
   });
 
@@ -1539,6 +1541,44 @@ export async function registerRoutes(app: Express) {
     const rows = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(500);
     const lines = await db.select().from(orderItems);
     res.json(rows.map((o) => ({ ...o, items: lines.filter((l) => l.orderId === o.id) })));
+  });
+
+  // A spreadsheet of orders, ONE ROW PER ITEM — the shape a treasurer needs to
+  // reconcile takings against the Stripe payouts, and to see what sizes
+  // actually sold when ordering next season's stock.
+  app.get("/api/admin/orders/export", requireAuth, requirePermission("store"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(orders).orderBy(desc(orders.createdAt));
+    const lines = await db.select().from(orderItems);
+
+    const body: unknown[][] = [];
+    for (const o of rows) {
+      const items = lines.filter((l) => l.orderId === o.id);
+      // An order with no lines still gets a row — otherwise it disappears from
+      // the spreadsheet and the totals silently stop reconciling.
+      for (const i of items.length > 0 ? items : [null]) {
+        body.push([
+          o.reference, o.status, o.createdAt, o.paidAt,
+          o.customerName, o.customerEmail, o.customerPhone,
+          o.fulfilmentMethod, o.shippingAddress,
+          i?.productName ?? "", i?.variantLabel ?? "", i?.quantity ?? "",
+          i ? (i.unitPriceCents / 100).toFixed(2) : "",
+          i ? ((i.unitPriceCents * i.quantity) / 100).toFixed(2) : "",
+          (o.shippingCents / 100).toFixed(2),
+          (o.totalCents / 100).toFixed(2),
+          o.currency, o.paymentIntent,
+        ]);
+      }
+    }
+
+    const csv = csvFile([
+      "reference", "status", "ordered_at", "paid_at", "customer", "email", "phone",
+      "fulfilment", "address", "item", "size", "quantity", "unit_price", "line_total",
+      "order_postage", "order_total", "currency", "payment_id",
+    ], body);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${csvFilename("orders")}"`);
+    res.send(csv);
   });
 
   app.put("/api/admin/orders/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {

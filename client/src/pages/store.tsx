@@ -249,13 +249,23 @@ function ProductCard({
   onAdd: (variantId: number) => void;
   t: ReturnType<typeof useSiteText>;
 }) {
-  const buyable = product.variants.filter((v) => v.stock === null || v.stock === undefined || v.stock > 0);
-  const soldOut = buyable.length === 0;
+  // A size can be unavailable for two different reasons — the club switched it
+  // off, or it ran out. Customers don't care which, so both look the same.
+  const isAvailable = (v: { isActive?: boolean | null; stock?: number | null }) =>
+    v.isActive !== false && (v.stock === null || v.stock === undefined || v.stock > 0);
+
+  const buyable = product.variants.filter(isAvailable);
+  // The whole product is unavailable if an admin marked it sold out, or if
+  // every single size is unavailable.
+  const soldOut = product.soldOut === true || buyable.length === 0;
   const [selected, setSelected] = useState<number | null>(buyable[0]?.id ?? null);
+  // If the chosen size became unavailable, fall back to one that isn't.
+  const chosenStillOk = selected !== null && buyable.some((v) => v.id === selected);
+  const effectiveSelected = chosenStillOk ? selected : (buyable[0]?.id ?? null);
 
   // A single "One size" option isn't a choice — don't make people pick it.
   const hasRealSizes = product.variants.length > 1 || product.variants[0]?.label !== "One size";
-  const chosen = product.variants.find((v) => v.id === selected);
+  const chosen = product.variants.find((v) => v.id === effectiveSelected);
   const price = chosen?.priceCents ?? product.priceCents;
 
   return (
@@ -286,7 +296,7 @@ function ProductCard({
             <p className="text-xs text-stone-500 mb-1.5">{t("store_choose_size")}</p>
             <div className="flex flex-wrap gap-1.5">
               {product.variants.map((v) => {
-                const out = v.stock !== null && v.stock !== undefined && v.stock <= 0;
+                const out = !isAvailable(v);
                 return (
                   <button
                     key={v.id}
@@ -296,7 +306,7 @@ function ProductCard({
                     className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors ${
                       out
                         ? "border-stone-200 text-stone-300 line-through cursor-not-allowed"
-                        : selected === v.id
+                        : effectiveSelected === v.id
                           ? "border-maroon-600 bg-maroon-600 text-white"
                           : "border-stone-300 text-stone-700 hover:border-maroon-400"
                     }`}
@@ -307,7 +317,7 @@ function ProductCard({
                 );
               })}
             </div>
-            {chosen?.stock !== null && chosen?.stock !== undefined && chosen.stock > 0 && chosen.stock <= 3 && (
+            {chosen && isAvailable(chosen) && chosen.stock !== null && chosen.stock !== undefined && chosen.stock > 0 && chosen.stock <= 3 && (
               <p className="text-xs text-amber-600 mt-1.5">
                 {t("store_low_stock").replace("{n}", String(chosen.stock))}
               </p>
@@ -319,8 +329,8 @@ function ProductCard({
           {soldOut ? (
             <Button size="sm" variant="outline" className="w-full" disabled>{t("store_sold_out")}</Button>
           ) : canBuy ? (
-            <Button size="sm" className="w-full gap-1.5" disabled={!selected}
-              onClick={() => selected && onAdd(selected)}>
+            <Button size="sm" className="w-full gap-1.5" disabled={!effectiveSelected}
+              onClick={() => effectiveSelected && onAdd(effectiveSelected)}>
               <ShoppingCart className="h-3.5 w-3.5" /> {t("store_add_to_cart")}
             </Button>
           ) : externalUrl ? (

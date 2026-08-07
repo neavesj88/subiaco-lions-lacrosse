@@ -469,6 +469,20 @@ addSetting('store_order_notify_email', '');
 addSetting('store_tax_note', '');
 addSetting('store_terms', '');
 
+// ── v10: emergency switches + per-item "sold out" ───────────────────────────
+// Two independent kill-switches an admin can throw from Admin → Security when
+// something is going wrong. Both default to ON so nothing changes for anyone
+// who never touches them.
+//
+// Kept separate from store_mode and the mail settings on purpose: flipping an
+// emergency switch must never destroy the club's configuration, so it can be
+// turned straight back on afterwards with everything exactly as it was.
+addSetting('payments_enabled', 'true');
+// At or below this many, a size is flagged as running low in the admin panel
+// (and shows a gentle "only N left" nudge on the shop page). 0 turns it off.
+addSetting('store_low_stock_threshold', '3');
+addCol('products', 'sold_out', 'INTEGER NOT NULL DEFAULT 0');
+
 // Carry the old brochure-style store items over into real products, so a club
 // that had listed apparel keeps it rather than opening the page to an empty
 // shop. They arrive priced at zero and switched OFF, so nothing can be bought

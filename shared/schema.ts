@@ -314,6 +314,12 @@ export const products = sqliteTable("products", {
   requiresShipping: integer("requires_shipping", { mode: "boolean" }).notNull().default(true),
   maxPerOrder: integer("max_per_order").notNull().default(10),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  // "Sold out" is deliberately separate from "hidden". Hiding removes the item
+  // from the page entirely; marking it sold out leaves it on display, clearly
+  // unavailable, so members can still see it's something the club sells and
+  // will be back. It also works for made-to-order items, which have no stock
+  // count to drop to zero.
+  soldOut: integer("sold_out", { mode: "boolean" }).notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),

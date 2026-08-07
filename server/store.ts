@@ -94,6 +94,12 @@ export function priceCart(input: CartLineInput[], fulfilmentMethod: string): Pri
     if (!product || !product.isActive) {
       throw new CartError("One of the items in your cart is no longer available.");
     }
+    // Marked sold out by an admin. Checked here as well as hidden in the page,
+    // because a cart can be sitting in someone's browser from before the switch
+    // was thrown, or be replayed directly at the API.
+    if (product.soldOut) {
+      throw new CartError(`"${product.name}" is sold out.`);
+    }
 
     if (quantity > product.maxPerOrder) {
       throw new CartError(`You can order at most ${product.maxPerOrder} of "${product.name}" at a time.`);
@@ -214,11 +220,15 @@ export function listProducts(activeOnly: boolean) {
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
     .map((p) => ({
       ...p,
+      // Sizes an admin has switched off are still SENT to the page, so it can
+      // show them crossed out. Quietly removing them looks like the club simply
+      // doesn't do that size, and members ask why. The checkout rejects them
+      // regardless, so showing them costs nothing.
       variants: variantRows
-        .filter((v) => v.productId === p.id && (!activeOnly || v.isActive))
+        .filter((v) => v.productId === p.id)
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id),
     }))
-    // A product with no sizes can't be bought, so don't show it to customers.
+    // A product with no sizes at all can't be bought, so don't list it.
     .filter((p) => !activeOnly || p.variants.length > 0);
 }
 

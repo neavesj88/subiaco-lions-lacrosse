@@ -27,7 +27,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Mail, MailX, KeyRound, Lock, Unlock, ShieldAlert, Send } from "lucide-react";
+import {
+  Mail, MailX, KeyRound, Lock, Unlock, ShieldAlert, Send,
+  AlertTriangle, CreditCard, Ban,
+} from "lucide-react";
 
 interface AdminUser {
   id: number; name: string; username: string; email: string;
@@ -58,6 +61,8 @@ export default function AdminSecurity({ currentUserId }: { currentUserId: number
   });
 
   const mailOn = secure.mail_enabled !== "false";
+  const paymentsOn = secure.payments_enabled !== "false";
+  const shopTakesMoney = secure.store_mode === "checkout";
 
   // ── Local form state ──────────────────────────────────────────────────────
   const [testTo, setTestTo] = useState("");
@@ -77,6 +82,21 @@ export default function AdminSecurity({ currentUserId }: { currentUserId: number
     onSuccess: (_d, enabled) => {
       refreshAll();
       toast({ title: enabled ? "Email sending switched ON" : "Email sending switched OFF" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const togglePayments = useMutation({
+    mutationFn: (enabled: boolean) =>
+      apiRequest("PUT", "/api/settings", { payments_enabled: enabled ? "true" : "false" }),
+    onSuccess: (_d, enabled) => {
+      refreshAll();
+      qc.invalidateQueries({ queryKey: ["/api/store/config"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/store-status"] });
+      toast({
+        title: enabled ? "Card payments switched ON" : "Card payments STOPPED",
+        description: enabled ? undefined : "Nobody can be charged until you switch this back on.",
+      });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -118,7 +138,75 @@ export default function AdminSecurity({ currentUserId }: { currentUserId: number
   // ── UI ────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Security & Email Controls</h2>
+      <h2 className="text-lg font-semibold">Security & Emergency Controls</h2>
+
+      {/* ── EMERGENCY STOPS ──────────────────────────────────────────────────
+          Everything that sends a message or takes money, in one place, so that
+          in a crisis nobody has to hunt through tabs or remember where a
+          setting lives. Both switches take effect immediately — no saving, no
+          restart — and neither destroys any configuration, so switching back
+          on restores exactly what was there before. */}
+      <Card className={!mailOn || (shopTakesMoney && !paymentsOn) ? "border-red-300 bg-red-50/40" : "border-stone-200"}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className={`h-5 w-5 ${!mailOn || (shopTakesMoney && !paymentsOn) ? "text-red-600" : "text-stone-400"}`} />
+            Emergency stops
+          </CardTitle>
+          <p className="text-sm text-stone-600">
+            If something is going wrong — a flood of spam, a suspected break-in,
+            a pricing mistake, or a member reporting a bad charge — stop it here
+            first, then work out what happened. Nothing is lost either way.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Email */}
+          <div className="flex items-center justify-between gap-4 rounded-lg border bg-white p-3">
+            <div className="min-w-0">
+              <p className="font-medium text-stone-900 text-sm flex items-center gap-2">
+                {mailOn ? <Mail className="h-4 w-4 text-stone-500" /> : <MailX className="h-4 w-4 text-red-600" />}
+                Outgoing email — {mailOn ? "ON" : "STOPPED"}
+              </p>
+              <p className="text-xs text-stone-500 mt-0.5">
+                {mailOn
+                  ? "Sign-up alerts, contact messages and order confirmations are being sent."
+                  : "No email is leaving the site. Form submissions are still saved — read them in Sign-Ups, Messages and Orders."}
+              </p>
+            </div>
+            <Switch checked={mailOn} onCheckedChange={(v) => toggleMail.mutate(v)} />
+          </div>
+
+          {/* Payments */}
+          <div className="flex items-center justify-between gap-4 rounded-lg border bg-white p-3">
+            <div className="min-w-0">
+              <p className="font-medium text-stone-900 text-sm flex items-center gap-2">
+                {paymentsOn ? <CreditCard className="h-4 w-4 text-stone-500" /> : <Ban className="h-4 w-4 text-red-600" />}
+                Card payments — {paymentsOn ? "ON" : "STOPPED"}
+              </p>
+              <p className="text-xs text-stone-500 mt-0.5">
+                {paymentsOn
+                  ? shopTakesMoney
+                    ? "The shop can take card payments normally."
+                    : "Allowed, but the shop isn't set to take card payments anyway (see the Shop tab)."
+                  : "Nobody can be charged. The shop still lists everything; the checkout is refused."}
+              </p>
+            </div>
+            <Switch checked={paymentsOn} onCheckedChange={(v) => togglePayments.mutate(v)} />
+          </div>
+
+          {(!mailOn || (shopTakesMoney && !paymentsOn)) && (
+            <p className="text-xs text-red-800 bg-red-100 border border-red-200 rounded-lg p-2.5">
+              Something is currently switched off. Remember to switch it back on
+              once the problem is sorted — the site will not do it for you.
+            </p>
+          )}
+
+          <p className="text-xs text-stone-500 leading-relaxed">
+            <strong>These do not touch money already taken.</strong> To refund
+            someone, or to stop payouts entirely, use the club's Stripe
+            dashboard. Stopping payments here only prevents new charges.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Email kill-switch + test */}
       <Card>

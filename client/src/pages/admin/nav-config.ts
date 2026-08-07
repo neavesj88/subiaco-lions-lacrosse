@@ -64,6 +64,8 @@ export const ADMIN_GROUPS: AdminGroup[] = [
     sections: [
       { id: "shop", label: "Shop", icon: "ShoppingBag", permission: "store",
         description: "What's for sale, sizes, stock and how the shop takes money." },
+      { id: "stock", label: "Stock", icon: "Boxes", permission: "store",
+        description: "Count what's left, and get warned before something runs out." },
       { id: "orders", label: "Orders", icon: "Receipt", permission: "store",
         description: "What people have bought, and what still needs handing over." },
     ],
