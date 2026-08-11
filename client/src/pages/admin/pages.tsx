@@ -116,7 +116,7 @@ export default function AdminPages() {
         <div className="text-center py-12 border-2 border-dashed rounded-xl">
           <FileText className="h-10 w-10 text-stone-300 mx-auto mb-3" />
           <p className="text-stone-500 font-medium">No extra pages yet</p>
-          <p className="text-stone-400 text-sm mt-1 mb-4">
+          <p className="text-stone-500 text-sm mt-1 mb-4">
             The nine standard pages (Home, About, Juniors…) are always there — this is for adding your own.
           </p>
           <Button size="sm" onClick={() => setPicking(true)}>
@@ -218,18 +218,18 @@ export default function AdminPages() {
                       }));
                     }}
                   />
-                  <p className="text-xs text-stone-400">Shown in the menu and as the page heading.</p>
+                  <p className="text-xs text-stone-500">Shown in the menu and as the page heading.</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Web address</Label>
                   <div className="flex items-center gap-1">
-                    <span className="text-sm text-stone-400 shrink-0">/p/</span>
+                    <span className="text-sm text-stone-500 shrink-0">/p/</span>
                     <Input
                       value={editing.slug ?? ""}
                       onChange={(e) => setEditing((p) => ({ ...p!, slug: slugify(e.target.value) }))}
                     />
                   </div>
-                  <p className="text-xs text-stone-400">
+                  <p className="text-xs text-stone-500">
                     {editing.id ? "Changing this breaks any existing links to the page." : "Filled in automatically — usually leave it."}
                   </p>
                 </div>
@@ -246,7 +246,7 @@ export default function AdminPages() {
 
               <div className="space-y-1.5">
                 <Label>Page content</Label>
-                <p className="text-xs text-stone-400 -mt-1">
+                <p className="text-xs text-stone-500 -mt-1">
                   Overwrite the example text. Use the toolbar for headings, lists, links and photos.
                 </p>
                 <RichTextEditor
@@ -270,7 +270,7 @@ export default function AdminPages() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-stone-400">
+                  <p className="text-xs text-stone-500">
                     {NAV_OPTIONS.find((n) => n.value === (editing.navLocation ?? "club_menu"))?.hint}
                   </p>
                 </div>
@@ -281,7 +281,7 @@ export default function AdminPages() {
                     value={editing.sortOrder ?? 0}
                     onChange={(e) => setEditing((p) => ({ ...p!, sortOrder: parseInt(e.target.value) || 0 }))}
                   />
-                  <p className="text-xs text-stone-400">Lower numbers appear first.</p>
+                  <p className="text-xs text-stone-500">Lower numbers appear first.</p>
                 </div>
               </div>
 

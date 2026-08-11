@@ -99,7 +99,7 @@ export function StoreThankYou() {
                   <span className="text-stone-600">
                     {i.quantity} × {i.productName}
                     {i.variantLabel && i.variantLabel !== "One size" && (
-                      <span className="text-stone-400"> ({i.variantLabel})</span>
+                      <span className="text-stone-500"> ({i.variantLabel})</span>
                     )}
                   </span>
                   <span>{formatMoney(i.unitPriceCents * i.quantity)}</span>

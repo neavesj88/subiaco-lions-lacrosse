@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Rocket, ArrowRight, ArrowLeft, Check, Palette } from "lucide-react";
 import { CLUB_DEFAULTS } from "@shared/club-config";
+import { checkTextOnColour } from "@shared/contrast";
 
 /** One field the wizard asks about. */
 interface Field {
@@ -167,7 +168,7 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
         <Card>
           <CardContent className="pt-6 space-y-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+              <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">
                 Step {step + 1} of {STEPS.length}
               </p>
               <h2 className="text-lg font-bold text-stone-900 mt-0.5">{current.title}</h2>
@@ -199,7 +200,7 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
                   />
                 )}
-                {f.help && <p className="text-xs text-stone-400">{f.help}</p>}
+                {f.help && <p className="text-xs text-stone-500">{f.help}</p>}
               </div>
             ))}
 
@@ -217,6 +218,18 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
                   <p className="text-sm opacity-80">{values.club_name_suffix}</p>
                   <div className="h-1 w-16 mx-auto mt-2 rounded-full" style={{ background: values.theme_accent }} />
                 </div>
+
+                {/* Caught here rather than after launch: this banner carries
+                    white text on every page of the finished site. */}
+                {(() => {
+                  const check = checkTextOnColour(values.theme_primary || "#7B1E32");
+                  if (check.ok) return null;
+                  return (
+                    <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+                      {check.message}
+                    </p>
+                  );
+                })()}
               </div>
             )}
 
@@ -244,7 +257,7 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
           </CardContent>
         </Card>
 
-        <p className="text-xs text-stone-400 text-center mt-4">
+        <p className="text-xs text-stone-500 text-center mt-4">
           Skipping is fine — the site works straight away and every one of these
           lives in Settings.
         </p>

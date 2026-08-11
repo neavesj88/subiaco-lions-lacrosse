@@ -24,6 +24,8 @@
 // quietly run on its built-in defaults instead.
 import "dotenv/config";
 
+import { randomBytes } from "crypto";
+
 import express, { type Request, type Response, type NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -47,18 +49,74 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
-// ── Security headers (production only) ──────────────────────────────────────
-// These headers protect against common web attacks.
-// They're only applied in production because they can interfere with dev tools.
-if (process.env.NODE_ENV === "production") {
-  app.use((_req: Request, res: Response, next: NextFunction) => {
-    res.setHeader("X-Frame-Options", "DENY");           // Prevents clickjacking
-    res.setHeader("X-Content-Type-Options", "nosniff"); // Prevents MIME sniffing
-    res.setHeader("X-XSS-Protection", "1; mode=block"); // Older browser XSS protection
-    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    next();
-  });
-}
+// ── Security headers ────────────────────────────────────────────────────────
+// Headers are instructions to the browser about what this page is allowed to
+// do. They are the cheapest protection available, and they matter more here
+// than on a normal site because the people running a club website cannot be
+// expected to spot an attack themselves.
+//
+// SHOULD A CLUB EDIT THIS?  No — unless you add a new embedded service.
+// If you embed something new (a different maps provider, a fixtures widget)
+// and it silently refuses to appear, its address needs adding to the matching
+// line in the policy below. That is the ONE thing here a club might ever need
+// changed, and it needs someone technical.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+
+  // Switch off browser features this site never uses, so a future bug or a
+  // compromised third-party embed cannot quietly reach for them.
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+  );
+
+  // A random one-off token that marks OUR inline script as trusted. Anything
+  // injected into the page by an attacker will not have it, so the browser
+  // refuses to run it. Generated per request — a fixed value would be useless.
+  const nonce = randomBytes(16).toString("base64");
+  (res.locals as { cspNonce?: string }).cspNonce = nonce;
+
+  // Content Security Policy: an allow-list of where the page may load things
+  // from. Each line below names a real feature of this site — remove one and
+  // that feature stops working.
+  res.setHeader("Content-Security-Policy", [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    // Images: the club's own uploads, plus any image URL an admin pastes into
+    // a news post, plus data: URIs used by inline icons.
+    "img-src 'self' data: https:",
+    // Google Fonts serves the site's typeface as a stylesheet plus font files.
+    // 'unsafe-inline' for styles is a deliberate compromise: React and the
+    // Tailwind build both set style attributes, and removing it would break
+    // the club's own colour settings. Inline STYLES cannot execute code, so
+    // this is far less dangerous than inline scripts, which are blocked.
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    // Scripts: only this site's own files, plus the one inline settings script
+    // carrying the nonce above, plus the Instagram feed widget if a club has
+    // switched it on.
+    `script-src 'self' 'nonce-${nonce}' https://w.behold.so`,
+    "connect-src 'self' https://w.behold.so",
+    // Embedded panels: the map on the contact page, an embedded Google
+    // Calendar, and the Instagram feed.
+    "frame-src https://www.google.com https://calendar.google.com https://w.behold.so",
+  ].join("; "));
+
+  // HSTS tells browsers to only ever reach this site over HTTPS. Set only in
+  // production and only on an HTTPS request: sending it during local
+  // development would lock "localhost" into HTTPS in your browser for months
+  // and make the site unreachable while you work on it.
+  if (process.env.NODE_ENV === "production" && req.secure) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+
+  next();
+});
 
 // ── Request logger ───────────────────────────────────────────────────────────
 // Logs every API request to the console: method, path, status code, duration.

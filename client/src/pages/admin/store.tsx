@@ -296,13 +296,13 @@ function StoreSettings({ status, onSaved }: { status?: { canPay: boolean; testMo
                 <Label htmlFor="sk">Stripe secret key</Label>
                 <Input id="sk" type="password" value={form.stripe_secret_key ?? ""}
                   onChange={(e) => set("stripe_secret_key", e.target.value)} placeholder="sk_test_… or sk_live_…" />
-                <p className="text-xs text-stone-400">Stored on your server and never shown again once saved.</p>
+                <p className="text-xs text-stone-500">Stored on your server and never shown again once saved.</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="whsec">Webhook signing secret</Label>
                 <Input id="whsec" type="password" value={form.stripe_webhook_secret ?? ""}
                   onChange={(e) => set("stripe_webhook_secret", e.target.value)} placeholder="whsec_…" />
-                <p className="text-xs text-stone-400">Without this, paid orders can never be confirmed.</p>
+                <p className="text-xs text-stone-500">Without this, paid orders can never be confirmed.</p>
               </div>
             </div>
 
@@ -454,7 +454,7 @@ function ProductEditor({
               <Label htmlFor="pprice">Price *</Label>
               <Input id="pprice" inputMode="decimal" value={toDollars(form.priceCents)}
                 onChange={(e) => set("priceCents", toCents(e.target.value))} placeholder="0.00" />
-              <p className="text-xs text-stone-400">A product priced at 0 can't be bought.</p>
+              <p className="text-xs text-stone-500">A product priced at 0 can't be bought.</p>
             </div>
           </div>
 
@@ -679,7 +679,7 @@ export function AdminOrders() {
                     {o.customerName} · <a href={`mailto:${o.customerEmail}`} className="text-maroon-600 hover:underline">{o.customerEmail}</a>
                     {o.customerPhone ? ` · ${o.customerPhone}` : ""}
                   </p>
-                  <p className="text-xs text-stone-400 mt-0.5">
+                  <p className="text-xs text-stone-500 mt-0.5">
                     {new Date(o.createdAt).toLocaleString("en-AU")}
                   </p>
                 </div>
@@ -692,7 +692,7 @@ export function AdminOrders() {
                     <span className="text-stone-600">
                       {i.quantity} × {i.productName}
                       {i.variantLabel && i.variantLabel !== "One size" && (
-                        <span className="text-stone-400"> ({i.variantLabel})</span>
+                        <span className="text-stone-500"> ({i.variantLabel})</span>
                       )}
                     </span>
                     <span className="text-stone-500">{money(i.unitPriceCents * i.quantity)}</span>
@@ -735,7 +735,7 @@ export function AdminOrders() {
               </div>
 
               {(o.status === "paid" || o.status === "fulfilled") && (
-                <p className="text-xs text-stone-400 mt-2">
+                <p className="text-xs text-stone-500 mt-2">
                   To refund, do it in your Stripe dashboard — this page updates itself when Stripe confirms it.
                 </p>
               )}

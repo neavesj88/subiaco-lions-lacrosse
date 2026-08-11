@@ -101,7 +101,7 @@ export default function ImagePicker({ value, onChange, label, hint, className, c
         </div>
       </div>
 
-      {hint && <p className="text-xs text-stone-400">{hint}</p>}
+      {hint && <p className="text-xs text-stone-500">{hint}</p>}
 
       {/* Picker modal */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -126,7 +126,7 @@ export default function ImagePicker({ value, onChange, label, hint, className, c
               <div className="flex items-center justify-center gap-2 text-stone-500 py-2">
                 <Upload className="h-5 w-5" />
                 <span className="text-sm font-medium">Upload a new image</span>
-                <span className="text-xs text-stone-400">— or pick one below</span>
+                <span className="text-xs text-stone-500">— or pick one below</span>
               </div>
             )}
           </div>
@@ -134,7 +134,7 @@ export default function ImagePicker({ value, onChange, label, hint, className, c
 
           {/* Existing media grid */}
           {images.length === 0 ? (
-            <p className="text-center text-sm text-stone-400 py-8">No images yet — upload your first one above.</p>
+            <p className="text-center text-sm text-stone-500 py-8">No images yet — upload your first one above.</p>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[50vh] overflow-y-auto">
               {images.map((img) => {

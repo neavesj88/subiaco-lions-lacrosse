@@ -97,7 +97,7 @@ export default function EditableSection({
             {richText ? (
               // Suspense shows a placeholder for the moment it takes to fetch
               // the editor code the first time an admin opens a rich-text dialog.
-              <Suspense fallback={<div className="h-[180px] flex items-center justify-center text-sm text-stone-400 border rounded-md">Loading editor…</div>}>
+              <Suspense fallback={<div className="h-[180px] flex items-center justify-center text-sm text-stone-500 border rounded-md">Loading editor…</div>}>
                 <RichTextEditor
                   value={draft}
                   onChange={setDraft}

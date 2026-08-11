@@ -149,7 +149,7 @@ export default function AdminSecurity({ currentUserId }: { currentUserId: number
       <Card className={!mailOn || (shopTakesMoney && !paymentsOn) ? "border-red-300 bg-red-50/40" : "border-stone-200"}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className={`h-5 w-5 ${!mailOn || (shopTakesMoney && !paymentsOn) ? "text-red-600" : "text-stone-400"}`} />
+            <AlertTriangle className={`h-5 w-5 ${!mailOn || (shopTakesMoney && !paymentsOn) ? "text-red-600" : "text-stone-500"}`} />
             Emergency stops
           </CardTitle>
           <p className="text-sm text-stone-600">
@@ -228,7 +228,7 @@ export default function AdminSecurity({ currentUserId }: { currentUserId: number
               <p className="font-medium text-stone-800 text-sm">
                 Email is currently {mailOn ? "ON" : "OFF"}
               </p>
-              <p className="text-xs text-stone-400">
+              <p className="text-xs text-stone-500">
                 {mailOn
                   ? "The site will send notifications normally."
                   : "All outgoing email is blocked until you switch this back on."}
@@ -239,7 +239,7 @@ export default function AdminSecurity({ currentUserId }: { currentUserId: number
 
           <div className="space-y-1.5">
             <Label>Send a test email</Label>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-stone-500">
               Confirms your email settings work. Configure them in Settings → Email.
             </p>
             <div className="flex gap-2">
@@ -330,7 +330,7 @@ export default function AdminSecurity({ currentUserId }: { currentUserId: number
             <div key={u.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-stone-50">
               <div className="min-w-0">
                 <span className="font-medium text-stone-800 text-sm">{u.name}</span>
-                <span className="text-xs text-stone-400 ml-2">@{u.username}</span>
+                <span className="text-xs text-stone-500 ml-2">@{u.username}</span>
                 {!u.isActive && <Badge variant="secondary" className="ml-2 text-xs">Locked</Badge>}
                 {u.id === currentUserId && <Badge variant="outline" className="ml-2 text-xs">You</Badge>}
               </div>
@@ -370,14 +370,14 @@ export default function AdminSecurity({ currentUserId }: { currentUserId: number
         </CardHeader>
         <CardContent>
           {loginAttempts.length === 0 ? (
-            <p className="text-sm text-stone-400 py-2">No failed login attempts. All clear. ✓</p>
+            <p className="text-sm text-stone-500 py-2">No failed login attempts. All clear. ✓</p>
           ) : (
             <div className="space-y-2">
               {loginAttempts.map((a) => (
                 <div key={a.ip} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-stone-50">
                   <div className="min-w-0">
                     <span className="font-mono text-sm text-stone-800">{a.ip}</span>
-                    <span className="text-xs text-stone-400 ml-2">
+                    <span className="text-xs text-stone-500 ml-2">
                       {a.attempts} failed · {new Date(a.lastAttempt).toLocaleString("en-AU")}
                     </span>
                   </div>

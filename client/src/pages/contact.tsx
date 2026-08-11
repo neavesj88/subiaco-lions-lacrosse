@@ -80,7 +80,7 @@ export default function Contact() {
                   <Mail className="h-5 w-5 text-maroon-700 group-hover:text-white transition-colors" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-0.5">Email</p>
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Email</p>
                   <p className="text-sm text-stone-900 font-medium">{club.email}</p>
                 </div>
               </a>
@@ -90,7 +90,7 @@ export default function Contact() {
                   <MapPin className="h-5 w-5 text-maroon-700" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-0.5">Home Ground</p>
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Home Ground</p>
                   <p className="text-sm text-stone-900 font-medium">{club.venue}</p>
                   <p className="text-sm text-stone-500">{club.address}</p>
                 </div>
@@ -101,7 +101,7 @@ export default function Contact() {
                   <Clock className="h-5 w-5 text-maroon-700" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-0.5">Response Time</p>
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Response Time</p>
                   <p className="text-sm text-stone-900 font-medium">Within 48 hours</p>
                   <p className="text-sm text-stone-500">We'll get back to you as soon as possible</p>
                 </div>

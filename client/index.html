@@ -4,60 +4,62 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- SEO meta tags below are rewritten per-page by the server (server/seo-inject.ts)
-         so crawlers and social scrapers get the correct title/description for each route. -->
+    <!--
+      THE PAGE SHELL — client/index.html
+
+      WHAT THIS IS: the empty page the browser loads first. The actual website
+      is drawn into it by JavaScript. Think of it as the picture frame, not the
+      picture.
+
+      SHOULD A CLUB EDIT THIS FILE? No. Leave it alone.
+
+      Your club's name, page titles, descriptions, address and contact details
+      are filled in by the server from what you typed into Admin - Settings.
+      That is why no club name is written here: putting one in would mean every
+      club using this template published somebody else's details to Google.
+
+      The two marker comments below (SEO-START / SEO-END, and RUNTIME-CONFIG)
+      are not decoration. The server finds them by name and replaces them on
+      every request. Delete or rename them and the site still loads, but every
+      page shares one generic title, social links preview badly, and the admin
+      panel cannot be opened.
+    -->
     <!--SEO-START-->
-    <title>Subiaco Lions Lacrosse Club | Perth Lacrosse</title>
-    <meta name="description" content="Subiaco Lions Lacrosse Club — Perth's home of lacrosse since 1940 at Rosalie Park, Shenton Park. Men's, Women's and Junior teams. New players welcome." />
-    <meta property="og:title" content="Subiaco Lions Lacrosse Club" />
-    <meta property="og:description" content="Perth's home of lacrosse since 1940. Men's, Women's and Junior teams at Rosalie Park, Shenton Park." />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="/og-image.jpg" />
-    <meta name="twitter:card" content="summary_large_image" />
+    <title>Club website</title>
+    <meta name="description" content="Loading the club website." />
     <!--SEO-END-->
 
     <!--RUNTIME-CONFIG-->
-    <meta name="theme-color" content="#7B1E32" />
     <meta name="robots" content="index, follow" />
-    <meta name="geo.region" content="AU-WA" />
-    <meta name="geo.placename" content="Shenton Park, Perth, Western Australia" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
 
+    <!-- The site's typeface. display=swap means text shows immediately in a
+         fallback font instead of being invisible while the font downloads —
+         which matters most on a phone at a ground with one bar of signal. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
-    <!-- Structured data: tells Google this is a sports club, for rich results,
-         the local-business knowledge panel and Google Maps. -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SportsClub",
-      "name": "Subiaco Lions Lacrosse Club",
-      "alternateName": "Subiaco Lacrosse Club",
-      "sport": "Lacrosse",
-      "foundingDate": "1940",
-      "description": "Perth's home of lacrosse since 1940. Men's, Women's and Junior lacrosse teams competing across all divisions of Lacrosse WA.",
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "Rosalie Park",
-        "addressLocality": "Shenton Park",
-        "addressRegion": "WA",
-        "postalCode": "6008",
-        "addressCountry": "AU"
-      },
-      "areaServed": "Perth, Western Australia",
-      "email": "subiacolacrosseclub@outlook.com",
-      "sameAs": [
-        "https://www.facebook.com/SubiacoLacrosse/",
-        "https://www.instagram.com/subiacolacrosse_official/"
-      ]
-    }
-    </script>
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- Shown only when JavaScript is switched off or fails to load. Without
+         this the visitor gets a blank white page and no idea why. -->
+    <noscript>
+      <div style="max-width:34rem;margin:4rem auto;padding:0 1.5rem;font-family:system-ui,sans-serif;line-height:1.6;color:#1c1917">
+        <h1 style="font-size:1.5rem;margin:0 0 .75rem">This site needs JavaScript</h1>
+        <p style="margin:0 0 1rem">
+          Your browser has JavaScript turned off, so the club website cannot
+          load. Turn it on in your browser settings and refresh the page.
+        </p>
+        <p style="margin:0">
+          If you are trying to reach the club and cannot get this working, the
+          club's contact details are on its social media pages.
+        </p>
+      </div>
+    </noscript>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

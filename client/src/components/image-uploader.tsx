@@ -69,12 +69,12 @@ export default function ImageUploader({ value, onChange, label = "Image", classN
           }}
         >
           {uploading ? (
-            <div className="flex flex-col items-center gap-2 text-stone-400">
+            <div className="flex flex-col items-center gap-2 text-stone-500">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-maroon-600 border-t-transparent" />
               <p className="text-sm">Uploading...</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2 text-stone-400">
+            <div className="flex flex-col items-center gap-2 text-stone-500">
               <ImageIcon className="h-10 w-10" />
               <p className="text-sm font-medium text-stone-600">Click to upload or drag & drop</p>
               <p className="text-xs">JPG, PNG, GIF, WebP — max 8 MB</p>
@@ -83,7 +83,7 @@ export default function ImageUploader({ value, onChange, label = "Image", classN
         </div>
       )}
 
-      {hint && <p className="text-xs text-stone-400">{hint}</p>}
+      {hint && <p className="text-xs text-stone-500">{hint}</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
 
       <input

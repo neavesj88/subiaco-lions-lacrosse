@@ -133,7 +133,7 @@ export default function MediaLibrary({
           <div className="space-y-1.5">
             <Label className="text-xs">Search</Label>
             <div className="relative">
-              <Search className="h-4 w-4 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="h-4 w-4 text-stone-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <Input
                 className="pl-8"
                 placeholder="Filename or caption…"
@@ -172,7 +172,7 @@ export default function MediaLibrary({
         <div className="text-center py-12 border-2 border-dashed rounded-xl">
           <ImageIcon className="h-10 w-10 text-stone-300 mx-auto mb-3" />
           <p className="text-stone-500 font-medium">No photos yet</p>
-          <p className="text-stone-400 text-sm mt-1">Upload your first one using the box above.</p>
+          <p className="text-stone-500 text-sm mt-1">Upload your first one using the box above.</p>
         </div>
       ) : visible.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-xl">
@@ -216,7 +216,7 @@ export default function MediaLibrary({
                       day: "numeric", month: "short", year: "numeric",
                     })}
                   </Badge>
-                  <span className="text-[10px] text-stone-400 truncate" title={m.originalName}>
+                  <span className="text-[10px] text-stone-500 truncate" title={m.originalName}>
                     {m.originalName}
                   </span>
                 </div>

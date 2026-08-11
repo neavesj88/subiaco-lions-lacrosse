@@ -150,7 +150,7 @@ export default function Juniors() {
               <details key={item.id} className="group border rounded-xl overflow-hidden">
                 <summary className="cursor-pointer px-5 py-4 font-medium text-stone-900 flex justify-between items-center hover:bg-stone-50">
                   {item.title}
-                  <span className="text-stone-400 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+                  <span className="text-stone-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
                 </summary>
                 <div className="px-5 pb-4 pt-2 text-sm text-stone-500 border-t bg-stone-50">
                   {item.body}

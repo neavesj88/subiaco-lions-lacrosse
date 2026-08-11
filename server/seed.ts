@@ -56,8 +56,8 @@ async function seed() {
   const juniorsDefaults = [
     {
       section: "hero",
-      title: "Juniors Lacrosse",
-      content: "Introducing the next generation of Lions. We offer programs for boys and girls aged 8-17 in a fun, safe and inclusive environment.",
+      title: "Juniors",
+      content: "Introducing the next generation. We offer programs for boys and girls in a fun, safe and inclusive environment. Edit this in Admin → Juniors.",
     },
     {
       section: "programs",

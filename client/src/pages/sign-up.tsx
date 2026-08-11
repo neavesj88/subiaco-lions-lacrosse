@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, UserPlus, Zap, Heart, Shield } from "lucide-react";
 import { useSiteText } from "@/hooks/use-site-text";
+import { useClubDetails } from "@/components/club-details";
 
 const formSchema = z
   .object({
@@ -31,6 +32,12 @@ const formSchema = z
     kidsportEligible: z.boolean().default(false),
     howHeard: z.string().optional(),
     message: z.string().optional(),
+    // Required. This form collects children's names, ages and their parents'
+    // contact details, so the person filling it in has to have read what the
+    // club will do with them and confirm they may provide them.
+    privacyConsent: z.literal(true, {
+      errorMap: () => ({ message: "Please confirm you've read how we use these details." }),
+    }),
   })
   .refine(
     (d) => !d.isJunior || d.parentName,
@@ -43,6 +50,7 @@ export default function SignUp() {
   const [submitted, setSubmitted] = useState(false);
   const [isJunior, setIsJunior] = useState(false);
   const t = useSiteText(); // club-configurable wording
+  const club = useClubDetails(); // club email, for the privacy notice
 
   const { data: settings } = useQuery<Record<string, string>>({
     queryKey: ["/api/settings"],
@@ -261,6 +269,26 @@ export default function SignUp() {
                 <div className="space-y-1.5">
                   <Label htmlFor="message">Anything else you'd like us to know?</Label>
                   <Textarea id="message" rows={3} {...register("message")} />
+                </div>
+
+                {/* Placed here, right before submitting, so it's read at the
+                    moment the details are actually handed over. */}
+                <div className="space-y-3 p-4 bg-stone-50 rounded-lg border">
+                  <p className="text-xs text-stone-600 leading-relaxed">
+                    {t("privacy_signup_notice").replace("{email}", club.email)}
+                  </p>
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="privacyConsent"
+                      onCheckedChange={(c) => setValue("privacyConsent", (c === true) as true)}
+                    />
+                    <Label htmlFor="privacyConsent" className="cursor-pointer text-sm font-normal leading-snug">
+                      {t("privacy_consent_label")} *
+                    </Label>
+                  </div>
+                  {errors.privacyConsent && (
+                    <p className="text-xs text-red-600">{errors.privacyConsent.message}</p>
+                  )}
                 </div>
 
                 <Button type="submit" className="w-full" size="lg" disabled={mutation.isPending}>

@@ -57,7 +57,7 @@ export function Toaster() {
               toasts = toasts.filter((x) => x.id !== t.id);
               listeners.forEach((l) => l([...toasts]));
             }}
-            className="text-stone-400 hover:text-stone-700"
+            className="text-stone-500 hover:text-stone-700"
           >
             <X className="h-4 w-4" />
           </button>

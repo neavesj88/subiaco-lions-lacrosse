@@ -161,6 +161,21 @@ export const CLUB_DEFAULTS: Record<string, string> = {
   // ── Shop wording ──────────────────────────────────────────────────────────
   // Every word a customer sees while buying. All editable so a club can talk
   // about "merch", "kit" or "uniform" in their own voice.
+  // ── Privacy wording ───────────────────────────────────────────────────────
+  // Shown on the sign-up form, which collects children's names, dates of birth
+  // and their parents' contact details. Australian privacy expectations (and
+  // most clubs' own child-safe policies) require telling people what you
+  // collect and why BEFORE they hand it over. Edit the wording to match your
+  // club's policy; do not delete it.
+  privacy_signup_notice:
+    "We collect these details only to contact you about joining {club} and to register players with our league. " +
+    "For junior players we ask for a parent or guardian's details so we always have a responsible adult to contact. " +
+    "We do not sell or share your details with anyone else, and you can ask us to delete them at any time by emailing {email}.",
+  privacy_consent_label:
+    "I understand how {club} will use these details, and if this is for a child under 18 I am their parent or guardian.",
+  privacy_contact_notice:
+    "We use your details only to reply to this message.",
+
   store_add_to_cart: "Add to cart",
   store_sold_out: "Sold out",
   store_out_of_stock_size: "Out of stock",

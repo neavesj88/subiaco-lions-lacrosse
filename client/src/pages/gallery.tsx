@@ -45,13 +45,13 @@ export default function Gallery() {
       <section className="py-12 px-4">
         <div className="max-w-7xl mx-auto">
           {isLoading && (
-            <div className="text-center py-20 text-stone-400">Loading photos...</div>
+            <div className="text-center py-20 text-stone-500">Loading photos...</div>
           )}
 
           {!isLoading && photos.length === 0 && (
             <div className="text-center py-20">
               <ImageIcon className="h-16 w-16 text-stone-200 mx-auto mb-4" />
-              <p className="text-stone-400 text-lg">No photos yet — check back soon!</p>
+              <p className="text-stone-500 text-lg">No photos yet — check back soon!</p>
             </div>
           )}
 

@@ -91,7 +91,7 @@ export default function AdminCommittee() {
         <div className="text-center py-12 border-2 border-dashed rounded-xl">
           <Users className="h-10 w-10 text-stone-300 mx-auto mb-3" />
           <p className="text-stone-500 font-medium">No committee members added yet</p>
-          <p className="text-stone-400 text-sm mt-1">Add your President first, then the rest of the board.</p>
+          <p className="text-stone-500 text-sm mt-1">Add your President first, then the rest of the board.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -162,7 +162,7 @@ export default function AdminCommittee() {
                 <datalist id="committee-groups">
                   {GROUPS.map((g) => <option key={g} value={g} />)}
                 </datalist>
-                <p className="text-xs text-stone-400">Groups people under a heading. Pick a suggestion or type your own.</p>
+                <p className="text-xs text-stone-500">Groups people under a heading. Pick a suggestion or type your own.</p>
               </div>
 
               <div className="space-y-1.5">
@@ -177,7 +177,7 @@ export default function AdminCommittee() {
                 <Input type="email" value={editing.email ?? ""}
                   placeholder="president@club.com.au"
                   onChange={(e) => setEditing((p) => ({ ...p!, email: e.target.value }))} />
-                <p className="text-xs text-stone-400">Only add this if they're happy for it to be public.</p>
+                <p className="text-xs text-stone-500">Only add this if they're happy for it to be public.</p>
               </div>
 
               <ImagePicker

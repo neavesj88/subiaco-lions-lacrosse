@@ -121,7 +121,7 @@ export default function Store() {
             <h2 className="section-title">{t("store_apparel_title")}</h2>
             <div className="gold-bar" />
 
-            {isLoading && <p className="text-center text-stone-400 py-12">Loading…</p>}
+            {isLoading && <p className="text-center text-stone-500 py-12">Loading…</p>}
 
             {!isLoading && products.length === 0 && (
               <p className="text-center text-stone-500 py-12">
@@ -145,7 +145,7 @@ export default function Store() {
             </div>
 
             {config?.taxNote && (
-              <p className="text-center text-xs text-stone-400 mt-8">{config.taxNote}</p>
+              <p className="text-center text-xs text-stone-500 mt-8">{config.taxNote}</p>
             )}
           </div>
         </section>
@@ -199,7 +199,7 @@ export default function Store() {
                         aria-label="Increase quantity">
                         <Plus className="h-3 w-3" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-stone-400"
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-stone-500"
                         onClick={() => cart.remove(line.variantId)} aria-label="Remove">
                         <X className="h-3.5 w-3.5" />
                       </Button>

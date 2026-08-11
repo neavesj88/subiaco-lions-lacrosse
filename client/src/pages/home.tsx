@@ -20,7 +20,7 @@ import type { Announcement, Event, Sponsor, MatchResult } from "@shared/schema";
 
 // Result colour coding — green=win, red=loss, grey=draw
 function ResultBadge({ our, their }: { our?: number | null; their?: number | null }) {
-  if (our == null || their == null) return <span className="text-xs text-stone-400">TBD</span>;
+  if (our == null || their == null) return <span className="text-xs text-stone-500">TBD</span>;
   const isWin = our > their;
   const isDraw = our === their;
   return (
@@ -163,7 +163,7 @@ export default function Home() {
                   <CardHeader className={a.featuredImageUrl ? "pt-4" : undefined}>
                     {a.isPinned && <span className="text-xs font-semibold text-gold-600 flex items-center gap-1 mb-1">📌 Pinned</span>}
                     <CardTitle className="text-base">{a.title}</CardTitle>
-                    <p className="text-xs text-stone-400">{formatDate(a.createdAt)}</p>
+                    <p className="text-xs text-stone-500">{formatDate(a.createdAt)}</p>
                   </CardHeader>
                   <CardContent>
                     <RichTextDisplay html={a.content} className="text-sm text-stone-600 line-clamp-4 [&_*]:text-sm" />
@@ -198,7 +198,7 @@ export default function Home() {
                       <div className="flex-1 min-w-0">
                         <Badge variant={e.eventType as any} className="mb-1.5 text-xs capitalize">{e.eventType}</Badge>
                         <h3 className="font-semibold text-stone-900 text-sm leading-snug">{e.title}</h3>
-                        {e.location && <p className="text-xs text-stone-400 mt-1 flex items-center gap-1"><MapPin className="h-3 w-3" /> {e.location}</p>}
+                        {e.location && <p className="text-xs text-stone-500 mt-1 flex items-center gap-1"><MapPin className="h-3 w-3" /> {e.location}</p>}
                       </div>
                     </div>
                   </CardContent>
@@ -243,12 +243,12 @@ export default function Home() {
                         <p className="font-semibold text-sm text-stone-900 truncate">
                           {r.isHome ? "vs" : "@"} {r.opposition}
                         </p>
-                        <p className="text-xs text-stone-400">{formatDateShort(r.matchDate)}</p>
-                        {r.division && <p className="text-xs text-stone-400">{r.division}</p>}
+                        <p className="text-xs text-stone-500">{formatDateShort(r.matchDate)}</p>
+                        {r.division && <p className="text-xs text-stone-500">{r.division}</p>}
                       </div>
                       <ResultBadge our={r.ourScore} their={r.theirScore} />
                     </div>
-                    {r.notes && <p className="text-xs text-stone-400 mt-2 italic">{r.notes}</p>}
+                    {r.notes && <p className="text-xs text-stone-500 mt-2 italic">{r.notes}</p>}
                   </CardContent>
                 </Card>
               ))}
@@ -270,7 +270,7 @@ export default function Home() {
       {pageEnabled("sponsors") && sponsorList.length > 0 && (
         <section className="py-12 px-4 bg-white border-t">
           <div className="max-w-7xl mx-auto">
-            <p className="text-center text-xs font-semibold uppercase tracking-widest text-stone-400 mb-8">Our Sponsors</p>
+            <p className="text-center text-xs font-semibold uppercase tracking-widest text-stone-500 mb-8">Our Sponsors</p>
             <div className="flex flex-wrap items-center justify-center gap-6">
               {sponsorList.map((s) => (
                 <a

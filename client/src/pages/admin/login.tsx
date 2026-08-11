@@ -96,7 +96,7 @@ export default function AdminLogin() {
                 </a>
                 <div className="relative flex items-center gap-3 py-1">
                   <div className="flex-1 h-px bg-stone-200" />
-                  <span className="text-xs text-stone-400 font-medium">or</span>
+                  <span className="text-xs text-stone-500 font-medium">or</span>
                   <div className="flex-1 h-px bg-stone-200" />
                 </div>
               </>
@@ -122,7 +122,7 @@ export default function AdminLogin() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-stone-400 mt-4">
+        <p className="text-center text-xs text-stone-500 mt-4">
           Restricted access — club administrators only.
         </p>
       </div>

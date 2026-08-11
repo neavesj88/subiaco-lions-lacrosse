@@ -177,7 +177,7 @@ export default function AdminStock() {
                         </span>
 
                         {untracked ? (
-                          <span className="text-xs text-stone-400 flex items-center gap-1 mr-1">
+                          <span className="text-xs text-stone-500 flex items-center gap-1 mr-1">
                             <InfinityIcon className="h-3.5 w-3.5" /> made to order
                           </span>
                         ) : (
@@ -215,7 +215,7 @@ export default function AdminStock() {
                         )}
 
                         <div className="flex items-center gap-1.5 pl-2 border-l ml-1">
-                          <span className="text-xs text-stone-400 hidden sm:inline">Sell it</span>
+                          <span className="text-xs text-stone-500 hidden sm:inline">Sell it</span>
                           <Switch
                             checked={v.isActive !== false}
                             onCheckedChange={(c) => saveVariant.mutate({ id: v.id, isActive: c })}
@@ -230,7 +230,7 @@ export default function AdminStock() {
             ))}
           </div>
 
-          <p className="text-xs text-stone-400 mt-4 leading-relaxed">
+          <p className="text-xs text-stone-500 mt-4 leading-relaxed">
             Leave a box empty for items you make or order in — those never sell
             out and are never chased above. Stock comes down automatically when
             an online order is paid for, so you only need to adjust it here for

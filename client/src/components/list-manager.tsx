@@ -104,7 +104,7 @@ export default function ListManager({ listType, title, description, fields }: Li
             </CardContent>
           </Card>
         ))}
-        {items.length === 0 && <p className="text-stone-400 text-center py-8 text-sm">No items yet — add one above.</p>}
+        {items.length === 0 && <p className="text-stone-500 text-center py-8 text-sm">No items yet — add one above.</p>}
       </div>
     </div>
   );

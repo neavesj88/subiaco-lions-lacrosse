@@ -4,7 +4,6 @@ import path from "path";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
-import { nanoid } from "nanoid";
 import { injectSeo, getOrigin } from "./seo-inject";
 import { injectRuntimeConfig } from "./runtime-config";
 import { getSettingsSync } from "./site-settings";
@@ -51,13 +50,16 @@ export async function setupVite(app: Express, server: Server) {
         "index.html"
       );
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      // Cache-buster so the browser always fetches the freshest source during
+      // development. A timestamp is enough here — this only ever runs in dev,
+      // and it saves carrying a whole dependency for one random string.
       template = template.replace(
         `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`
+        `src="/src/main.tsx?v=${Date.now()}"`,
       );
       // Inject per-route SEO tags so dev matches production behaviour
       template = injectSeo(template, url.split("?")[0], getOrigin(req), getSettingsSync());
-      template = injectRuntimeConfig(template);
+      template = injectRuntimeConfig(template, res.locals.cspNonce);
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -87,7 +89,7 @@ export function serveStatic(app: Express) {
   const baseHtml = fs.readFileSync(indexPath, "utf-8");
   app.use("*", (req, res) => {
     let html = injectSeo(baseHtml, req.originalUrl.split("?")[0], getOrigin(req), getSettingsSync());
-    html = injectRuntimeConfig(html);
+    html = injectRuntimeConfig(html, res.locals.cspNonce);
     res.status(200).set({ "Content-Type": "text/html" }).end(html);
   });
 }

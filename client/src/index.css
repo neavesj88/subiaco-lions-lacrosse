@@ -65,3 +65,21 @@
     background: var(--brand-accent);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   REDUCED MOTION
+   Some people set "reduce motion" in their phone or computer settings because
+   animation makes them feel unwell or makes text hard to follow. When they do,
+   turn transitions and animations off rather than merely shortening them.
+   Nothing on this site conveys meaning through movement, so nothing is lost.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -27,9 +27,14 @@ export function getAdminPath(): string {
 }
 
 // Injects the runtime config <script> into the HTML head.
-export function injectRuntimeConfig(html: string): string {
+export function injectRuntimeConfig(html: string, nonce?: string): string {
   const cfg = { adminPath: getAdminPath() };
-  const tag = `<script>window.__ADMIN_PATH__=${JSON.stringify(cfg.adminPath)};</script>`;
+  // The nonce marks this script as one WE wrote, so the Content Security
+  // Policy in server/index.ts allows it to run while still blocking any script
+  // an attacker manages to inject. Without it the admin address never reaches
+  // the browser and the admin panel cannot be opened.
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : "";
+  const tag = `<script${nonceAttr}>window.__ADMIN_PATH__=${JSON.stringify(cfg.adminPath)};</script>`;
   if (html.includes("<!--RUNTIME-CONFIG-->")) {
     return html.replace("<!--RUNTIME-CONFIG-->", tag);
   }

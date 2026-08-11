@@ -1,147 +1,267 @@
-# Subiaco Lions Lacrosse Club — Website
+# Club website
 
-The official website for the Subiaco Lions Lacrosse Club. A full content-managed
-club site: news, calendar, fixtures, photo gallery, juniors info, sign-ups,
-sponsors, newsletter and a complete admin panel — all editable without touching code.
+A complete website for a sports club: news, fixtures, a calendar, a juniors
+page, a photo gallery, a committee page, sign-up and contact forms, and an
+optional shop that can take card payments.
 
-Built with **React + Vite + Express + SQLite** (same stack family as neaves.au,
-but self-contained — no external database needed).
+Everything a visitor sees is edited from an admin panel in the browser. **You
+do not edit code to run this site.** The only file you ever open in a text
+editor is `.env`, once, during setup.
 
 ---
 
-## Quick Start (local development)
+## Is this guide for you?
+
+| You are | Read |
+|---|---|
+| A committee member who will **run** an already-installed site | [HANDOVER.md](HANDOVER.md) — how to edit pages, post news, manage admins |
+| Setting the site up on **a computer at the club** | This guide, then [CLUBHOUSE_SETUP.md](CLUBHOUSE_SETUP.md) |
+| Setting it up on **a rented server** | This guide, then [SETUP_HOSTING.md](SETUP_HOSTING.md) |
+| Turning on **email or Google sign-in** | [SETUP_INTEGRATIONS.md](SETUP_INTEGRATIONS.md) |
+| Turning on **the shop** | [SETUP_SHOP.md](SETUP_SHOP.md) |
+
+**Be honest with yourself about step 3 below.** Installing this needs about
+twenty minutes at a command line. If typing commands into a black window is not
+something you have done before, that part is worth borrowing someone technical
+for — an hour of their time, once. Everything after it is ordinary web forms.
+
+---
+
+## What you need before starting
+
+- **A computer to run it on**, left switched on. Any PC from the last ten years
+  running Ubuntu or Debian Linux is plenty. It can sit in the clubhouse.
+- **A domain name** — e.g. `yourclub.org.au`. Roughly $20 a year. You can try
+  everything out without one first.
+- **A free Cloudflare account** — this is how the site gets on the internet
+  safely without touching the club's router. Sign up at cloudflare.com.
+- **About an hour**, and someone technical on hand for step 3 if commands are
+  unfamiliar.
+
+You do **not** need a fixed IP address, port forwarding, or any router changes.
+
+---
+
+## Step 1 — Get the code
+
+On the computer that will run the site:
 
 ```bash
-git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git
-cd subiaco-lions-lacrosse
-npm install
-node scripts/migrate.mjs   # create the database tables
-npm run db:seed            # create the default admin + starter content
-npm run dev                # → http://localhost:5000
+sudo apt update && sudo apt install -y git
+git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git club-website
+cd club-website
 ```
 
-Then log in at **http://localhost:5000/admin/login**
-Default credentials: **`admin` / `changeme123!`** — change this immediately.
-(Set `SEED_ADMIN_PASSWORD` in `.env` before seeding to choose your own.)
+> The repository is named after the first club that used it. The site itself
+> contains no club's details — you fill those in yourself in step 5.
 
----
-
-## Hosting it for real
-
-**Running it on a PC in the clubhouse?** Read **[CLUBHOUSE_SETUP.md](CLUBHOUSE_SETUP.md)**.
-That covers the whole thing end to end, including how to put the site on the
-internet when the club's connection has no fixed IP address (which is the usual
-case) — no port forwarding and no router changes needed.
-
-The rest of this section is the alternative: hosting on a rented server.
-
-Runs the same way as neaves.au (PM2 + nginx + Cloudflare) and is designed to
-sit **alongside it on the same Ubuntu VM** — it uses port **5001** so it won't
-clash with neaves.au on 5000.
+## Step 2 — Install it
 
 ```bash
-git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git
-cd subiaco-lions-lacrosse
-cp .env.example .env        # set SESSION_SECRET, PORT=5001
-npm ci && npm run build
-node scripts/migrate.mjs && npm run db:seed
-pm2 start ecosystem.config.cjs --env production && pm2 save
-# then add an nginx server block → localhost:5001 and point Cloudflare DNS at the VM
+./scripts/install-clubhouse.sh
 ```
 
-**Full step-by-step (nginx block, Cloudflare DNS, backups, running both sites):
-[SETUP_HOSTING.md](./SETUP_HOSTING.md).**
-Integrations (email, Google login): [SETUP_INTEGRATIONS.md](./SETUP_INTEGRATIONS.md).
+This installs everything, builds the site, creates your first admin login, sets
+the site to start by itself whenever the computer is switched on, schedules a
+nightly backup, and turns on automatic security updates.
 
-### Updating after the first deploy
+**Write down the two things it prints at the end:**
+
+1. The **admin web address** — something like `/manage-a3f9c2`. It is
+   deliberately random so that password-guessing robots never find your login
+   page. Without it you cannot get in.
+2. The **starting password** for the `admin` account.
+
+Check it worked:
 
 ```bash
-./scripts/deploy.sh         # git pull → install → migrate → build → pm2 restart
+curl -I http://localhost:5000
 ```
 
-> Want zero-server hosting on a fresh machine instead? A Docker + Cloudflare
-> Tunnel setup is also bundled (`docker compose up -d --build`) — but on your
-> existing VM the steps above are simpler.
+`HTTP/1.1 200 OK` means it is running.
 
----
+## Step 3 — Put it on the internet
 
-## Scripts at a glance
+```bash
+./scripts/tunnel-quick.sh
+```
 
-| Script | What it does |
-|--------|--------------|
-| `scripts/setup.sh`   | One-time server setup (Node, PM2, build, seed, start) |
-| `scripts/deploy.sh`  | Pull latest code and redeploy |
-| `scripts/tunnel-quick.sh` | Free temporary public URL — no domain needed (testing/demos) |
-| `scripts/tunnel-setup.sh` | Permanent Cloudflare Tunnel on your own domain (no nginx/SSL/ports) |
-| `scripts/migrate.mjs`| Create/update database tables (safe to re-run) |
-| `scripts/backup.sh`  | Back up the database (add to cron for nightly backups) |
-| `scripts/restore.sh` | Restore the database from a backup |
-| `npm run dev`        | Local development server with hot reload |
-| `npm run build`      | Production build |
-| `npm run db:seed`    | Seed default admin + starter content |
+This prints a temporary web address you can open on your phone to prove the
+site is genuinely reachable. It disappears when you stop the script.
 
----
+When you have your domain name:
 
-## Selling things
+```bash
+./scripts/tunnel-setup.sh yourclub.org.au
+```
 
-The store page can run as a brochure, a link to an existing shop, or a full
-cart with card payments via Stripe — see **[SETUP_SHOP.md](SETUP_SHOP.md)**.
-Card details never touch this site; Stripe hosts the payment page.
+Why a "tunnel" rather than the usual approach: most club and home internet
+connections get a new address every so often, and many cannot accept incoming
+connections at all. A tunnel works the other way round — the club's computer
+dials out and holds the line open — so it keeps working through address changes
+and opens no ports on the club's network. [CLUBHOUSE_SETUP.md](CLUBHOUSE_SETUP.md)
+explains this properly.
 
-## What admins can manage (no code required)
+## Step 4 — Log in
 
-Log in at `/admin` to manage everything:
-
-- **News** — rich-text posts with images, pin/highlight, draft/publish
-- **Calendar** — club events (or embed a Google Calendar)
-- **Fixtures & Results** — match results with scores
-- **Photo Gallery** — drag-and-drop image library with captions
-- **Juniors** — fully editable program info
-- **Sign-ups** — view registrations, track status, auto-email confirmations
-- **Sponsors** — logos + tiers shown on the home page
-- **Newsletter** — collect subscribers, export to CSV
-- **Pages** — edit page text inline (hover any text while logged in → pencil)
-- **Media** — upload once, pick anywhere (logo, hero, sponsors, posts)
-- **Settings** — logo, hero image, Instagram feed, social links
-- **Page visibility** — toggle any page on/off instantly
-- **Users** — multiple admins with role-based permissions
-
-### Admin roles
-
-| Role | Can manage |
-|------|-----------|
-| `super_admin` | Everything, including users & settings |
-| `club_admin` | Events, fixtures, sign-ups, sponsors, newsletter, messages |
-| `juniors_coordinator` | Juniors page content |
-| `content_manager` | News posts & media |
-
-Admins can sign in with username/password **or Google** (once configured).
-
----
-
-## Tech stack
-
-- **Frontend:** React 18, Vite, Wouter (routing), TanStack Query, Tailwind CSS, Radix UI
-- **Editor:** TipTap (rich text with image upload)
-- **Backend:** Express, Passport (Google OAuth), Multer (uploads), Nodemailer (email)
-- **Database:** SQLite via Drizzle ORM — a single `data/club.db` file
-- **Process manager:** PM2
-- **Hosting:** nginx + Cloudflare (see DEPLOYMENT.md)
-
----
-
-## Project structure
+Go to your site's address, then the admin address from step 2, then `/login`:
 
 ```
-client/          React frontend
-  src/pages/     One file per page (home, about, calendar, etc.)
-  src/components/Reusable UI + CMS components (EditableSection, ImagePicker…)
-server/          Express backend
-  routes.ts      All API endpoints
-  db.ts          Database connection
-  email.ts       Email notifications
-shared/
-  schema.ts      Database schema (single source of truth)
-scripts/         Setup, deploy, migrate, backup
-data/            SQLite database + uploads (created at runtime, not committed)
+https://yourclub.org.au/manage-a3f9c2/login
 ```
+
+Sign in as `admin` with the password from step 2, then **change that password
+immediately** — Admin → Password. A red warning sits across the panel until you
+do.
+
+## Step 5 — Make it your club's
+
+A setup wizard opens by itself the first time. It asks for:
+
+- **Club name** — e.g. `Riverside Rovers`, and a second line like `Netball Club`
+- **Your sport** — the word is used throughout the site, so "netball" makes
+  pages read "junior netball programs" and so on
+- **Where you play** — ground name and address, used on the contact map
+- **Contact email** — where enquiries go
+- **Your colours** — pick them and the whole site restyles instantly
+
+> **On colours:** the site warns you if white text would be unreadable on the
+> colour you picked. If you see that warning, choose a darker shade. Ignoring
+> it makes your site hard to read in sunlight at a ground, which is exactly
+> where people will be using it.
+
+You can change all of it later under **Admin → Settings**. Nothing is set in
+stone and nothing needs a developer.
+
+## Step 6 — Fill in your content
+
+Work through the admin panel left to right. Nothing is compulsory — a page you
+leave empty shows a tidy "nothing here yet" message rather than breaking.
+
+| Tab | What goes there |
+|---|---|
+| **News** | Announcements, shown on the home page |
+| **Photos** | Your photo library, also the public gallery |
+| **Events** | Training times, games, social events |
+| **Committee** | President and board, for the public committee page |
+| **Page Lists** | Team divisions, juniors FAQ |
+| **Settings** | Club details, colours, which pages appear in the menu |
+| **Admins** | Who else can log in, and how much they can do |
+
+Turn off any page you do not want under **Settings → Page Visibility**. It
+disappears from the menu and from Google.
+
+---
+
+## Giving other people access
+
+**Admin → Admin Users.** Give each person the least access they need:
+
+| Role | Can do |
+|---|---|
+| Super Admin | Everything, including adding admins and security |
+| Club Admin | All content, settings and the shop — not admins or security |
+| Juniors Coordinator | News, photos, juniors page |
+| Content Manager | News and photos |
+| Social Media Manager | News and photos only — sees nothing else at all |
+
+Give volunteers the Social Media Manager role. It is the most limited one, so
+it is the safest to hand out.
+
+---
+
+## Looking after it
+
+| Task | How |
+|---|---|
+| Is it running? | `sudo systemctl status club-website` |
+| Restart it | `sudo systemctl restart club-website` |
+| Back up now | `./scripts/backup.sh` |
+| Restore a backup | `./scripts/restore.sh` |
+| Nobody can log in | `node scripts/reset-admin.mjs` on the club computer |
+
+Backups run nightly by themselves and cover both the database and your photos.
+**Copy them off the machine as well** — a backup on the same computer does not
+help you when that computer's hard drive fails. See "Backups" in
+[CLUBHOUSE_SETUP.md](CLUBHOUSE_SETUP.md).
+
+---
+
+## When something looks wrong
+
+**The site will not load at all**
+
+```bash
+sudo systemctl status club-website
+sudo journalctl -u club-website -n 50
+sudo systemctl restart club-website
+```
+
+**It works at the clubhouse but not from outside** — that is the tunnel, not
+the website:
+
+```bash
+systemctl restart cloudflared
+```
+
+**Logging in does nothing and returns to the login page** — the `SESSION_SECRET`
+line in `.env` is probably empty:
+
+```bash
+echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env
+sudo systemctl restart club-website
+```
+
+**Something is going wrong right now and you want it stopped** — Admin →
+Security → Emergency stops. Two switches: outgoing email, and card payments.
+Both take effect immediately and lose nothing.
+
+---
+
+## Updating the site later
+
+```bash
+cd ~/club-website
+./scripts/backup.sh
+git pull
+npm ci --omit=optional
+node scripts/migrate.mjs
+npm run build
+sudo systemctl restart club-website
+```
+
+Always back up first. If an update goes wrong, `./scripts/restore.sh` puts you
+back.
+
+---
+
+## Privacy, because clubs handle children's details
+
+The sign-up form collects children's names, dates of birth, and their parents'
+contact details. That carries real obligations:
+
+- The form shows people what you collect and why, and will not submit until
+  they tick to confirm they have read it. **Edit that wording to match your own
+  club policy** — Admin → Settings, "privacy" fields.
+- Sign-up details are only ever visible to logged-in admins with the Sign-Ups
+  permission. They never appear on a public page, in the sitemap, or in Google.
+- The committee page **is public** — names, photos, roles and any email you
+  enter there are visible to anyone. Only put an adult committee member's
+  details there, and use a club role address rather than a personal one where
+  you can.
+- Never put a child's full name and photo together in the public gallery
+  without their parent's permission.
+
+This site includes no analytics and no tracking of any kind.
+
+---
+
+## For developers
+
+- Stack: React + Vite, Express, SQLite via Drizzle, Tailwind. No external
+  database or paid service is required.
+- `npm run dev` — development server on port 5000
+- `npm run build` — production build
+- `npm run check` — TypeScript check. There is no test suite.
+- `node scripts/migrate.mjs` — create or update database tables
+- Architecture notes and the rules that matter are in [CLAUDE.md](CLAUDE.md).

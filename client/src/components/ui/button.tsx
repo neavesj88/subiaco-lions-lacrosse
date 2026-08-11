@@ -4,12 +4,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-500 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default: "bg-maroon-700 text-white hover:bg-maroon-800",
-        gold: "bg-gold-500 text-white hover:bg-gold-600",
+        // Dark text, not white: white on this gold measures 2.75:1, below the
+        // 4.5:1 minimum for readable text. Near-black on the same gold is 6.37:1,
+        // so the club's gold is preserved exactly and only the text changes.
+        gold: "bg-gold-500 text-stone-900 hover:bg-gold-400",
         outline: "border border-maroon-700 text-maroon-700 bg-transparent hover:bg-maroon-50",
         ghost: "hover:bg-stone-100 text-stone-700",
         destructive: "bg-red-600 text-white hover:bg-red-700",

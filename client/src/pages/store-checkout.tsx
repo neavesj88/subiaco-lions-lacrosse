@@ -211,7 +211,7 @@ export default function StoreCheckout() {
                     <span className="text-stone-600">
                       {l.quantity} × {l.productName}
                       {l.variantLabel && l.variantLabel !== "One size" && (
-                        <span className="text-stone-400"> ({l.variantLabel})</span>
+                        <span className="text-stone-500"> ({l.variantLabel})</span>
                       )}
                     </span>
                     <span className="shrink-0">{formatMoney(l.unitPriceCents * l.quantity, symbol)}</span>
@@ -241,9 +241,9 @@ export default function StoreCheckout() {
                   {busy ? "Taking you to payment…" : `${t("store_pay_button")} · ${formatMoney(totalCents, symbol)}`}
                 </Button>
 
-                <p className="text-xs text-stone-400 text-center leading-relaxed">{t("store_secure_note")}</p>
-                {config?.taxNote && <p className="text-xs text-stone-400 text-center">{config.taxNote}</p>}
-                {config?.terms && <p className="text-xs text-stone-400 text-center">{config.terms}</p>}
+                <p className="text-xs text-stone-500 text-center leading-relaxed">{t("store_secure_note")}</p>
+                {config?.taxNote && <p className="text-xs text-stone-500 text-center">{config.taxNote}</p>}
+                {config?.terms && <p className="text-xs text-stone-500 text-center">{config.terms}</p>}
               </CardContent>
             </Card>
           </div>

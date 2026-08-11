@@ -35,7 +35,7 @@ function GoogleCalendarEmbed({ embedUrl }: { embedUrl: string }) {
         className="w-full"
       />
       <div className="px-4 py-3 bg-stone-50 border-t flex items-center justify-between">
-        <p className="text-xs text-stone-400">Powered by Google Calendar</p>
+        <p className="text-xs text-stone-500">Powered by Google Calendar</p>
         <a
           href={embedUrl.replace("/embed?", "/r/week?")}
           target="_blank"
@@ -154,14 +154,14 @@ export default function Calendar() {
                 </div>
               </div>
 
-              {isLoading && <div className="text-center py-16 text-stone-400">Loading events...</div>}
+              {isLoading && <div className="text-center py-16 text-stone-500">Loading events...</div>}
 
               {!isLoading && filtered.length === 0 && (
                 <div className="text-center py-16">
                   <CalendarDays className="h-12 w-12 text-stone-200 mx-auto mb-3" />
-                  <p className="text-stone-400">No upcoming events found.</p>
+                  <p className="text-stone-500">No upcoming events found.</p>
                   {googleCalendarUrl && (
-                    <p className="text-stone-400 text-sm mt-2">
+                    <p className="text-stone-500 text-sm mt-2">
                       Try{" "}
                       <button onClick={() => setView("google")} className="text-maroon-600 hover:underline">
                         Google Calendar view
@@ -207,7 +207,7 @@ export default function Calendar() {
                               {e.description && (
                                 <p className="text-sm text-stone-500 mt-0.5">{e.description}</p>
                               )}
-                              <div className="flex flex-wrap gap-3 mt-2 text-xs text-stone-400">
+                              <div className="flex flex-wrap gap-3 mt-2 text-xs text-stone-500">
                                 {e.location && (
                                   <span className="flex items-center gap-1">
                                     <MapPin className="h-3 w-3" /> {e.location}

@@ -55,12 +55,12 @@ export default function Committee() {
 
       <section className="py-16 px-4">
         <div className="max-w-5xl mx-auto">
-          {isLoading && <p className="text-center text-stone-400 py-12">Loading…</p>}
+          {isLoading && <p className="text-center text-stone-500 py-12">Loading…</p>}
 
           {!isLoading && members.length === 0 && (
             <div className="text-center py-12">
               <Users className="h-12 w-12 text-stone-200 mx-auto mb-3" />
-              <p className="text-stone-400">Committee details are being updated — check back soon.</p>
+              <p className="text-stone-500">Committee details are being updated — check back soon.</p>
             </div>
           )}
 

@@ -367,7 +367,7 @@ export default function AdminHelp() {
             <summary className="cursor-pointer px-5 py-4 font-medium text-stone-900 flex items-center gap-3 hover:bg-stone-50">
               <s.icon className="h-5 w-5 text-maroon-700 shrink-0" />
               <span className="flex-1">{s.title}</span>
-              <span className="text-stone-400 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+              <span className="text-stone-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
             </summary>
             <div className="px-5 pb-5 pt-1 border-t bg-stone-50 space-y-3">
               {s.intro && <p className="text-sm text-stone-600 leading-relaxed">{s.intro}</p>}
@@ -391,7 +391,7 @@ export default function AdminHelp() {
         ))}
       </div>
 
-      <p className="text-xs text-stone-400 mt-6 text-center">
+      <p className="text-xs text-stone-500 mt-6 text-center">
         A printable version of this guide lives in the project as <code>HANDOVER.md</code>.
         For server / hosting matters, contact your technical administrator.
       </p>

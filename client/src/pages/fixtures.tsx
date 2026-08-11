@@ -126,7 +126,7 @@ export default function Fixtures() {
                       className="flex items-center justify-between px-3 py-2 rounded-lg bg-stone-50 hover:bg-maroon-50 hover:text-maroon-700 transition-colors group"
                     >
                       <span className="text-sm font-medium">{div.name}</span>
-                      <ExternalLink className="h-3.5 w-3.5 text-stone-400 group-hover:text-maroon-500" />
+                      <ExternalLink className="h-3.5 w-3.5 text-stone-500 group-hover:text-maroon-500" />
                     </a>
                   ))}
                 </CardContent>

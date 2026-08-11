@@ -91,7 +91,17 @@ function Router() {
     <div className="min-h-screen flex flex-col">
       {!isAdmin && <SEO path={location} />}
       <Navigation />
-      <main className="flex-1">
+      {/* Keyboard-only visitors land on this first. It stays invisible until
+          focused, then lets them jump past the navigation straight to the page
+          content instead of tabbing through every menu item on every page. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-stone-900 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]"
+      >
+        Skip to main content
+      </a>
+
+      <main id="main-content" className="flex-1">
         <Suspense fallback={<PageLoading />}>
           <Switch>
             <Route path="/" component={Home} />

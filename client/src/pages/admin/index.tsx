@@ -15,6 +15,7 @@ import ChangePasswordDialog from "@/components/change-password-dialog";
 import { ADMIN_LOGIN_PATH } from "@/lib/admin-path";
 import { useSessionKeepalive } from "@/hooks/use-session-keepalive";
 import { useSiteText } from "@/hooks/use-site-text";
+import { checkTextOnColour } from "@shared/contrast";
 import AdminHelp from "@/pages/admin/help";
 import AdminSecurity from "@/pages/admin/security";
 import MediaLibrary from "@/pages/admin/media-library";
@@ -307,7 +308,7 @@ function AnnouncementForm({ ann, onDone }: { ann?: Announcement; onDone: () => v
       </div>
       <div className="space-y-1.5">
         <Label>Content *</Label>
-        <p className="text-xs text-stone-400 -mt-1">Use the toolbar to add formatting — bold, bullet points, links etc.</p>
+        <p className="text-xs text-stone-500 -mt-1">Use the toolbar to add formatting — bold, bullet points, links etc.</p>
         <RichTextEditor
           value={content}
           onChange={setContent}
@@ -613,7 +614,7 @@ export default function AdminDashboard() {
   const showWizard =
     !wizardDone && can("settings") && settings?.setup_completed === "false";
 
-  if (isLoading) return <div className="min-h-[60vh] flex items-center justify-center text-stone-400">Loading...</div>;
+  if (isLoading) return <div className="min-h-[60vh] flex items-center justify-center text-stone-500">Loading...</div>;
   if (!user) return null;
 
   // FIRST RUN: a brand-new install shows the setup wizard instead of the panel.
@@ -706,7 +707,7 @@ export default function AdminDashboard() {
           <TabsList className="w-full md:w-56 shrink-0 flex-col h-auto bg-transparent p-0 gap-4 items-stretch">
             {visibleGroups.map((group) => (
               <div key={group.name}>
-                <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-500">
                   {group.name}
                 </p>
                 <div className="flex flex-col gap-0.5">
@@ -778,7 +779,7 @@ export default function AdminDashboard() {
                           {!e.isPublished && <Badge variant="secondary" className="text-xs">Draft</Badge>}
                         </div>
                         <p className="font-medium text-stone-900">{e.title}</p>
-                        <p className="text-xs text-stone-400 mt-0.5">{formatDate(e.startDate)} {e.location && `· ${e.location}`}</p>
+                        <p className="text-xs text-stone-500 mt-0.5">{formatDate(e.startDate)} {e.location && `· ${e.location}`}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <Dialog>
@@ -801,7 +802,7 @@ export default function AdminDashboard() {
                     </CardContent>
                   </Card>
                 ))}
-                {events.length === 0 && <p className="text-stone-400 text-center py-8">No events yet. Add one above.</p>}
+                {events.length === 0 && <p className="text-stone-500 text-center py-8">No events yet. Add one above.</p>}
               </div>
             </TabsContent>
           )}
@@ -831,7 +832,7 @@ export default function AdminDashboard() {
                           {a.isPublished
                             ? <Badge variant="default" className="text-xs">Published</Badge>
                             : <Badge variant="secondary" className="text-xs">Draft</Badge>}
-                          <span className="text-xs text-stone-400">{formatDate(a.createdAt)}</span>
+                          <span className="text-xs text-stone-500">{formatDate(a.createdAt)}</span>
                         </div>
                         {a.featuredImageUrl && (
                           <img src={a.featuredImageUrl} alt="" className="w-16 h-10 object-cover rounded mb-1" />
@@ -860,7 +861,7 @@ export default function AdminDashboard() {
                     </CardContent>
                   </Card>
                 ))}
-                {announcements.length === 0 && <p className="text-stone-400 text-center py-8">No announcements yet.</p>}
+                {announcements.length === 0 && <p className="text-stone-500 text-center py-8">No announcements yet.</p>}
               </div>
             </TabsContent>
           )}
@@ -884,14 +885,14 @@ export default function AdminDashboard() {
                             {r.isJunior && <Badge variant="secondary" className="text-xs">Junior</Badge>}
                             {r.kidsportEligible && <Badge variant="gold" className="text-xs">KidSport</Badge>}
                           </div>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-400">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
                             <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{r.email}</span>
                             {r.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{r.phone}</span>}
                             <span className="capitalize">{r.teamPreference} · {r.experienceLevel}</span>
                             <span>{formatDate(r.createdAt)}</span>
                           </div>
                           {r.isJunior && r.parentName && (
-                            <p className="text-xs text-stone-400 mt-1 flex items-center gap-1">
+                            <p className="text-xs text-stone-500 mt-1 flex items-center gap-1">
                               <User className="h-3 w-3" />Parent: {r.parentName} {r.parentEmail && `· ${r.parentEmail}`}
                             </p>
                           )}
@@ -915,7 +916,7 @@ export default function AdminDashboard() {
                     </CardContent>
                   </Card>
                 ))}
-                {registrations.length === 0 && <p className="text-stone-400 text-center py-8">No sign-up enquiries yet.</p>}
+                {registrations.length === 0 && <p className="text-stone-500 text-center py-8">No sign-up enquiries yet.</p>}
               </div>
             </TabsContent>
           )}
@@ -984,7 +985,7 @@ export default function AdminDashboard() {
                             <Badge variant="secondary" className="text-xs capitalize">{r.teamCategory}</Badge>
                             {r.division && <Badge variant="secondary" className="text-xs">{r.division}</Badge>}
                             {!r.isPublished && <Badge variant="outline" className="text-xs">Draft</Badge>}
-                            <span className="text-xs text-stone-400">{r.matchDate}</span>
+                            <span className="text-xs text-stone-500">{r.matchDate}</span>
                           </div>
                           <p className="font-semibold text-stone-900">{r.isHome ? "vs" : "@"} {r.opposition}</p>
                           {r.ourScore != null && r.theirScore != null && (
@@ -992,7 +993,7 @@ export default function AdminDashboard() {
                               {r.ourScore} – {r.theirScore} {win ? "Win" : loss ? "Loss" : "Draw"}
                             </p>
                           )}
-                          {r.notes && <p className="text-xs text-stone-400 italic mt-0.5">{r.notes}</p>}
+                          {r.notes && <p className="text-xs text-stone-500 italic mt-0.5">{r.notes}</p>}
                         </div>
                         <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) deleteResult.mutate(r.id); }}>
                           <Trash2 className="h-4 w-4 text-red-500" />
@@ -1001,7 +1002,7 @@ export default function AdminDashboard() {
                     </Card>
                   );
                 })}
-                {resultList.length === 0 && <p className="text-stone-400 text-center py-8">No results yet. Add one above.</p>}
+                {resultList.length === 0 && <p className="text-stone-500 text-center py-8">No results yet. Add one above.</p>}
               </div>
             </TabsContent>
           )}
@@ -1027,7 +1028,7 @@ export default function AdminDashboard() {
                     <CardContent className="pt-4 pb-4 flex items-center gap-4">
                       {s.logoUrl
                         ? <img src={s.logoUrl} alt={s.name} className="h-10 w-20 object-contain rounded" />
-                        : <div className="h-10 w-20 bg-stone-100 rounded flex items-center justify-center text-xs text-stone-400">No logo</div>
+                        : <div className="h-10 w-20 bg-stone-100 rounded flex items-center justify-center text-xs text-stone-500">No logo</div>
                       }
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-0.5">
@@ -1042,7 +1043,7 @@ export default function AdminDashboard() {
                           apiRequest("PUT", `/api/sponsors/${s.id}`, { isActive: !s.isActive })
                             .then(() => qc.invalidateQueries({ queryKey: ["/api/sponsors/all"] }));
                         }}>
-                          <Eye className="h-4 w-4 text-stone-400" />
+                          <Eye className="h-4 w-4 text-stone-500" />
                         </Button>
                         <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Remove ${s.name}?`)) deleteSponsor.mutate(s.id); }}>
                           <Trash2 className="h-4 w-4 text-red-500" />
@@ -1052,7 +1053,7 @@ export default function AdminDashboard() {
                   </Card>
                 ))}
                 {sponsorList.length === 0 && (
-                  <div className="text-center py-8 text-stone-400">
+                  <div className="text-center py-8 text-stone-500">
                     <p>No sponsors yet.</p>
                     <p className="text-xs mt-1">Upload logos via the Media tab, copy the URL, then add sponsors here.</p>
                   </div>
@@ -1085,15 +1086,15 @@ export default function AdminDashboard() {
                   <div key={s.id} className="flex items-center justify-between px-4 py-2.5 rounded-lg border bg-white">
                     <div>
                       <span className="font-medium text-stone-900 text-sm">{s.name || s.email}</span>
-                      {s.name && <span className="text-xs text-stone-400 ml-2">{s.email}</span>}
+                      {s.name && <span className="text-xs text-stone-500 ml-2">{s.email}</span>}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-stone-400">{s.subscribedAt?.split("T")[0]}</span>
+                      <span className="text-xs text-stone-500">{s.subscribedAt?.split("T")[0]}</span>
                       <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" onClick={() => unsubscribe.mutate(s.id)}>Remove</Button>
                     </div>
                   </div>
                 ))}
-                {subscribers.length === 0 && <p className="text-stone-400 text-center py-8">No subscribers yet.</p>}
+                {subscribers.length === 0 && <p className="text-stone-500 text-center py-8">No subscribers yet.</p>}
               </div>
             </TabsContent>
           )}
@@ -1165,9 +1166,9 @@ export default function AdminDashboard() {
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="font-semibold text-stone-900">{m.name}</span>
                             {!m.isRead && <Badge variant="default" className="text-xs">New</Badge>}
-                            <span className="text-xs text-stone-400">{formatDate(m.createdAt)}</span>
+                            <span className="text-xs text-stone-500">{formatDate(m.createdAt)}</span>
                           </div>
-                          <p className="text-xs text-stone-400 flex items-center gap-1 mb-1">
+                          <p className="text-xs text-stone-500 flex items-center gap-1 mb-1">
                             <Mail className="h-3 w-3" />{m.email}
                           </p>
                           <p className="text-sm font-medium text-stone-700 mb-1">{m.subject}</p>
@@ -1177,7 +1178,7 @@ export default function AdminDashboard() {
                           {!m.isRead && (
                             <Button size="icon" variant="ghost" title="Mark as read"
                               onClick={() => markContactRead.mutate(m.id)}>
-                              <Eye className="h-4 w-4 text-stone-400" />
+                              <Eye className="h-4 w-4 text-stone-500" />
                             </Button>
                           )}
                           <a href={`mailto:${m.email}?subject=Re: ${m.subject}`}>
@@ -1190,7 +1191,7 @@ export default function AdminDashboard() {
                     </CardContent>
                   </Card>
                 ))}
-                {contactMsgs.length === 0 && <p className="text-stone-400 text-center py-8">No contact messages yet.</p>}
+                {contactMsgs.length === 0 && <p className="text-stone-500 text-center py-8">No contact messages yet.</p>}
               </div>
             </TabsContent>
           )}
@@ -1220,7 +1221,7 @@ export default function AdminDashboard() {
                           <RoleBadge role={u.role} />
                           {!u.isActive && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
                         </div>
-                        <p className="text-xs text-stone-400">@{u.username} · {u.email}</p>
+                        <p className="text-xs text-stone-500">@{u.username} · {u.email}</p>
                       </div>
                       {u.id !== (user as any)?.id && (
                         <Button
@@ -1256,7 +1257,7 @@ export default function AdminDashboard() {
                         value={settingsForm[key] ?? ""}
                         onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
                       />
-                      <p className="text-xs text-stone-400">{help}</p>
+                      <p className="text-xs text-stone-500">{help}</p>
                     </div>
                   ))}
 
@@ -1295,7 +1296,7 @@ export default function AdminDashboard() {
                         value={settingsForm[key] ?? ""}
                         onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
                       />
-                      {help && <p className="text-xs text-stone-400">{help}</p>}
+                      {help && <p className="text-xs text-stone-500">{help}</p>}
                     </div>
                   ))}
                   <Button onClick={() => saveSettings.mutate(settingsForm)} disabled={saveSettings.isPending}>
@@ -1331,7 +1332,7 @@ export default function AdminDashboard() {
                     <div key={key} className="flex items-start justify-between gap-4 py-2 border-b last:border-0">
                       <div>
                         <p className="font-medium text-stone-800 text-sm">{label}</p>
-                        <p className="text-xs text-stone-400">{desc}</p>
+                        <p className="text-xs text-stone-500">{desc}</p>
                       </div>
                       <Switch
                         checked={settingsForm[key] !== "false"}
@@ -1343,7 +1344,7 @@ export default function AdminDashboard() {
                       />
                     </div>
                   ))}
-                <div className="pt-2 text-xs text-stone-400">Tip: You can always re-enable a page here if you want to add it back later.</div>
+                <div className="pt-2 text-xs text-stone-500">Tip: You can always re-enable a page here if you want to add it back later.</div>
                 </CardContent>
               </Card>
 
@@ -1387,7 +1388,22 @@ export default function AdminDashboard() {
                           onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
                         />
                       </div>
-                      <p className="text-xs text-stone-400">{help}</p>
+                      <p className="text-xs text-stone-500">{help}</p>
+                      {/* Banners and buttons put WHITE text on the primary and
+                          accent colours, so an unreadable choice has to be
+                          caught here rather than by a member who can't read the
+                          site. The dark shade is only ever a gradient end, so
+                          it isn't checked. */}
+                      {key !== "theme_primary_dark" && (() => {
+                        const check = checkTextOnColour(settingsForm[key] || fallback);
+                        if (check.ok) return null;
+                        return (
+                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+                            {check.message}
+                            {check.ratio !== null && ` (currently ${check.ratio.toFixed(1)}:1, needs 4.5:1)`}
+                          </p>
+                        );
+                      })()}
                     </div>
                   ))}
 
@@ -1478,7 +1494,7 @@ export default function AdminDashboard() {
                         value={settingsForm[key] ?? ""}
                         onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
                       />
-                      <p className="text-xs text-stone-400">{help}</p>
+                      <p className="text-xs text-stone-500">{help}</p>
                     </div>
                   ))}
                   <Button onClick={() => saveSettings.mutate(settingsForm)} disabled={saveSettings.isPending}>

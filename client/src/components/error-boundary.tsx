@@ -52,7 +52,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               Reload Page
             </button>
             {/* Technical detail for whoever maintains the site — safe to screenshot */}
-            <p className="mt-6 text-xs text-stone-400 font-mono break-all">
+            <p className="mt-6 text-xs text-stone-500 font-mono break-all">
               {this.state.error.message}
             </p>
           </div>
