@@ -27,6 +27,11 @@ for — an hour of their time, once. Everything after it is ordinary web forms.
 
 ---
 
+> **Before you start:** work through
+> [templates/club-details-worksheet.md](templates/club-details-worksheet.md).
+> It lists every detail the site will ask you for, so you can gather them at a
+> committee meeting rather than hunting for them mid-setup.
+
 ## What you need before starting
 
 - **A computer to run it on**, left switched on. Any PC from the last ten years
@@ -251,6 +256,18 @@ contact details. That carries real obligations:
   you can.
 - Never put a child's full name and photo together in the public gallery
   without their parent's permission.
+
+**Blank forms to get you started** are in [templates/](templates/):
+
+- [privacy-policy.md](templates/privacy-policy.md) — adapt it, then publish it
+  under Admin → Pages and link it from your footer
+- [photo-consent-form.md](templates/photo-consent-form.md) — a parent's
+  permission to publish photos of their child
+- [committee-handover-checklist.md](templates/committee-handover-checklist.md) —
+  for passing website access on at each AGM
+
+They are plain-English starting points, not legal advice. Your sport's national
+body probably publishes versions that take precedence — use theirs if so.
 
 This site includes no analytics and no tracking of any kind.
 
