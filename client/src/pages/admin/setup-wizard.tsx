@@ -8,7 +8,7 @@
 // writes them straight to Settings. Everything it sets can be changed later in
 // Settings; the wizard just means nobody has to hunt for it on day one.
 //
-// IMPORTANT — the existing Subiaco site never sees this. The migration marks
+// IMPORTANT — a site that already has content never sees this. The migration marks
 // setup_completed = "true" for any database that already has content, so an
 // established club is never interrupted.
 //

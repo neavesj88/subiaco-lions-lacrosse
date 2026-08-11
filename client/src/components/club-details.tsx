@@ -22,7 +22,7 @@ export function useClubDetails() {
     address: resolveText(settings, "venue_address"),
     email: resolveText(settings, "contact_email"),
     mapQuery: resolveText(settings, "map_query"),
-    // "Rosalie Park, Shenton Park WA 6008" — for one-line displays
+    // e.g. "Kingsford Oval, Riverside NSW 2000" — for one-line displays
     fullAddress: [
       resolveText(settings, "venue_name"),
       resolveText(settings, "venue_address"),
@@ -33,7 +33,7 @@ export function useClubDetails() {
     clubName: resolveText(settings, "club_name"),
     clubNameSuffix: resolveText(settings, "club_name_suffix"),
     clubTagline: resolveText(settings, "club_tagline"),
-    // "Subiaco Lions Lacrosse Club"
+    // "Riverside Rovers Netball Club"
     clubFullName: [
       resolveText(settings, "club_name"),
       resolveText(settings, "club_name_suffix"),

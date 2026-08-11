@@ -36,7 +36,7 @@ export function useSiteText() {
   t.template = (template: string): string =>
     renderTemplate(template, seoTemplateValues(settings));
 
-  // Convenience: the club's full name, e.g. "Subiaco Lions Lacrosse Club".
+  // Convenience: the club's full name, e.g. "Riverside Rovers Netball Club".
   t.clubFullName = [
     resolveText(settings, "club_name"),
     resolveText(settings, "club_name_suffix"),

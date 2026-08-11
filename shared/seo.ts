@@ -5,13 +5,13 @@
 // text so they stay correct for whatever club is running the site.
 //
 // Placeholders filled at runtime from the club's settings:
-//   {club}       full club name          e.g. "Subiaco Lions Lacrosse Club"
+//   {club}       full club name          e.g. "Riverside Rovers Netball Club"
 //   {clubShort}  short name              e.g. "Lions"
 //   {sport}      lowercase sport         e.g. "lacrosse"
 //   {sportTitle} capitalised sport       e.g. "Lacrosse"
 //   {region}     city/region             e.g. "Perth"
 //   {state}      state                   e.g. "WA"
-//   {venue}      home ground             e.g. "Rosalie Park"
+//   {venue}      home ground             e.g. "Kingsford Oval"
 //
 // The server injects the finished tags into the HTML before sending it, so
 // Google and social scrapers (which don't run JavaScript) see the right

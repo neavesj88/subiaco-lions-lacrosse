@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────
-# Subiaco Lions Lacrosse — First-Time Server Setup
+# Club website — First-Time Server Setup
 # Run ONCE on a fresh Ubuntu server:  bash scripts/setup.sh
 # ─────────────────────────────────────────────────────────────
 
@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 echo -e "${BLUE}═══════════════════════════════════════════${NC}"
-echo -e "${BLUE}  Subiaco Lions — First-Time Server Setup  ${NC}"
+echo -e "${BLUE}  Club website — First-Time Server Setup  ${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════${NC}"
 echo ""
 

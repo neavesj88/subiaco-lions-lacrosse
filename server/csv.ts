@@ -40,7 +40,7 @@ export function csvFile(header: string[], rows: unknown[][]): string {
 
 /**
  * A filename based on the club's own name and today's date, e.g.
- * "subiaco-lions-orders-2026-08-07.csv".
+ * "riverside-rovers-orders-2026-08-07.csv".
  */
 export function csvFilename(kind: string): string {
   const club = (getSettingsSync().club_name ?? "club")

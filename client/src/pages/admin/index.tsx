@@ -618,7 +618,7 @@ export default function AdminDashboard() {
   if (!user) return null;
 
   // FIRST RUN: a brand-new install shows the setup wizard instead of the panel.
-  // Existing sites (like Subiaco) are marked setup_completed=true by the
+  // Sites that already have content are marked setup_completed=true by the
   // migration, so they never see this. Only super admins get it, and it can
   // be skipped.
   if (showWizard) {

@@ -242,7 +242,7 @@ addSetting('nav_show_coaches_board', 'true');   // Coaches Board tactical whiteb
 
 // ── v8: first-run setup wizard flag ──────────────────────────────────────────
 // The wizard only shows on a BRAND NEW install. If this database already has
-// content (an existing club like Subiaco), mark setup as complete so they are
+// content (a club already running the site), mark setup as complete so they are
 // never interrupted by a setup screen for a site they've already been running.
 addSetting('setup_completed', isNewInstall ? 'false' : 'true');
 console.log(isNewInstall
@@ -253,7 +253,8 @@ console.log(isNewInstall
 // The club name used to be hardcoded in the nav, footer and page titles.
 // NOTE: club name/tagline are deliberately NOT seeded here. Existing installs
 // already have their own rows (untouched), and a brand-new club should inherit
-// the templated defaults from shared/club-config.ts rather than Subiaco's copy.
+// the templated defaults from shared/club-config.ts rather than the first
+// club's copy.
 addSetting('nav_show_committee', 'true');            // the /committee page
 
 db.exec(`

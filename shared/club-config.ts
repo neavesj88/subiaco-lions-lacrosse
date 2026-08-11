@@ -47,7 +47,7 @@ export const CLUB_DEFAULTS: Record<string, string> = {
   venue_word: "ground",                  // "ground" / "court" / "pitch" / "rink"
 
   // ── Where the club plays ──────────────────────────────────────────────────
-  venue_name: "",                        // e.g. "Rosalie Park" (blank = hidden)
+  venue_name: "",                        // e.g. "Kingsford Oval" (blank = hidden)
   venue_address: "",
   map_query: "",                         // blank hides the embedded map
   region_name: "",                       // city/region, used in SEO copy
@@ -140,7 +140,7 @@ export const CLUB_DEFAULTS: Record<string, string> = {
   // ── About page ────────────────────────────────────────────────────────────
   about_history_title: "Our History",
   // Placeholder prompt, not real history — every club replaces this from
-  // Admin → Pages → About. Subiaco's own history is stored in their database.
+  // Admin → Pages → About. Each club's own history lives in their database.
   about_history_body:
     "<p>Tell your club's story here. When was it founded, and by whom? What are the moments members still talk about?</p><p>Edit this text in Admin → Pages → About. A few short paragraphs works best — visitors mostly want to know who you are and that they'd be welcome.</p>",
   about_teams_title: "Our Teams",

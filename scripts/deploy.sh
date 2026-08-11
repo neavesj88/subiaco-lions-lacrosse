@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────
-# Subiaco Lions Lacrosse — Quick Deploy Script
+# Club website — Quick Deploy Script
 # Run on the server after git push: ./scripts/deploy.sh
 # ─────────────────────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔══════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   Subiaco Lions — Deploying update...   ║${NC}"
+echo -e "${BLUE}║   Deploying website update...          ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════╝${NC}"
 echo ""
 

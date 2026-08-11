@@ -46,8 +46,8 @@ export function invalidateSettingsCache(): void {
  * venue instead of hardcoded ones.
  *
  *   const t = getSiteText();
- *   t("club_name")   → "Subiaco Lions"
- *   t.clubFullName   → "Subiaco Lions Lacrosse Club"
+ *   t("club_name")   → "Riverside Rovers"
+ *   t.clubFullName   → "Riverside Rovers Netball Club"
  */
 export function getSiteText() {
   const settings = getSettingsSync();

@@ -7,12 +7,12 @@
 # and NO open ports on the server or router.
 #
 # BEFORE RUNNING, you need:
-#   1. A domain name (e.g. subiacolions.com.au)
+#   1. A domain name (e.g. yourclub.org.au)
 #   2. That domain added to a free Cloudflare account, with its nameservers
 #      pointed at Cloudflare (Cloudflare walks you through this once)
 #
 # Run it ON THE SERVER that hosts the site:
-#     ./scripts/tunnel-setup.sh subiacolions.com.au
+#     ./scripts/tunnel-setup.sh yourclub.org.au
 #
 # The script will:
 #   • install cloudflared (if needed)
@@ -31,7 +31,7 @@ TUNNEL_NAME="lions-lacrosse"
 
 if [ -z "$DOMAIN" ]; then
   echo "Usage: ./scripts/tunnel-setup.sh <yourdomain.com> [port]"
-  echo "Example: ./scripts/tunnel-setup.sh subiacolions.com.au"
+  echo "Example: ./scripts/tunnel-setup.sh yourclub.org.au"
   echo ""
   echo "No domain yet? Run ./scripts/tunnel-quick.sh for a free temporary URL."
   exit 1
@@ -86,7 +86,7 @@ for t in json.load(sys.stdin):
 # 'http_status: 404' is a required catch-all for anything else.
 sudo mkdir -p /etc/cloudflared
 sudo tee /etc/cloudflared/config.yml > /dev/null <<EOF
-# Cloudflare Tunnel config for the Subiaco Lions Lacrosse website.
+# Cloudflare Tunnel config for the club website.
 # Managed by scripts/tunnel-setup.sh — edit hostnames here if the domain changes.
 tunnel: ${TUNNEL_ID}
 credentials-file: ${HOME}/.cloudflared/${TUNNEL_ID}.json

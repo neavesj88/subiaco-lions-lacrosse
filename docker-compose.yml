@@ -1,5 +1,5 @@
 # =============================================================================
-# docker-compose.yml — Subiaco Lions Lacrosse Club
+# docker-compose.yml — Club website
 # =============================================================================
 # Runs the whole thing with one command:  docker compose up -d
 #

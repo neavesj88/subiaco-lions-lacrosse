@@ -175,7 +175,7 @@ export function shippingCostFor(subtotalCents: number, requiresShipping: boolean
 /** A short, readable order reference the club can quote to a member. */
 export function generateOrderReference(): string {
   const s = getSettingsSync();
-  // Initials of the club name, e.g. "Subiaco Lions" -> "SL". Falls back to "ORD".
+  // Initials of the club name, e.g. "Riverside Rovers" -> "RR". Falls back to "ORD".
   const initials = (s.club_name ?? "")
     .split(/\s+/).filter(Boolean).map((w) => w[0]).join("").toUpperCase().slice(0, 3) || "ORD";
   return `${initials}-${randomBytes(3).toString("hex").toUpperCase()}`;

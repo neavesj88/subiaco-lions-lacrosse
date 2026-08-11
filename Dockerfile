@@ -1,5 +1,5 @@
 # =============================================================================
-# Dockerfile — Subiaco Lions Lacrosse Club
+# Dockerfile — Club website
 # =============================================================================
 # Builds the whole app (frontend + backend) into one self-contained image.
 # Multi-stage so the final image is small and doesn't ship build tools.
