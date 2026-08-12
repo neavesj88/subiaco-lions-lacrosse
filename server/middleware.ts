@@ -4,14 +4,14 @@
 // What this file does:
 //   Provides two Express middleware functions used to protect admin API routes:
 //
-//   requireAuth  — checks the user is logged in (session exists)
-//   requireRole  — checks the user has a high enough role for the action
+//   requireAuth        — is this person logged in, and still allowed in?
+//   requirePermission  — is this person allowed to do THIS particular thing?
 //
-// Role hierarchy (lowest → highest):
-//   content_manager      Can post/edit announcements only
-//   juniors_coordinator  Can also edit the Juniors page content
-//   club_admin           Can also manage events and view sign-up enquiries
-//   super_admin          Full access — users, settings, everything
+// There is deliberately no "role level" check. Roles are not a ladder here: a
+// Social Media Manager is not a junior Club Admin, they are someone allowed to
+// touch news and photos and nothing else. Asking "may they do X?" expresses
+// that; asking "are they senior enough?" cannot. Who may do what lives in
+// shared/roles.ts.
 //
 // How it works:
 //   When someone logs in (username/password or Google), their user ID and role
@@ -19,28 +19,15 @@
 //   If the check fails → 401 (not logged in) or 403 (wrong role).
 //
 // Usage in routes.ts:
-//   app.get("/api/users", requireAuth, requireRole("super_admin"), handler)
-//   app.post("/api/events", requireAuth, requireRole("club_admin"), handler)
+//   app.get("/api/users", requireAuth, requirePermission("users"), handler)
+//   app.post("/api/events", requireAuth, requirePermission("events"), handler)
 // =============================================================================
 
 import { type Request, type Response, type NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
-import { users, type User } from "@shared/schema";
+import { users } from "@shared/schema";
 import { roleHas, type Permission } from "@shared/roles";
-
-type Role = User["role"];
-
-// Numeric level for each role — used ONLY by the legacy requireRole() helper
-// below. New code should use requirePermission(), which also works for
-// restricted roles like social_media that sit outside this ladder.
-const roleHierarchy: Record<Role, number> = {
-  social_media: 1,
-  content_manager: 1,
-  juniors_coordinator: 2,
-  club_admin: 3,
-  super_admin: 4,
-};
 
 // ── loadCurrentUser ──────────────────────────────────────────────────────────
 // Re-reads the logged-in user FROM THE DATABASE on every protected request.
@@ -80,29 +67,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return res.status(401).json({ message: "Not authenticated" });
   }
   next();
-}
-
-// ── requireRole ──────────────────────────────────────────────────────────────
-// Blocks the request if the user's role level is below the minimum required.
-// Pass the MINIMUM role needed — anyone at that level or above is allowed.
-// The role is read live from the database, so demotions apply immediately.
-//
-// Example: requireRole("club_admin") allows club_admin AND super_admin
-//          requireRole("super_admin") allows ONLY super_admin
-export function requireRole(...roles: Role[]) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const user = await loadCurrentUser(req);
-    if (!user) {
-      req.session.destroy(() => {});
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    const userLevel = roleHierarchy[user.role] ?? 0;
-    const minRequired = Math.min(...roles.map((r) => roleHierarchy[r]));
-    if (userLevel < minRequired) {
-      return res.status(403).json({ message: "Insufficient permissions" });
-    }
-    next();
-  };
 }
 
 // ── requirePermission ────────────────────────────────────────────────────────

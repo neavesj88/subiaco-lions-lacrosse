@@ -14,7 +14,7 @@ React 18 + Vite SPA (wouter routing, TanStack Query, shadcn/Radix, TipTap editor
 
 ## Critical rules
 
-1. **Schema changes are manual — do NOT use `drizzle-kit push` / `npm run db:push`.** The workflow is: edit the table in `shared/schema.ts`, add the matching `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE` to `scripts/migrate.mjs`, then run `node scripts/migrate.mjs`. Both files must stay in sync.
+1. **Schema changes are manual.** Edit the table in `shared/schema.ts`, add the matching `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE` to `scripts/migrate.mjs`, then run `node scripts/migrate.mjs`. Both files must stay in sync. (`drizzle-kit push` was removed along with its `db:push` script and config — it cannot express SQLite's ALTER limitations and silently desynced the two files.)
 2. `shared/schema.ts` is the single source of truth for tables, insert schemas (drizzle-zod), and TS types — import types from there on both client and server, never redefine them.
 3. Admin panel path is configurable via `ADMIN_PATH` in `.env` (default `/manage`, login at `<ADMIN_PATH>/login`). Never hardcode `/admin` in links or redirects.
 4. All API endpoints live in `server/routes.ts` under `/api/*`. Everything else falls through to the SPA's `index.html`. New client routes go in `client/src/App.tsx` (wouter).
