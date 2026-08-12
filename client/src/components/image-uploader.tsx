@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Upload, X, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { shrinkImage, formatBytes } from "@/lib/resize-image";
 
 interface ImageUploaderProps {
   value?: string;            // current image URL
@@ -14,22 +15,28 @@ interface ImageUploaderProps {
 export default function ImageUploader({ value, onChange, label = "Image", className, hint }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
     setError(null);
+    setNote(null);
     if (!file.type.startsWith("image/")) {
       setError("Only image files allowed (JPG, PNG, GIF, WebP).");
       return;
     }
-    if (file.size > 8 * 1024 * 1024) {
-      setError("Image must be under 8 MB.");
-      return;
-    }
+    // Checked after resizing instead, since a large photo is usually rescued
+    // by it — refusing here would reject pictures the site can happily take.
     setUploading(true);
     try {
+      // Shrink a phone photo down to something a website should serve, before
+      // it goes anywhere. Also makes the upload itself quicker.
+      const upload = await shrinkImage(file);
+      if (upload.size < file.size) {
+        setNote(`Resized from ${formatBytes(file.size)} to ${formatBytes(upload.size)} so pages load quickly.`);
+      }
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", upload);
       const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) throw new Error((await res.json()).message ?? "Upload failed");
       const { url } = await res.json() as { url: string };
@@ -85,6 +92,7 @@ export default function ImageUploader({ value, onChange, label = "Image", classN
 
       {hint && <p className="text-xs text-stone-500">{hint}</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
+      {note && <p className="text-xs text-green-700">{note}</p>}
 
       <input
         ref={inputRef}

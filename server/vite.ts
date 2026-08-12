@@ -82,7 +82,25 @@ export function serveStatic(app: Express) {
   // below, so the HOME PAGE alone would miss its SEO tags and runtime config
   // while every other page got them. Turning that off leaves "/" to the
   // catch-all, so every page is treated identically.
-  app.use(express.static(distPath, { index: false }));
+  app.use(express.static(distPath, {
+    index: false,
+
+    // Vite stamps a content hash into every built filename, e.g.
+    // index-GP5p0aEW.js. Change the code and the name changes with it, so a
+    // browser can safely keep the old one forever and will simply ask for the
+    // new name after an update. Without this every visit re-checks every file
+    // with the server before using it, which is pure delay on a slow phone.
+    //
+    // "immutable" tells the browser not to bother re-checking even on a manual
+    // refresh. index.html is deliberately NOT covered here — it is built fresh
+    // for every request by the catch-all below, and caching it would freeze a
+    // club's page titles and settings.
+    setHeaders: (res, filePath) => {
+      if (/[.-][A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpe?g|svg|webp|avif)$/.test(filePath)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  }));
 
   // SPA catch-all: serve index.html but inject per-route SEO tags first so
   // crawlers/social scrapers see the correct title + description for each page.
@@ -98,6 +116,13 @@ export function serveStatic(app: Express) {
     // the truth, so search engines drop mistyped links instead of indexing them
     // and broken-link checkers actually report them.
     const status = isKnownPath(path, getAdminPath()) ? 200 : 404;
-    res.status(status).set({ "Content-Type": "text/html" }).end(html);
+
+    // Never cache this page. It is rebuilt on every request with the club's
+    // current settings and a fresh one-time security token, so a stored copy
+    // would eventually serve stale titles and a token the browser rejects.
+    res.status(status).set({
+      "Content-Type": "text/html",
+      "Cache-Control": "no-store",
+    }).end(html);
   });
 }

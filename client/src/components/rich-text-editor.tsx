@@ -10,6 +10,7 @@ import {
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useEffect, useCallback } from "react";
+import { shrinkImage } from "@/lib/resize-image";
 
 interface RichTextEditorProps {
   value?: string;
@@ -103,7 +104,9 @@ export default function RichTextEditor({
   const handleImageUpload = async (file: File) => {
     if (!editor) return;
     const fd = new FormData();
-    fd.append("file", file);
+    // Photos pasted or dropped into a post get the same treatment as anywhere
+    // else, otherwise a single news article can weigh more than the whole site.
+    fd.append("file", await shrinkImage(file));
     try {
       const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) throw new Error("Upload failed");

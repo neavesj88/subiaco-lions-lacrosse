@@ -34,7 +34,7 @@
 // =============================================================================
 
 import Database from "better-sqlite3";
-import { mkdirSync, readdirSync, statSync, rmSync, cpSync, existsSync } from "fs";
+import { mkdirSync, readdirSync, statSync, rmSync, existsSync, linkSync, copyFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -68,10 +68,39 @@ try {
 }
 
 // ── 2. The uploaded photos ──────────────────────────────────────────────────
+//
+// These are HARD LINKED rather than copied where possible. A hard link is a
+// second name for the same file on disk, so thirty nightly backups of a club's
+// 500 photos take the space of one set, not thirty. Each backup still contains
+// every photo and restoring works exactly the same — the difference is only in
+// how much disk it costs.
+//
+// This is safe because uploads are never edited in place: every upload gets a
+// new filename, so linked files can't change underneath an older backup.
+// Deleting a photo from the site removes one name; the backups keep theirs.
+//
+// Linking only works within one filesystem, so backing up to a USB stick or a
+// network drive falls back to real copies automatically.
 if (existsSync(uploadsDir)) {
-  cpSync(uploadsDir, path.join(targetDir, "uploads"), { recursive: true });
-  const count = readdirSync(path.join(targetDir, "uploads")).length;
-  console.log(`  ✓ uploads   (${count} file${count === 1 ? "" : "s"})`);
+  const dest = path.join(targetDir, "uploads");
+  mkdirSync(dest, { recursive: true });
+
+  let linked = 0, copied = 0;
+  for (const name of readdirSync(uploadsDir)) {
+    const from = path.join(uploadsDir, name);
+    if (!statSync(from).isFile()) continue;
+    const to = path.join(dest, name);
+    try {
+      linkSync(from, to);
+      linked++;
+    } catch {
+      copyFileSync(from, to);   // different drive, or a filesystem without links
+      copied++;
+    }
+  }
+
+  const detail = copied === 0 ? "sharing disk space with the originals" : `${copied} copied`;
+  console.log(`  ✓ uploads   (${linked + copied} file${linked + copied === 1 ? "" : "s"}, ${detail})`);
 } else {
   console.log("  · uploads   (none yet)");
 }

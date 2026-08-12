@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Upload, ImageIcon, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { shrinkImage } from "@/lib/resize-image";
 import type { MediaUpload } from "@shared/schema";
 
 interface ImagePickerProps {
@@ -55,11 +56,14 @@ export default function ImagePicker({ value, onChange, label, hint, className, c
   const handleUpload = async (file: File) => {
     setError(null);
     if (!file.type.startsWith("image/")) { setError("Only image files allowed."); return; }
-    if (file.size > 8 * 1024 * 1024) { setError("Image must be under 8 MB."); return; }
     setUploading(true);
     try {
+      // Same shrink-before-upload as the other uploaders — see
+      // client/src/lib/resize-image.ts for why.
+      const upload = await shrinkImage(file);
+      if (upload.size > 8 * 1024 * 1024) { setError("That image is too large, even after resizing."); setUploading(false); return; }
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", upload);
       const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) throw new Error((await res.json()).message ?? "Upload failed");
       const { url } = await res.json() as { url: string };

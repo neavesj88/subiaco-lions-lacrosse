@@ -27,11 +27,23 @@ import "dotenv/config";
 import { randomBytes } from "crypto";
 
 import express, { type Request, type Response, type NextFunction } from "express";
+import compression from "compression";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { backfillSanitiseContent } from "./backfill";
 
 const app = express();
+
+// Squash everything on the way out. The site's main JavaScript file is about
+// 305 KB as written and about 96 KB compressed — a third of the download for
+// one line of setup. That difference is barely noticeable on clubhouse wi-fi
+// and very noticeable to a parent checking fixtures on a phone at a ground
+// with one bar of signal, which is who this site is really for.
+//
+// Worth keeping even when Cloudflare sits in front and compresses too: this
+// also shrinks the traffic between the club's computer and Cloudflare, and a
+// club running without any of that still gets the benefit.
+app.use(compression());
 
 // Parse JSON and URL-encoded request bodies (needed for all API routes).
 //

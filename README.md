@@ -32,7 +32,57 @@ for — an hour of their time, once. Everything after it is ordinary web forms.
 > It lists every detail the site will ask you for, so you can gather them at a
 > committee meeting rather than hunting for them mid-setup.
 
-## What you need before starting
+## What computer you need
+
+The site is deliberately light. Running it uses about **80 MB of memory** —
+less than a single browser tab — because it keeps everything in one small file
+rather than running a separate database server alongside it.
+
+| | Minimum | Comfortable, with room to grow |
+|---|---|---|
+| **Computer** | Any 64-bit PC from roughly the last decade | Same, but with an SSD |
+| **Memory (RAM)** | 2 GB | 4 GB |
+| **Free disk space** | 10 GB | 30 GB or more |
+| **Operating system** | Ubuntu 22.04 / Debian 12 or newer | Same |
+| **Internet** | Any household connection | Wired rather than wi-fi |
+
+An old office desktop or a retired laptop is genuinely fine. A laptop has the
+happy side effect of a built-in battery, so a brief power cut doesn't take the
+website down with it.
+
+### Where the disk space actually goes
+
+Worth understanding, because it decides whether you would ever need a bigger
+drive:
+
+| | Size |
+|---|---|
+| The software itself | about 300 MB, and it does not grow |
+| Your content — every page, post, event, member, order | well under 50 MB even after years |
+| Photos | about 300 KB each, **after** the site automatically shrinks them |
+| Nightly backups | very little extra — see below |
+
+The site resizes photos as they are uploaded, so a 3 MB picture straight off a
+phone is stored at around 300 KB without anyone having to think about it. A
+thousand photos is therefore roughly 300 MB, not 3 GB.
+
+Backups keep the last 30 nights, but they **share** disk space with your
+existing photos rather than making 30 separate copies of every picture. Thirty
+nights of backups costs barely more than one.
+
+So a club with a thousand photos and five seasons of history sits comfortably
+under **2 GB in total**. The 10 GB minimum above is mostly headroom.
+
+### If you ever outgrow it
+
+You almost certainly won't, but the honest warning signs are the disk filling
+up — check with `df -h` — or pages loading slowly on the clubhouse wi-fi while
+being fast everywhere else. Both are solved by a bigger drive or a newer
+machine, and your content moves across with a backup and a restore.
+
+---
+
+## What else you need before starting
 
 - **A computer to run it on**, left switched on. Any PC from the last ten years
   running Ubuntu or Debian Linux is plenty. It can sit in the clubhouse.

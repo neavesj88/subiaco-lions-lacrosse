@@ -1,5 +1,25 @@
 # Hosting Guide — Subiaco Lions Lacrosse Club
 
+## What to order
+
+Any small virtual server will run this comfortably. The site itself uses about
+**80 MB of memory** and the whole installation is around 300 MB on disk.
+
+| | Minimum | Comfortable, with room to grow |
+|---|---|---|
+| **Memory (RAM)** | 1 GB | 2 GB |
+| **Disk** | 10 GB | 25 GB or more |
+| **Operating system** | Ubuntu 22.04 / Debian 12 or newer | Same |
+
+The cheapest tier at most providers is enough. Pick 2 GB of memory if you want
+the site to keep serving smoothly while you rebuild it after an update, which
+is the only moment it needs more than it usually does.
+
+Photos are automatically shrunk on upload (roughly 300 KB each), and nightly
+backups share disk space with the existing photos rather than duplicating them,
+so a club with a thousand photos and years of history stays under about 2 GB.
+
+
 You already run **neaves.au on an Ubuntu server VM** (PM2 + nginx + Cloudflare).
 This site is built the same way, so the easiest option by far is to **run it
 alongside neaves.au on that same VM**. No new server, no Docker needed.
