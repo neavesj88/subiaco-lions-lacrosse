@@ -90,6 +90,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const nonce = randomBytes(16).toString("base64");
   (res.locals as { cspNonce?: string }).cspNonce = nonce;
 
+  const isDev = process.env.NODE_ENV !== "production";
+
   // Content Security Policy: an allow-list of where the page may load things
   // from. Each line below names a real feature of this site — remove one and
   // that feature stops working.
@@ -112,8 +114,21 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     // Scripts: only this site's own files, plus the one inline settings script
     // carrying the nonce above, plus the Instagram feed widget if a club has
     // switched it on.
-    `script-src 'self' 'nonce-${nonce}' https://w.behold.so`,
-    "connect-src 'self' https://w.behold.so",
+    //
+    // DEVELOPMENT IS DIFFERENT, and has to be. The dev server (Vite) injects
+    // its own inline scripts for hot-reloading, which it does not put our
+    // nonce on. Blocking them stops React starting at all and every page comes
+    // up blank — which is exactly what happened when this policy was first
+    // added and only the production build was tested.
+    //
+    // Relaxing it here is safe: the dev server only ever runs on a developer's
+    // own machine. The strict policy above is what a club's visitors get.
+    isDev
+      ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://w.behold.so`
+      : `script-src 'self' 'nonce-${nonce}' https://w.behold.so`,
+    isDev
+      ? "connect-src 'self' ws: wss: https://w.behold.so"   // ws: is the hot-reload channel
+      : "connect-src 'self' https://w.behold.so",
     // Embedded panels: the map on the contact page, an embedded Google
     // Calendar, and the Instagram feed.
     "frame-src https://www.google.com https://calendar.google.com https://w.behold.so",

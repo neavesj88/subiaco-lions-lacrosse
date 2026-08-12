@@ -19,6 +19,8 @@
 // guaranteeing you can get back in and fix everything else from the web UI.
 // =============================================================================
 
+// Reads .env so the admin address printed below is the club's real one.
+import "dotenv/config";
 import Database from "better-sqlite3";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
@@ -56,4 +58,8 @@ db.close();
 console.log("  Role:     super_admin (full access)");
 console.log("  Username: " + username);
 console.log("  Password: " + password);
-console.log("\nLog in at /admin/login, then change this password in Admin → Users.\n");
+// The login page is NOT at /admin. Each club gets its own hard-to-guess
+// address, set by ADMIN_PATH in .env. Printing the wrong one here would strand
+// the very person this script exists to rescue.
+const adminPath = (process.env.ADMIN_PATH || "/manage").trim().replace(/\/+$/, "");
+console.log(`\nLog in at ${adminPath}/login, then change this password under Admin → Password.\n`);

@@ -154,11 +154,11 @@ export default function AdminStock() {
           <div className="space-y-4">
             {products.map((p) => (
               <div key={p.id} className={p.isActive ? "" : "opacity-60"}>
-                <p className="text-sm font-medium text-stone-900 mb-1.5 flex items-center gap-2">
+                <div className="text-sm font-medium text-stone-900 mb-1.5 flex items-center gap-2">
                   {p.name}
                   {!p.isActive && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
                   {p.soldOut && <Badge className="text-xs bg-red-100 text-red-800">Sold out</Badge>}
-                </p>
+                </div>
 
                 <div className="space-y-1.5">
                   {p.variants.map((v) => {
