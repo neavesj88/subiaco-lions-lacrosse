@@ -366,7 +366,10 @@ if (listCount === 0) {
     ["Junior Playing Kit", "Full junior playing kit including jersey and shorts.", "Juniors"],
     ["Club Kit Bag", "Club-branded kit bag, roomy enough for a full set of gear.", "Equipment"],
   ];
-  apparel.forEach(([title, body, label], i) => ins.run("store_item", null, title, body, label, null, i));
+  // Seeded straight into the shop below rather than into this list: the Store
+  // page reads products (which have prices, sizes and stock), and a duplicate
+  // list nobody reads would only confuse whoever inherits the site.
+  apparel.forEach(([title, body, label], i) => ins.run("store_seed_tmp", null, title, body, label, null, i));
 
   // Juniors FAQ (title = question, body = answer)
   const faqs = [
@@ -494,7 +497,7 @@ addCol('products', 'sold_out', 'INTEGER NOT NULL DEFAULT 0');
 
   if (!alreadyMigrated && productCount === 0) {
     const legacy = db.prepare(
-      "SELECT title, body, label, sort_order FROM list_items WHERE list_type = 'store_item' ORDER BY sort_order"
+      "SELECT title, body, label, sort_order FROM list_items WHERE list_type IN ('store_item','store_seed_tmp') ORDER BY sort_order"
     ).all();
 
     if (legacy.length > 0) {
@@ -514,6 +517,8 @@ addCol('products', 'sold_out', 'INTEGER NOT NULL DEFAULT 0');
       migrate(legacy);
       console.log(`  Copied ${legacy.length} old store item(s) into the new shop (hidden until priced)`);
     }
+    // The temporary seed rows have served their purpose now they are products.
+    db.prepare("DELETE FROM list_items WHERE list_type = 'store_seed_tmp'").run();
     addSetting('store_items_migrated', 'true');
   }
 }

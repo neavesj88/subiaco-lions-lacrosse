@@ -80,7 +80,7 @@ few minutes, or use a different device, or do the emergency reset below.
 If every admin is locked out, whoever manages the server can reset access:
 
 ```bash
-cd ~/subiaco-lions-lacrosse
+cd ~/club-website
 node scripts/reset-admin.mjs
 ```
 
@@ -97,7 +97,7 @@ Everything you create — news, photos, sign-ups — lives on the server. Back i
 - A backup runs automatically every night (if set up at handover).
 - To make one manually, on the server:
   ```bash
-  cd ~/subiaco-lions-lacrosse && ./scripts/backup.sh
+  cd ~/club-website && ./scripts/backup.sh
   ```
 - **Occasionally download a backup off the server** (e.g. to a committee
   laptop) so you're covered if the server itself fails.

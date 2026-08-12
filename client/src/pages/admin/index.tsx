@@ -1099,7 +1099,9 @@ export default function AdminDashboard() {
             </TabsContent>
           )}
 
-          {/* ── Page Lists (team divisions, store apparel, juniors FAQ) ── */}
+          {/* ── Page Lists (team divisions, juniors FAQ) ── */}
+          {/* Things you sell are NOT here — they live under Shop, which has
+              prices, sizes and stock. */}
           {can("lists") && (
             <TabsContent value="lists">
               <div className="space-y-8">
@@ -1111,16 +1113,6 @@ export default function AdminDashboard() {
                     { key: "group", label: "Team (Men's / Women's / Juniors)", placeholder: "Men's", required: true },
                     { key: "title", label: "Division name", placeholder: "Division 1", required: true },
                     { key: "url", label: "Fixtures link (optional)", placeholder: "https://..." },
-                  ]}
-                />
-                <ListManager
-                  listType="store_item"
-                  title="Store Apparel"
-                  description="The apparel cards shown on the Store page."
-                  fields={[
-                    { key: "title", label: "Item name", placeholder: "Club Hoodie", required: true },
-                    { key: "body", label: "Description", textarea: true, placeholder: "Premium fleece hoodie…" },
-                    { key: "label", label: "Badge (optional)", placeholder: "Casual Wear" },
                   ]}
                 />
                 <ListManager

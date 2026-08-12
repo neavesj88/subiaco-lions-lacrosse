@@ -35,9 +35,9 @@
 export const CLUB_DEFAULTS: Record<string, string> = {
   // ── Club identity ─────────────────────────────────────────────────────────
   club_name: "Our Club",
-  club_name_suffix: "{sportTitle} Club",
+  club_name_suffix: "",                  // e.g. "Netball Club" — the smaller second line
   club_short_name: "Club",               // used in casual copy, e.g. "Join the Club"
-  club_tagline: "{region}'s home of {sport}. Teams competing across all divisions.",
+  club_tagline: "[[{region}'s ]]home of {sport}. Teams competing across all divisions.",
   club_founded: "",                      // year the club started (blank = not shown)
 
   // ── The sport ─────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ export const CLUB_DEFAULTS: Record<string, string> = {
   // (Admins can also edit these inline via the hover-pencil; these are what
   // shows before anyone has.)
   page_about_title: "About the Club",
-  page_about_subtitle: "{region}'s {sport} club — proud history, strong community.",
+  page_about_subtitle: "[[{region}'s ]]{sport} club — proud history, strong community.",
   page_fixtures_title: "Fixtures & Results",
   page_fixtures_subtitle: "Game schedules and results for all our teams.",
   page_gallery_title: "Photo Gallery",
@@ -127,7 +127,7 @@ export const CLUB_DEFAULTS: Record<string, string> = {
 
   // ── Home page ─────────────────────────────────────────────────────────────
   home_hero_title: "{clubName}",
-  home_hero_tagline: "{region}'s home of {sport}. Men's, Women's and Junior teams playing out of {venue}.",
+  home_hero_tagline: "[[{region}'s ]]home of {sport}. Men's, Women's and Junior teams[[ playing out of {venue}]].",
   home_strip_line2: "Men's · Women's · Juniors",
   home_strip_line3: "All skill levels welcome · Loan equipment available",
   home_news_heading: "Club News",
@@ -144,7 +144,7 @@ export const CLUB_DEFAULTS: Record<string, string> = {
   about_history_body:
     "<p>Tell your club's story here. When was it founded, and by whom? What are the moments members still talk about?</p><p>Edit this text in Admin → Pages → About. A few short paragraphs works best — visitors mostly want to know who you are and that they'd be welcome.</p>",
   about_teams_title: "Our Teams",
-  about_teams_subtitle: "Competing across all divisions of {league}. New players welcome at every level.",
+  about_teams_subtitle: "[[Competing across all divisions of {league}. ]]New players welcome at every level.",
   about_find_us_title: "Find Us",
   about_stat1_label: "Founded",
   about_stat1_value: "1940",
@@ -212,17 +212,43 @@ export const CLUB_DEFAULTS: Record<string, string> = {
   // {club}, {sport}, {region} are replaced at runtime — so SEO stays correct
   // for any club without anyone editing meta tags.
   seo_title_suffix: "{club}",
-  seo_home_title: "{club} | {region} {sportTitle} Club",
+  seo_home_title: "{club}[[ | {region} {sportTitle} Club]]",
   seo_default_description:
-    "{club} — {sport} in {region}, {state}. Men's, Women's and Junior teams. New players welcome.",
+    "{club} — {sport}[[ in {region}, {state}]]. Men's, Women's and Junior teams. New players welcome.",
   seo_keywords:
     "{club}, {sport} {region}, {sport} club, junior {sport} {region}, play {sport}",
 };
 
 /** Fill {club}/{sport}/{region} style placeholders from resolved settings. */
 export function renderTemplate(template: string, values: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (_m, key) => values[key] ?? "");
+  // Anything wrapped in [[double brackets]] is dropped completely when a
+  // placeholder inside it has no value. This exists because every club detail
+  // is optional, and without it a club that hasn't entered their ground gets
+  // sentences like "Teams playing out of ." on their own home page.
+  //
+  // For a club editing this wording in the admin panel: put the words that
+  // only make sense WITH the detail inside the brackets.
+  //   "[[{region}'s ]]home of {sport}"
+  //     region filled in -> "Perth's home of lacrosse"
+  //     region blank     -> "home of lacrosse"
+  const withOptionals = template.replace(/\[\[(.*?)\]\]/g, (_m, segment: string) => {
+    const placeholders = segment.match(/\{(\w+)\}/g) ?? [];
+    const anyMissing = placeholders.some((ph) => !(values[ph.slice(1, -1)] ?? "").trim());
+    return anyMissing ? "" : segment;
+  });
+
+  const filled = withOptionals.replace(/\{(\w+)\}/g, (_m, key) => values[key] ?? "");
+
+  // Tidy up after any placeholder outside a bracketed segment that came out
+  // empty, so nothing reaches a browser tab or a Google result looking broken.
+  return filled
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .replace(/([|–—-])\s*+/g, "$1")
+    .replace(/^[\s|–—-]+|[\s|–—-]+$/g, "")
+    .trim();
 }
+
 
 /**
  * Resolve a config value: the admin's saved setting wins, otherwise the
@@ -245,7 +271,17 @@ export function resolveText(
   return renderTemplate(raw, seoTemplateValues(settings));
 }
 
-// Keys that feed the placeholders — templating these would recurse.
+// Keys that FEED the placeholders. Their values are returned exactly as
+// written, because filling {club} in from club_name — which is itself one of
+// these — would chase its own tail.
+//
+// The consequence, and it has bitten once: a default in this list must NEVER
+// contain a {placeholder}, because nothing will ever replace it and the raw
+// text appears on the live site. club_name_suffix defaulted to
+// "{sportTitle} Club", so every brand-new club's page title read
+// "Our Club {sportTitle} Club" until they finished the setup wizard.
+// assertNoPlaceholders() at the bottom of this file stops the server
+// starting if it happens again, so it is caught before anyone sees the site.
 const IDENTITY_KEYS = new Set([
   "club_name", "club_name_suffix", "club_short_name",
   "sport_name", "sport_name_title", "region_name", "region_state", "venue_name",
@@ -268,3 +304,23 @@ export function seoTemplateValues(settings?: Record<string, string>) {
     league: resolveText(settings, "league_name"),
   };
 }
+
+// Runs once when this file is first loaded — which on the server means the
+// moment it starts up, so a bad default stops the site booting rather than
+// reaching a club's visitors. Verified by deliberately breaking a default and
+// confirming the server refuses to start.
+//
+// Note this is a STARTUP check, not a build-time one: the bundler never
+// executes the module, so `npm run build` will not catch it.
+(function assertNoPlaceholders() {
+  for (const key of IDENTITY_KEYS) {
+    const value = CLUB_DEFAULTS[key];
+    if (typeof value === "string" && value.includes("{")) {
+      throw new Error(
+        `club-config: the default for "${key}" contains a {placeholder}, but ` +
+        `identity keys are never templated, so it would appear literally on ` +
+        `the live site. Write it out in full, or leave it blank.`,
+      );
+    }
+  }
+})();

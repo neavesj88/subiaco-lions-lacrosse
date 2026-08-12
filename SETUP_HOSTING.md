@@ -149,12 +149,12 @@ Give DNS a minute, then open `https://lions-domain.com` — it's live with HTTPS
 ## Updating later
 
 ```bash
-cd ~/subiaco-lions-lacrosse
+cd ~/club-website
 git pull
 npm ci
 npm run build
 node scripts/migrate.mjs
-pm2 restart lions-lacrosse
+pm2 restart club-website
 ```
 
 (Or just run `./scripts/deploy.sh`, which does all of that.) Your database and
@@ -168,7 +168,7 @@ Same idea as neaves.au, but this site's data is just two folders (SQLite +
 uploads). Quick manual backup:
 
 ```bash
-cd ~/subiaco-lions-lacrosse
+cd ~/club-website
 ./scripts/backup.sh         # writes a timestamped copy to data/backups/
 ```
 
@@ -184,8 +184,8 @@ Automatic nightly backup — `crontab -e` and add:
 
 ```bash
 pm2 status                       # see both apps (portfolio-website + lions-lacrosse)
-pm2 logs lions-lacrosse          # Lions logs only
-pm2 restart lions-lacrosse       # restart just the Lions site
+pm2 logs club-website          # Lions logs only
+pm2 restart club-website       # restart just the Lions site
 ```
 
 The two sites are fully independent: separate ports, separate PM2 processes,
@@ -205,7 +205,7 @@ automatic HTTPS and nothing exposed on your server or router.
 Great for showing the committee before anything is official:
 
 ```bash
-cd ~/subiaco-lions-lacrosse
+cd ~/club-website
 pm2 start ecosystem.config.cjs --env production   # make sure the site is running
 ./scripts/tunnel-quick.sh                          # tunnels port 5001
 ```
@@ -223,7 +223,7 @@ Needs the domain added to a free Cloudflare account (Cloudflare walks you
 through pointing the nameservers, a one-time step).
 
 ```bash
-cd ~/subiaco-lions-lacrosse
+cd ~/club-website
 ./scripts/tunnel-setup.sh subiacolions.com.au
 ```
 

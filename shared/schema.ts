@@ -225,7 +225,7 @@ export const pageContent = sqliteTable("page_content", {
 // ── List Items (flexible repeating content) ───────────────────────────────────
 // One table powers several "list" sections that admins can add/edit/remove rows in:
 //   listType="team_division" → About & Fixtures team divisions (title=team, label=division)
-//   listType="store_item"    → Store apparel cards (title=name, body=description, label=badge)
+//   (things you sell live in the products table, not here)
 //   listType="faq"           → Juniors FAQ (title=question, body=answer)
 // Generic columns keep it simple; not every column is used by every list type.
 export const listItems = sqliteTable("list_items", {

@@ -7,7 +7,7 @@ But setting them up gives you **"Sign in with Google"** and **automatic email
 notifications**.
 
 Both are configured by editing the `.env` file in the project root, then
-restarting the app (`pm2 restart lions-lacrosse`, or just re-run `npm run dev`
+restarting the app (`pm2 restart club-website`, or just re-run `npm run dev`
 in development).
 
 ---
@@ -53,7 +53,7 @@ GOOGLE_CALLBACK_URL=https://YOURDOMAIN.com.au/api/auth/google/callback
 (Use the `http://localhost:5000/...` callback when testing locally.)
 
 ### Step 5: Restart and match emails
-1. Restart the app: `pm2 restart lions-lacrosse`
+1. Restart the app: `pm2 restart club-website`
 2. The **"Sign in with Google"** button now appears on the admin login page
 3. **Important:** an admin can only log in with Google if their Google email
    matches the email on their admin account. In **Admin → Users**, make sure
@@ -105,13 +105,13 @@ CLUB_NOTIFY_EMAIL=subiacolacrosseclub@outlook.com
   (can be any inbox, e.g. your existing Outlook address)
 
 ### Step 5: Restart and test
-1. Restart the app: `pm2 restart lions-lacrosse`
+1. Restart the app: `pm2 restart club-website`
 2. Go to the **Contact** page on the site and send a test message
 3. Check the `CLUB_NOTIFY_EMAIL` inbox — you should get the message
 4. Submit a test **Sign Up** — you'll get a notification, and the email you
    entered gets a confirmation reply
 
-> If nothing arrives: check the server logs (`pm2 logs lions-lacrosse`). The app
+> If nothing arrives: check the server logs (`pm2 logs club-website`). The app
 > prints `[email] Sent` on success or a warning if credentials are missing.
 > Email failures never break the forms — submissions always save to the database
 > and appear in the admin panel regardless.

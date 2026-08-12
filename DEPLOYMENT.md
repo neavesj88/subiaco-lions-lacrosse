@@ -1,4 +1,4 @@
-# Deployment Guide — Subiaco Lions Lacrosse Club
+# Deployment Guide — club website
 
 Same infrastructure as neaves.au: **PM2 + nginx + Cloudflare**.
 
@@ -8,8 +8,8 @@ Same infrastructure as neaves.au: **PM2 + nginx + Cloudflare**.
 
 ```bash
 # Clone repo
-git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git
-cd subiaco-lions-lacrosse
+git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git club-website
+cd club-website
 
 # Run setup (installs Node, PM2, builds, seeds DB, starts app)
 bash scripts/setup.sh
@@ -20,7 +20,7 @@ bash scripts/setup.sh
 ## Updating from Git (every time you push changes)
 
 ```bash
-cd ~/subiaco-lions-lacrosse
+cd ~/club-website
 ./scripts/deploy.sh
 ```
 
@@ -97,16 +97,28 @@ The database is a single SQLite file: `data/club.db`
 
 ```bash
 # Manual backup
-cp data/club.db data/club.db.backup-$(date +%Y%m%d)
+./scripts/backup.sh
 
-# Restore
-cp data/club.db.backup-YYYYMMDD data/club.db
-pm2 restart lions-lacrosse
+# Restore (lists your backups and asks which one)
+./scripts/restore.sh
 ```
 
-Add to crontab for daily auto-backups:
+**Do not back up by copying `data/club.db` yourself.** The database keeps
+recent changes in a second file beside it, so a plain `cp` can produce a backup
+that is missing your newest content and still looks perfectly fine — you would
+only discover it on the day you needed it. `backup.sh` asks the database to
+produce the copy properly, and includes your uploaded photos, which a file copy
+misses entirely.
+
+Add to crontab for a nightly backup at 2am:
 ```bash
-0 2 * * * cp /home/user/subiaco-lions-lacrosse/data/club.db /home/user/backups/club.db.$(date +\%Y\%m\%d)
+0 2 * * * /home/user/club-website/scripts/backup.sh >> /home/user/club-website/data/backup.log 2>&1
+```
+
+Send them somewhere other than this server as well — a backup on the same disk
+as the site does not survive that disk failing:
+```bash
+0 2 * * * BACKUP_DIR=/mnt/backup /home/user/club-website/scripts/backup.sh
 ```
 
 ---
@@ -115,7 +127,7 @@ Add to crontab for daily auto-backups:
 
 ```bash
 pm2 status                    # Check app is running
-pm2 logs lions-lacrosse       # View live logs
-pm2 restart lions-lacrosse    # Manual restart
-pm2 stop lions-lacrosse       # Stop app
+pm2 logs club-website         # View live logs
+pm2 restart club-website      # Manual restart
+pm2 stop club-website         # Stop app
 ```

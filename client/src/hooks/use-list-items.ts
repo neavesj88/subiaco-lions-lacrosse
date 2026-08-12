@@ -4,7 +4,7 @@
 // Fetches the active rows for a given list type from /api/list-items/:type.
 // Used by public pages to render admin-managed lists:
 //   "team_division" → team divisions (About, Fixtures)
-//   "store_item"    → store apparel cards
+//   (things you sell live in the shop's products table, not here)
 //   "faq"           → juniors FAQ
 //
 // Returns { items, isLoading }. If the DB has no rows the page can fall back

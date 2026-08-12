@@ -29,51 +29,51 @@ export interface PageSeo {
 // Templates. Nothing here names a specific club or sport.
 export const PAGE_SEO: Record<string, PageSeo> = {
   "/": {
-    title: "{club} | {region} {sportTitle}",
+    title: "{club}[[ | {region} {sportTitle}]]",
     description:
-      "{club} — {sport} in {region}, {state}. Men's, Women's and Junior teams. All skill levels welcome.",
+      "{club} — {sport}[[ in {region}]][[, {state}]]. Men's, Women's and Junior teams. All skill levels welcome.",
   },
   "/about": {
     title: "About the Club | {club}",
     description:
-      "Learn about {club} — our history, our teams, and what makes us part of the {region} {sport} community.",
-    keywords: "{club} history, {sport} club {region}, about {clubShort}",
+      "Learn about {club} — our history, our teams, and what makes us part of the[[ {region}]] {sport} community.",
+    keywords: "{club} history, {sport} club[[ {region}]], about {clubShort}",
   },
   "/calendar": {
     title: "Club Calendar | {club}",
     description:
       "Upcoming games, training sessions and club events for {club}. Stay up to date with everything happening at the club.",
-    keywords: "{club} training times, {sport} fixtures {region}, club calendar",
+    keywords: "{club} training times, {sport} fixtures[[ {region}]], club calendar",
   },
   "/fixtures": {
     title: "Fixtures & Results | {club}",
     description:
       "Game schedules, scores and ladders for all {club} teams across Men's, Women's and Junior divisions.",
-    keywords: "{club} fixtures, {sport} results {region}, {sport} ladder",
+    keywords: "{club} fixtures, {sport} results[[ {region}]], {sport} ladder",
   },
   "/gallery": {
     title: "Photo Gallery | {club}",
     description: "Match day moments, training sessions and club life at {club}. Browse our photo gallery.",
-    keywords: "{club} photos, {sport} club gallery {region}",
+    keywords: "{club} photos, {sport} club gallery[[ {region}]]",
   },
   "/juniors": {
     title: "Junior {sportTitle} Programs | {club}",
     description:
-      "Junior {sport} for boys and girls in {region}. Fun, safe and inclusive programs with loan equipment available. Register your child with {club}.",
+      "Junior {sport} for boys and girls[[ in {region}]]. Fun, safe and inclusive programs with loan equipment available. Register your child with {club}.",
     keywords:
-      "junior {sport} {region}, kids {sport} {region}, {sport} for children {state}, youth {sport}",
+      "junior {sport}[[ {region}]], kids {sport}[[ {region}]], {sport} for children[[ {state}]], youth {sport}",
   },
   "/store": {
     title: "Club Store | {club}",
     description: "Official {club} apparel and equipment — playing kit, training gear and supporter merchandise.",
-    keywords: "{club} merchandise, {sport} apparel {region}, club kit",
+    keywords: "{club} merchandise, {sport} apparel[[ {region}]], club kit",
   },
   "/sign-up": {
     title: "Join Us — Sign Up to Play {sportTitle} | {club}",
     description:
       "New to {sport}? Join {club}. No experience needed, loan equipment provided, all ages welcome. Register your interest today.",
     keywords:
-      "join {sport} {region}, learn {sport}, play {sport} {state}, {sport} beginners {region}",
+      "join {sport}[[ {region}]], learn {sport}, play {sport}[[ {state}]], {sport} beginners[[ {region}]]",
   },
   "/coaches-board": {
     title: "Coaches Board — Tactical Whiteboard | {club}",
@@ -84,13 +84,13 @@ export const PAGE_SEO: Record<string, PageSeo> = {
   "/committee": {
     title: "President & Board | {club}",
     description: "Meet the committee behind {club} — our President, board members and coaches.",
-    keywords: "{club} committee, {sport} club president {region}, club board",
+    keywords: "{club} committee, {sport} club president[[ {region}]], club board",
   },
   "/contact": {
     title: "Contact Us | {club}",
     description:
-      "Get in touch with {club}. Questions about joining, junior programs or sponsorship? Find us at {venue}.",
-    keywords: "contact {club}, {sport} club {region} contact, {venue}",
+      "Get in touch with {club}. Questions about joining, junior programs or sponsorship?[[ Find us at {venue}.]]",
+    keywords: "contact {club}, {sport} club[[ {region}]] contact[[, {venue}]]",
   },
 };
 
@@ -134,3 +134,28 @@ export const SITEMAP_PAGES: { path: string; priority: number; changefreq: string
   { path: "/committee", priority: 0.4, changefreq: "yearly" },
   { path: "/contact", priority: 0.6, changefreq: "yearly" },
 ];
+
+/**
+ * Does this web address correspond to a real page on the site?
+ *
+ * In: a path like "/juniors" or "/p/sponsorship". Out: true if the site can
+ * actually show something there.
+ *
+ * Used by the server to decide whether to answer 404 instead of 200. Without
+ * it every mistyped address returns "page found" with a Not Found message on
+ * it, which search engines index as a real page and link checkers never flag.
+ *
+ * Custom pages the club creates live under /p/, and admin lives at a secret
+ * address, so both are treated as real here and checked properly elsewhere.
+ */
+export function isKnownPath(path: string, adminPath?: string): boolean {
+  const clean = path.split("?")[0].replace(/\/+$/, "") || "/";
+
+  if (SITEMAP_PAGES.some((p) => p.path === clean)) return true;
+  if (clean === "/news") return true;                    // news list, not in the sitemap
+  if (clean.startsWith("/p/")) return true;              // pages the club creates
+  if (clean.startsWith("/store/")) return true;          // checkout, thank-you, cancelled
+  if (adminPath && clean.startsWith(adminPath)) return true;
+
+  return false;
+}
