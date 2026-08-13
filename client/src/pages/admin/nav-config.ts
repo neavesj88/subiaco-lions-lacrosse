@@ -84,6 +84,8 @@ export const ADMIN_GROUPS: AdminGroup[] = [
   {
     name: "Club Setup",
     sections: [
+      { id: "menu", label: "Menu", icon: "ListIcon", permission: "settings",
+        description: "What appears in the top menu, in what order, and which items share a dropdown." },
       { id: "settings", label: "Settings", icon: "Settings", permission: "settings",
         description: "Club name, colours, contact details and integrations." },
       { id: "users", label: "Admin Users", icon: "UserCog", permission: "users",

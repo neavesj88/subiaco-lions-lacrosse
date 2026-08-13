@@ -16,6 +16,8 @@ import { ADMIN_LOGIN_PATH } from "@/lib/admin-path";
 import { useSessionKeepalive } from "@/hooks/use-session-keepalive";
 import { useSiteText } from "@/hooks/use-site-text";
 import { checkTextOnColour } from "@shared/contrast";
+import { checkEmail, checkUrl, checkColour } from "@shared/validate";
+import FieldWarning from "@/components/field-warning";
 import AdminHelp from "@/pages/admin/help";
 import AdminSecurity from "@/pages/admin/security";
 import MediaLibrary from "@/pages/admin/media-library";
@@ -23,6 +25,7 @@ import AdminPages from "@/pages/admin/pages";
 import AdminCommittee from "@/pages/admin/committee";
 import AdminStore, { AdminOrders } from "@/pages/admin/store";
 import AdminStock from "@/pages/admin/stock";
+import AdminMenu from "@/pages/admin/menu";
 import { ADMIN_GROUPS, ALL_SECTIONS } from "@/pages/admin/nav-config";
 import { ROLES, ROLE_INFO } from "@shared/roles";
 import SetupWizard from "@/pages/admin/setup-wizard";
@@ -419,6 +422,19 @@ function UserForm({ onDone }: { onDone: () => void }) {
 }
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
+
+/**
+ * Pick the right check for a settings box, from its name.
+ * In: the setting key and what was typed. Out: a warning, or null.
+ * Keyed on the name so a new email or link setting is covered automatically
+ * rather than being forgotten.
+ */
+function checkSettingValue(key: string, value: string): string | null {
+  if (key.endsWith("_email") || key === "contact_email") return checkEmail(value);
+  if (key.endsWith("_url")) return checkUrl(value);
+  if (key.startsWith("theme_") && key !== "theme_gradient_angle") return checkColour(value);
+  return null;
+}
 
 export default function AdminDashboard() {
   const [, navigate] = useLocation();
@@ -1288,6 +1304,10 @@ export default function AdminDashboard() {
                         value={settingsForm[key] ?? ""}
                         onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
                       />
+                      {/* Warn, never block. Someone may have a perfectly good
+                          address we don't recognise, and losing their typing
+                          would be far worse than showing an unnecessary note. */}
+                      <FieldWarning message={checkSettingValue(key, settingsForm[key] ?? "")} />
                       {help && <p className="text-xs text-stone-500">{help}</p>}
                     </div>
                   ))}
@@ -1517,6 +1537,12 @@ export default function AdminDashboard() {
               <AdminStore />
             </TabsContent>
           )}
+          {can("settings") && (
+            <TabsContent value="menu">
+              <AdminMenu />
+            </TabsContent>
+          )}
+
           {can("store") && (
             <TabsContent value="stock">
               <AdminStock />

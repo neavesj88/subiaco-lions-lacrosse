@@ -2,9 +2,7 @@ import { Link } from "wouter";
 import { useClubDetails } from "@/components/club-details";
 import { useSettings } from "@/hooks/use-settings";
 import { useSiteText } from "@/hooks/use-site-text";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import type { CustomPage } from "@shared/schema";
+import { useMenu } from "@/hooks/use-menu";
 import { Facebook, Instagram, Mail, MapPin } from "lucide-react";
 
 export default function Footer() {
@@ -13,13 +11,9 @@ export default function Footer() {
   const { settings } = useSettings();
   const t = useSiteText();
 
-  // Custom pages the admin chose to list in the footer
-  const { data: customPages = [] } = useQuery<CustomPage[]>({
-    queryKey: ["/api/pages"],
-    queryFn: () => apiRequest("GET", "/api/pages"),
-    staleTime: 60_000,
-  });
-  const footerPages = customPages.filter((p) => p.navLocation === "footer");
+  // Whatever the club placed in the footer under Admin -> Menu. Shared with
+  // the top bar so the two can't disagree about what the site contains.
+  const { footer: quickLinks } = useMenu();
 
   return (
     <footer className="bg-maroon-900 text-maroon-100">
@@ -45,36 +39,27 @@ export default function Footer() {
           <div>
             <h3 className="text-white font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2 text-sm">
-              {[
-                { href: "/about", label: t("nav_label_about") },
-                { href: "/calendar", label: t("nav_label_calendar") },
-                { href: "/juniors", label: t("nav_label_juniors") },
-                { href: "/sign-up", label: t("nav_label_signup") },
-              ].map((l) => (
+              {/* Anything the club put in the footer under Admin -> Menu,
+                  plus a shortcut to joining, which every club wants here. */}
+              {[...quickLinks, { href: "/sign-up", label: t("nav_label_signup") }].map((l) => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-maroon-300 hover:text-gold-400 transition-colors">
                     {l.label}
                   </Link>
                 </li>
               ))}
-              {/* Club-created pages set to appear in the footer */}
-              {footerPages.map((p) => (
-                <li key={p.id}>
-                  <Link href={`/p/${p.slug}`} className="text-maroon-300 hover:text-gold-400 transition-colors">
-                    {p.title}
-                  </Link>
+              {t("league_url") && t("league_name") && (
+                <li>
+                  <a
+                    href={t("league_url")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-maroon-300 hover:text-gold-400 transition-colors"
+                  >
+                    {t("league_name")}
+                  </a>
                 </li>
-              ))}
-              <li>
-                <a
-                  href={t("league_url")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-maroon-300 hover:text-gold-400 transition-colors"
-                >
-                  {t("league_name")}
-                </a>
-              </li>
+              )}
             </ul>
           </div>
 
