@@ -184,14 +184,30 @@ export function buildMenuTree(
   return out.filter((entry) => !entry.children || entry.children.length > 0);
 }
 
-/** The items a club has put in the footer. */
+/**
+ * The "Quick Links" list in the footer.
+ *
+ * In: the menu, plus the same lookups as above. Out: links for the footer.
+ *
+ * If a club has deliberately placed items in the footer, that is exactly what
+ * they get. If they have not — which is the case for every new club, since the
+ * starting menu puts everything in the top bar — the footer mirrors the top
+ * bar instead. A footer column headed "Quick Links" containing one link looks
+ * broken, and no club would think to go and populate it.
+ */
 export function footerItems(
   menu: NavItem[],
   hrefFor: (key: string) => string | null,
   isEnabled: (key: string) => boolean,
 ): Array<{ label: string; href: string }> {
+  const toLink = (i: NavItem) => ({ label: i.label, href: hrefFor(i.key) ?? "" });
+
+  const chosen = menu.filter((i) => i.place === "footer" && isEnabled(i.key));
+  if (chosen.length > 0) return chosen.map(toLink).filter((i) => i.href !== "");
+
   return menu
-    .filter((i) => i.place === "footer" && isEnabled(i.key))
-    .map((i) => ({ label: i.label, href: hrefFor(i.key) ?? "" }))
-    .filter((i) => i.href !== "");
+    .filter((i) => i.place !== "hidden" && i.place !== "footer" && isEnabled(i.key))
+    .map(toLink)
+    .filter((i) => i.href !== "")
+    .slice(0, 6);   // a footer column, not a second navigation bar
 }

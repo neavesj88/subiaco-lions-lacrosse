@@ -48,18 +48,6 @@ export default function Footer() {
                   </Link>
                 </li>
               ))}
-              {t("league_url") && t("league_name") && (
-                <li>
-                  <a
-                    href={t("league_url")}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-maroon-300 hover:text-gold-400 transition-colors"
-                  >
-                    {t("league_name")}
-                  </a>
-                </li>
-              )}
             </ul>
           </div>
 
@@ -104,7 +92,17 @@ export default function Footer() {
 
         <div className="mt-8 pt-6 border-t border-maroon-700 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-maroon-400">
           <p>© {new Date().getFullYear()} {club.clubFullName}. All rights reserved.</p>
-          <p>Affiliated with <a href={t("league_url")} target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:underline">{t("league_name")}</a></p>
+          {t("league_name") && (
+            <p>
+              Affiliated with{" "}
+              {t("league_url") ? (
+                <a href={t("league_url")} target="_blank" rel="noopener noreferrer"
+                   className="text-gold-500 hover:underline">{t("league_name")}</a>
+              ) : (
+                t("league_name")
+              )}
+            </p>
+          )}
         </div>
       </div>
     </footer>

@@ -1400,22 +1400,32 @@ export default function AdminDashboard() {
                           onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))}
                         />
                       </div>
-                      <p className="text-xs text-stone-500">{help}</p>
-                      {/* Banners and buttons put WHITE text on the primary and
-                          accent colours, so an unreadable choice has to be
-                          caught here rather than by a member who can't read the
-                          site. The dark shade is only ever a gradient end, so
-                          it isn't checked. */}
-                      {key !== "theme_primary_dark" && (() => {
+                      {/* Is it a colour at all? Caught first, because a
+                          contrast check on "#zzz" would be meaningless. */}
+                      <FieldWarning message={checkColour(settingsForm[key] ?? "")} />
+
+                      {/* Only the PRIMARY colour is checked for readability.
+                          It is the banner behind white text on every page, so
+                          a pale choice there makes the site genuinely unusable.
+                          The accent is only used for the bar under headings and
+                          for buttons that carry DARK text, and the dark shade
+                          is just the far end of a gradient — warning about
+                          those would be a false alarm, and warnings people
+                          learn to ignore are worse than none. */}
+                      {key === "theme_primary" && (() => {
                         const check = checkTextOnColour(settingsForm[key] || fallback);
                         if (check.ok) return null;
                         return (
-                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
-                            {check.message}
-                            {check.ratio !== null && ` (currently ${check.ratio.toFixed(1)}:1, needs 4.5:1)`}
+                          <p className="flex items-start gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5"
+                             title={check.message} role="status">
+                            <span>
+                              {check.message}
+                              {check.ratio !== null && ` (currently ${check.ratio.toFixed(1)}:1, needs 4.5:1)`}
+                            </span>
                           </p>
                         );
                       })()}
+                      <p className="text-xs text-stone-500">{help}</p>
                     </div>
                   ))}
 
