@@ -1,3 +1,6 @@
+// Reads .env first, so SEED_ADMIN_PASSWORD and DATABASE_URL are honoured here
+// exactly as they are by the server (runtime-config and db read them on import).
+import "dotenv/config";
 import bcrypt from "bcrypt";
 import { db } from "./db";
 import { users, juniorsContent, siteSettings, announcements, events } from "@shared/schema";

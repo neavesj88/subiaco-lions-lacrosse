@@ -33,6 +33,8 @@
 // Old backups are pruned automatically; the most recent 30 are kept.
 // =============================================================================
 
+// Reads .env so a DATABASE_URL set there backs up the file the server really uses.
+import "dotenv/config";
 import Database from "better-sqlite3";
 import { mkdirSync, readdirSync, statSync, rmSync, existsSync, linkSync, copyFileSync } from "fs";
 import path from "path";

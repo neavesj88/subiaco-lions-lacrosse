@@ -10,6 +10,8 @@
 //   can fail on existing indexes. This script uses direct SQL which is safer.
 // =============================================================================
 
+// Reads .env so a DATABASE_URL set there migrates the same file the server uses.
+import 'dotenv/config';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'fs';
 
