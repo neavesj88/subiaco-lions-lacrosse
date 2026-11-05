@@ -77,16 +77,37 @@ async function getMailConfig() {
 // so a club that renames itself (or a different club reusing this site) never
 // has to touch these templates. Blank values simply drop the line they're on.
 // ---------------------------------------------------------------------------
+/**
+ * Make text safe to put inside an email's HTML.
+ *
+ * Everything a member of the public typed (names, messages, addresses) goes
+ * through this. Without it, a "name" of <a href="…">Verify your account</a>
+ * would arrive in the club's inbox as a real, clickable link — inside an email
+ * the club trusts because it came from its own website.
+ */
+function esc(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** The club's own details, already made safe for email HTML. */
 function emailBrand() {
   const t = getSiteText();
   return {
     t,
-    clubName: t("club_name"),
-    clubFullName: t.clubFullName,
-    suffix: t("club_name_suffix"),
-    email: t("contact_email"),
-    venueLine: [t("venue_name"), t("venue_address")].filter(Boolean).join(", "),
-    instagram: t("instagram_handle"),
+    clubName: esc(t("club_name")),
+    clubFullName: esc(t.clubFullName),
+    suffix: esc(t("club_name_suffix")),
+    email: esc(t("contact_email")),
+    venueLine: esc([t("venue_name"), t("venue_address")].filter(Boolean).join(", ")),
+    instagram: encodeURIComponent(t("instagram_handle").replace(/^@/, "")),
+    // Optional: the name of a junior fee-help scheme the club takes part in
+    // (e.g. "KidSport" in WA). Blank means it is never mentioned.
+    subsidy: esc(t("subsidy_name")),
     primary: t("theme_primary") || "#7B1E32",
     accent: t("theme_accent") || "#C5942A",
   };
@@ -135,7 +156,7 @@ export async function sendTestEmail(to: string): Promise<void> {
   await transporter.sendMail({
     from: cfg.from,
     to,
-    subject: `Test email — ${emailBrand().clubName} website`,
+    subject: `Test email — ${getSiteText()("club_name")} website`,
     text: "This is a test email from your club website. If you're reading this, email is working correctly.",
     html: `<div style="font-family:sans-serif">
       <h2 style="color:${emailBrand().primary}">Email is working ✓</h2>
@@ -156,6 +177,9 @@ async function sendEmail(opts: {
   subject: string;
   html: string;
   text: string;
+  /** Where pressing Reply should go. Without it, replies go back to the
+   *  club's own sending address instead of the person who wrote in. */
+  replyTo?: string | null;
 }): Promise<boolean> {
   const cfg = await getMailConfig();
 
@@ -175,7 +199,8 @@ async function sendEmail(opts: {
   }
 
   try {
-    await transporter.sendMail({ from: cfg.from, ...opts });
+    const { replyTo, ...rest } = opts;
+    await transporter.sendMail({ from: cfg.from, ...rest, ...(replyTo ? { replyTo } : {}) });
     console.log(`[email] Sent → ${opts.to}: ${opts.subject}`);
     return true;
   } catch (err: any) {
@@ -206,18 +231,19 @@ export async function notifyContactMessage(data: {
 
   return sendEmail({
     to: clubEmail,
+    replyTo: data.email,
     subject: `Contact form: ${data.subject} — from ${data.name}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px">
         <h2 style="color:${emailBrand().primary}">New contact message — ${emailBrand().clubName}</h2>
         <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666;width:100px">Name</td><td style="padding:6px 0;font-weight:bold">${data.name}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Email</td><td style="padding:6px 0"><a href="mailto:${data.email}">${data.email}</a></td></tr>
-          <tr><td style="padding:6px 0;color:#666">Subject</td><td style="padding:6px 0">${data.subject}</td></tr>
+          <tr><td style="padding:6px 0;color:#666;width:100px">Name</td><td style="padding:6px 0;font-weight:bold">${esc(data.name)}</td></tr>
+          <tr><td style="padding:6px 0;color:#666">Email</td><td style="padding:6px 0">${esc(data.email)}</td></tr>
+          <tr><td style="padding:6px 0;color:#666">Subject</td><td style="padding:6px 0">${esc(data.subject)}</td></tr>
         </table>
-        <div style="margin-top:16px;padding:16px;background:#f5f5f5;border-radius:8px;white-space:pre-wrap">${data.message}</div>
+        <div style="margin-top:16px;padding:16px;background:#f5f5f5;border-radius:8px;white-space:pre-wrap">${esc(data.message)}</div>
         <p style="margin-top:20px;color:#888;font-size:12px">
-          Reply directly to this email to respond to ${data.name}.<br>
+          Reply directly to this email to respond to ${esc(data.name)}.<br>
           This message is also saved in your admin panel under Messages.
         </p>
       </div>
@@ -240,49 +266,67 @@ export async function notifyNewRegistration(data: {
   email: string;
   phone?: string | null;
   isJunior: boolean;
+  dateOfBirth?: string | null;
   parentName?: string | null;
   parentEmail?: string | null;
+  parentPhone?: string | null;
   teamPreference?: string | null;
   experienceLevel: string;
   kidsportEligible: boolean;
   howHeard?: string | null;
   message?: string | null;
-}) {
+}, siteUrl: string) {
   const clubEmail = (await getMailConfig()).notify;
   const brand = emailBrand();
-  const fullName = `${data.firstName} ${data.lastName}`;
+  const plainName = `${data.firstName} ${data.lastName}`;
+  // Who the club should answer: the parent, for a junior.
+  const contactAddress = data.isJunior && data.parentEmail ? data.parentEmail : data.email;
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:6px 0;color:#666">${label}</td><td style="padding:6px 0">${value}</td></tr>`;
 
   // --- 1. Notify the club ---
   await sendEmail({
     to: clubEmail,
-    subject: `New sign-up enquiry: ${fullName}${data.isJunior ? " (Junior)" : ""}`,
+    replyTo: contactAddress,
+    subject: `New sign-up enquiry: ${plainName}${data.isJunior ? " (Junior)" : ""}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px">
-        <h2 style="color:${emailBrand().primary}">New sign-up enquiry — ${emailBrand().clubName}</h2>
+        <h2 style="color:${brand.primary}">New sign-up enquiry — ${brand.clubName}</h2>
         <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666;width:160px">Name</td><td style="padding:6px 0;font-weight:bold">${fullName}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Email</td><td style="padding:6px 0"><a href="mailto:${data.email}">${data.email}</a></td></tr>
-          ${data.phone ? `<tr><td style="padding:6px 0;color:#666">Phone</td><td style="padding:6px 0">${data.phone}</td></tr>` : ""}
-          <tr><td style="padding:6px 0;color:#666">Junior?</td><td style="padding:6px 0">${data.isJunior ? "Yes" : "No"}</td></tr>
-          ${data.parentName ? `<tr><td style="padding:6px 0;color:#666">Parent/Guardian</td><td style="padding:6px 0">${data.parentName}${data.parentEmail ? ` &lt;${data.parentEmail}&gt;` : ""}</td></tr>` : ""}
-          <tr><td style="padding:6px 0;color:#666">Team preference</td><td style="padding:6px 0;text-transform:capitalize">${data.teamPreference ?? "Not specified"}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Experience</td><td style="padding:6px 0;text-transform:capitalize">${data.experienceLevel}</td></tr>
-          ${data.kidsportEligible ? `<tr><td style="padding:6px 0;color:#666">KidSport</td><td style="padding:6px 0;color:#16a34a;font-weight:bold">Requested info</td></tr>` : ""}
-          ${data.howHeard ? `<tr><td style="padding:6px 0;color:#666">How they heard</td><td style="padding:6px 0">${data.howHeard}</td></tr>` : ""}
+          <tr><td style="padding:6px 0;color:#666;width:160px">Name</td><td style="padding:6px 0;font-weight:bold">${esc(plainName)}</td></tr>
+          ${row("Email", esc(data.email))}
+          ${data.phone ? row("Phone", esc(data.phone)) : ""}
+          ${data.dateOfBirth ? row("Date of birth", esc(data.dateOfBirth)) : ""}
+          ${row("Junior?", data.isJunior ? "Yes" : "No")}
+          ${data.parentName ? row("Parent/Guardian", esc(data.parentName)) : ""}
+          ${data.parentEmail ? row("Parent email", esc(data.parentEmail)) : ""}
+          ${data.parentPhone ? row("Parent phone", esc(data.parentPhone)) : ""}
+          ${row("Team preference", esc(data.teamPreference ?? "Not specified"))}
+          ${row("Experience", esc(data.experienceLevel))}
+          ${data.kidsportEligible && brand.subsidy ? `<tr><td style="padding:6px 0;color:#666">${brand.subsidy}</td><td style="padding:6px 0;color:#16a34a;font-weight:bold">Requested info</td></tr>` : ""}
+          ${data.howHeard ? row("How they heard", esc(data.howHeard)) : ""}
         </table>
-        ${data.message ? `<div style="margin-top:16px;padding:16px;background:#f5f5f5;border-radius:8px"><strong>Their message:</strong><br><br>${data.message}</div>` : ""}
-        <p style="margin-top:16px;color:#888;font-size:12px">Log in to your admin panel to update their status (Contacted → Registered) under Sign-Ups.</p>
+        ${data.message ? `<div style="margin-top:16px;padding:16px;background:#f5f5f5;border-radius:8px;white-space:pre-wrap"><strong>Their message:</strong><br><br>${esc(data.message)}</div>` : ""}
+        <p style="margin-top:16px;color:#888;font-size:12px">Press Reply to answer ${data.isJunior && data.parentEmail ? "their parent or guardian" : "them"} directly.
+        Log in to your admin panel to update their status (Contacted → Registered) under Sign-Ups.</p>
       </div>
     `,
-    text: `New sign-up: ${fullName}\nEmail: ${data.email}\n${data.phone ? `Phone: ${data.phone}\n` : ""}Junior: ${data.isJunior ? "Yes" : "No"}\nExperience: ${data.experienceLevel}\n\n${data.message ?? ""}`,
+    text: `New sign-up: ${plainName}\nEmail: ${data.email}\n${data.phone ? `Phone: ${data.phone}\n` : ""}`
+      + `${data.dateOfBirth ? `Date of birth: ${data.dateOfBirth}\n` : ""}Junior: ${data.isJunior ? "Yes" : "No"}\n`
+      + `${data.parentName ? `Parent/Guardian: ${data.parentName}\n` : ""}`
+      + `${data.parentEmail ? `Parent email: ${data.parentEmail}\n` : ""}`
+      + `${data.parentPhone ? `Parent phone: ${data.parentPhone}\n` : ""}`
+      + `Experience: ${data.experienceLevel}\n\n${data.message ?? ""}`,
   });
 
   // --- 2. Auto-reply to the registrant ---
-  // This confirms receipt and sets expectations — same pattern neaves.au uses
-  const replyTo = data.isJunior && data.parentEmail ? data.parentEmail : data.email;
+  // This confirms receipt and sets expectations — same pattern neaves.au uses.
+  // Links are full addresses: "/juniors" means nothing inside an email program.
+  const site = esc(siteUrl.replace(/\/+$/, ""));
   await sendEmail({
-    to: replyTo,
-    subject: `Thanks for your interest — ${brand.clubFullName}`,
+    to: contactAddress,
+    replyTo: brand.t("contact_email") || null,
+    subject: `Thanks for your interest — ${brand.t.clubFullName}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px">
         <div style="background:${brand.primary};padding:24px;border-radius:8px 8px 0 0;text-align:center">
@@ -290,14 +334,14 @@ export async function notifyNewRegistration(data: {
           ${brand.suffix ? `<p style="color:#f0e6e8;margin:4px 0 0">${brand.suffix}</p>` : ""}
         </div>
         <div style="padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 8px 8px">
-          <p>Hi ${data.firstName},</p>
+          <p>Hi ${esc(data.firstName)},</p>
           <p>Thanks for your interest in joining ${brand.clubFullName}!</p>
-          <p>We've received your enquiry and one of our team will be in touch within <strong>48 hours</strong> with everything you need to get started.</p>
-          ${data.isJunior ? `<p>As a junior enquiry, we'll also have info about our <strong>KidSport</strong> subsidy available.</p>` : ""}
+          <p>We've received your enquiry and one of our team will be in touch soon with everything you need to get started.</p>
+          ${data.isJunior && brand.subsidy ? `<p>As a junior enquiry, we'll also send information about the <strong>${brand.subsidy}</strong> subsidy.</p>` : ""}
           <p>In the meantime, feel free to check out:</p>
           <ul>
-            <li>Our <a href="/juniors" style="color:${brand.primary}">Juniors page</a> for program info</li>
-            <li>Our <a href="/calendar" style="color:${brand.primary}">Club Calendar</a> for upcoming training sessions</li>
+            <li>Our <a href="${site}/juniors" style="color:${brand.primary}">Juniors page</a> for program info</li>
+            <li>Our <a href="${site}/calendar" style="color:${brand.primary}">Club Calendar</a> for upcoming training sessions</li>
             ${brand.instagram ? `<li>Follow us on <a href="https://www.instagram.com/${brand.instagram}/" style="color:${brand.primary}">Instagram</a> for the latest news</li>` : ""}
           </ul>
           <p>See you at training!</p>
@@ -309,13 +353,13 @@ export async function notifyNewRegistration(data: {
     `,
     text: `Hi ${data.firstName},
 
-Thanks for your interest in ${brand.clubFullName}!
+Thanks for your interest in ${brand.t.clubFullName}!
 
-We'll be in touch within 48 hours.
+We'll be in touch soon.
 
-${brand.clubFullName}
-${brand.venueLine}
-${brand.email}`,
+${brand.t.clubFullName}
+${[brand.t("venue_name"), brand.t("venue_address")].filter(Boolean).join(", ")}
+${brand.t("contact_email")}`,
   });
 }
 
@@ -352,7 +396,7 @@ export async function notifyOrderPaid(order: {
   const isPickup = order.fulfilmentMethod !== "shipping";
   const rows = order.items.map((i) => `
     <tr>
-      <td style="padding:6px 0">${i.quantity} &times; ${i.productName}${i.variantLabel && i.variantLabel !== "One size" ? ` <span style="color:#666">(${i.variantLabel})</span>` : ""}</td>
+      <td style="padding:6px 0">${i.quantity} &times; ${esc(i.productName)}${i.variantLabel && i.variantLabel !== "One size" ? ` <span style="color:#666">(${esc(i.variantLabel)})</span>` : ""}</td>
       <td style="padding:6px 0;text-align:right">${money(i.unitPriceCents * i.quantity)}</td>
     </tr>`).join("");
 
@@ -369,18 +413,19 @@ export async function notifyOrderPaid(order: {
 
   await sendEmail({
     to: clubInbox,
+    replyTo: order.customerEmail,
     subject: `New order ${order.reference} — ${money(order.totalCents)}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px">
         <h2 style="color:${brand.primary}">New paid order — ${brand.clubName}</h2>
-        <p style="margin:0 0 4px"><strong>Reference:</strong> ${order.reference}</p>
-        <p style="margin:0 0 4px"><strong>From:</strong> ${order.customerName ?? "—"}
-           &lt;<a href="mailto:${order.customerEmail ?? ""}">${order.customerEmail ?? "—"}</a>&gt;
-           ${order.customerPhone ? ` · ${order.customerPhone}` : ""}</p>
-        <p style="margin:0 0 16px"><strong>${isPickup ? "COLLECTING at the club" : "POST TO"}:</strong>
-           ${isPickup ? "—" : (order.shippingAddress ?? "no address given")}</p>
+        <p style="margin:0 0 4px"><strong>Reference:</strong> ${esc(order.reference)}</p>
+        <p style="margin:0 0 4px"><strong>From:</strong> ${esc(order.customerName ?? "—")}
+           &lt;${esc(order.customerEmail ?? "—")}&gt;
+           ${order.customerPhone ? ` · ${esc(order.customerPhone)}` : ""}</p>
+        <p style="margin:0 0 16px;white-space:pre-wrap"><strong>${isPickup ? "COLLECTING at the club" : "POST TO"}:</strong>
+           ${isPickup ? "—" : esc(order.shippingAddress ?? "no address given")}</p>
         <table style="width:100%;border-collapse:collapse">${rows}${totals}</table>
-        ${order.notes ? `<div style="margin-top:16px;padding:12px;background:#f5f5f5;border-radius:8px"><strong>Their note:</strong><br>${order.notes}</div>` : ""}
+        ${order.notes ? `<div style="margin-top:16px;padding:12px;background:#f5f5f5;border-radius:8px;white-space:pre-wrap"><strong>Their note:</strong><br>${esc(order.notes)}</div>` : ""}
         <p style="margin-top:20px;color:#888;font-size:12px">
           Mark this order as fulfilled in your admin panel once it has been handed over or posted.
         </p>
@@ -395,21 +440,22 @@ export async function notifyOrderPaid(order: {
 
   await sendEmail({
     to: order.customerEmail,
-    subject: `Your ${brand.clubName} order ${order.reference}`,
+    replyTo: brand.t("contact_email") || null,
+    subject: `Your ${brand.t("club_name")} order ${order.reference}`,
     html: `
       <div style="font-family:sans-serif;max-width:600px">
         <div style="background:${brand.primary};padding:24px;border-radius:8px 8px 0 0;text-align:center">
           <h1 style="color:${brand.accent};margin:0;font-size:24px">${brand.clubName}</h1>
         </div>
         <div style="padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 8px 8px">
-          <p>Hi ${order.customerName ?? "there"},</p>
+          <p>Hi ${esc(order.customerName ?? "there")},</p>
           <p>Thanks for your order — your payment came through and we're on it.</p>
-          <p style="margin:0 0 16px"><strong>Order reference:</strong> ${order.reference}</p>
+          <p style="margin:0 0 16px"><strong>Order reference:</strong> ${esc(order.reference)}</p>
           <table style="width:100%;border-collapse:collapse">${rows}${totals}</table>
           <p style="margin-top:16px">
             ${isPickup
               ? `You've chosen to <strong>collect this at the club</strong>. We'll be in touch when it's ready${brand.venueLine ? ` — pick up from ${brand.venueLine}` : ""}.`
-              : `We'll post this to:<br><strong>${order.shippingAddress ?? ""}</strong>`}
+              : `We'll post this to:<br><strong style="white-space:pre-wrap">${esc(order.shippingAddress ?? "")}</strong>`}
           </p>
           <p style="color:#888;font-size:13px">Questions? Just reply to this email.</p>
           <p><strong>${brand.clubFullName}</strong>${brand.email ? `<br><a href="mailto:${brand.email}" style="color:${brand.primary}">${brand.email}</a>` : ""}</p>
@@ -418,6 +464,6 @@ export async function notifyOrderPaid(order: {
     text: `Hi ${order.customerName ?? "there"},\n\nThanks for your order — payment received.\n\n`
       + `Reference: ${order.reference}\n\n`
       + order.items.map((i) => `${i.quantity} x ${i.productName}${i.variantLabel ? ` (${i.variantLabel})` : ""} — ${money(i.unitPriceCents * i.quantity)}`).join("\n")
-      + `\n\nTotal paid: ${money(order.totalCents)}\n\n${brand.clubFullName}`,
+      + `\n\nTotal paid: ${money(order.totalCents)}\n\n${brand.t.clubFullName}`,
   });
 }

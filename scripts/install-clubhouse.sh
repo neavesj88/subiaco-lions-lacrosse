@@ -68,7 +68,11 @@ if [ ! -f .env ]; then
   # A non-obvious admin address, so the login page isn't sitting at /admin.
   RANDOM_PATH="/manage-$(openssl rand -hex 3)"
   sed -i "s|^ADMIN_PATH=.*|ADMIN_PATH=$RANDOM_PATH|" .env
-  ok "Created .env with a random session secret"
+  # The first admin's starting password, random rather than a default that is
+  # printed in a public repository. Shown again at the end of this script.
+  ADMIN_PW="$(openssl rand -base64 12 | tr -d '/+=')"
+  sed -i "s|^SEED_ADMIN_PASSWORD=.*|SEED_ADMIN_PASSWORD=$ADMIN_PW|" .env
+  ok "Created .env with a random session secret and admin password"
   ok "Admin page address set to: $RANDOM_PATH"
   warn "Write that address down — it is deliberately hard to guess."
 else
@@ -77,9 +81,10 @@ fi
 
 # ── 3. Install and build ─────────────────────────────────────────────────────
 say "Installing and building the site"
-# --omit=optional skips packages the site doesn't actually use but which would
-# otherwise need compiling (and which carry their own security advisories).
-npm ci --omit=optional 2>/dev/null || npm install --omit=optional
+# A plain install. Not --omit=optional: the build tools (vite's rollup and
+# esbuild) ship their Linux engines as "optional" packages, so leaving those
+# out makes the build step below fail on every fresh PC.
+npm ci || npm install
 node scripts/migrate.mjs
 npm run build
 ok "Built"
@@ -87,6 +92,7 @@ ok "Built"
 if [ ! -s data/club.db ] || [ "$(node -e "const D=require('better-sqlite3');const d=new D('data/club.db',{readonly:true});console.log(d.prepare('SELECT COUNT(*) n FROM users').get().n)" 2>/dev/null || echo 0)" = "0" ]; then
   npm run db:seed
   ok "Created the first admin account"
+  SEEDED=1
 fi
 
 # ── 4. Run it as a service ───────────────────────────────────────────────────
@@ -184,6 +190,12 @@ ADMIN_PATH_VALUE="$(grep -E '^ADMIN_PATH=' .env | cut -d= -f2- || echo /manage)"
 say "Done"
 echo "  On this PC the site is at:  http://localhost:${PORT:-5000}"
 echo "  Admin login:                http://localhost:${PORT:-5000}${ADMIN_PATH_VALUE}/login"
+if [ "${SEEDED:-0}" = "1" ]; then
+  echo "  Username:                   admin"
+  START_PW="$(grep -E '^SEED_ADMIN_PASSWORD=' .env | cut -d= -f2- || true)"
+  echo "  Starting password:          ${START_PW:-shown in the box further up}"
+  echo "                              (write it down, then change it after logging in)"
+fi
 echo ""
 echo "  Useful commands:"
 echo "    sudo systemctl status $SERVICE_NAME     is it running?"

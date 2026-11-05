@@ -15,7 +15,7 @@
 // =============================================================================
 
 import { useState, useMemo } from "react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, ApiError } from "@/lib/queryClient";
 import { toast } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,10 +81,24 @@ export default function MediaLibrary({
   };
 
   const remove = (m: MediaUpload) => {
-    if (!confirm(`Delete "${m.originalName}"?\n\nIt will disappear from the photo gallery and from any news post using it. This can't be undone.`)) return;
+    if (!confirm(`Delete "${m.originalName}"?\n\nIt will be removed from the photo gallery. This can't be undone.`)) return;
+    const done = () => { onChanged(); toast({ title: "Photo deleted" }); };
     apiRequest("DELETE", `/api/media/${m.id}`)
-      .then(() => { onChanged(); toast({ title: "Photo deleted" }); })
-      .catch((e) => toast({ title: "Error", description: e.message, variant: "destructive" }));
+      .then(done)
+      .catch((e) => {
+        // The server refuses at first if the photo is still in use, and says
+        // where, so nobody breaks the club logo by tidying up the library.
+        const usedIn = e instanceof ApiError && e.status === 409 ? (e.data.usedIn as string[] | undefined) : undefined;
+        if (usedIn?.length) {
+          const list = usedIn.map((p) => `  • ${p}`).join("\n");
+          if (!confirm(`"${m.originalName}" is still used on the site:\n\n${list}\n\nDelete it anyway? Those places will show a broken image until you choose another photo.`)) return;
+          apiRequest("DELETE", `/api/media/${m.id}?force=1`)
+            .then(done)
+            .catch((e2) => toast({ title: "Error", description: e2.message, variant: "destructive" }));
+          return;
+        }
+        toast({ title: "Error", description: e.message, variant: "destructive" });
+      });
   };
 
   return (

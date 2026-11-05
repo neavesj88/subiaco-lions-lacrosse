@@ -8,7 +8,7 @@
 # =============================================================================
 
 # ---- Stage 1: build ----------------------------------------------------------
-FROM node:20-bookworm-slim AS build
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 # better-sqlite3 is a native module — it needs build tools to compile
@@ -23,10 +23,13 @@ COPY . .
 RUN npm run build
 
 # ---- Stage 2: runtime --------------------------------------------------------
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5000
+# cloudflared runs in its own container and reaches the site over Docker's
+# private network, so that network counts as "our proxy" (server/security.ts).
+ENV TRUST_PROXY="loopback, uniquelocal"
 
 # Only copy what's needed to run (smaller, faster, more secure image)
 COPY package*.json ./
@@ -39,13 +42,14 @@ RUN apt-get update && apt-get install -y python3 make g++ \
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/shared ./shared
-COPY --from=build /app/public ./public
 
 # data/ holds the SQLite database + uploads — mounted as a volume (see compose)
 RUN mkdir -p data/backups public/uploads
 
 EXPOSE 5000
 
-# On every start: create tables (safe to re-run), seed defaults if the DB is
-# empty (creates the default admin + starter content), then launch the server.
-CMD ["sh", "-c", "node scripts/migrate.mjs && node dist/seed.js && node dist/index.js"]
+# On every start: create tables (safe to re-run), add any missing default
+# settings, create the first admin ONLY if there are no accounts at all (its
+# password is printed once: see it with `docker compose logs web`), then launch
+# the server. A seed problem is reported but doesn't stop the site starting.
+CMD ["sh", "-c", "node scripts/migrate.mjs && (node dist/seed.js || echo 'Seed step failed - see the error above') && node dist/index.js"]

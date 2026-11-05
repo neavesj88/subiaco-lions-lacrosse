@@ -33,9 +33,14 @@ export function csvRow(values: unknown[]): string {
   return values.map(csvCell).join(",");
 }
 
-/** Join a header and rows into a downloadable file body. */
+/**
+ * Join a header and rows into a downloadable file body.
+ *
+ * It starts with an invisible "byte order mark". Excel needs it to read the
+ * file as UTF-8; without it, accented names (Zoë, José) come out garbled.
+ */
 export function csvFile(header: string[], rows: unknown[][]): string {
-  return [csvRow(header), ...rows.map(csvRow)].join("\n");
+  return "﻿" + [csvRow(header), ...rows.map(csvRow)].join("\r\n");
 }
 
 /**

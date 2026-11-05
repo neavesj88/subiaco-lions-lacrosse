@@ -83,11 +83,14 @@ export default function RichTextEditor({
 
   // Sync external value changes (e.g. form reset). emitUpdate:false stops the
   // sync itself firing onChange (TipTap v3 options-object signature).
+  // A destroyed editor (StrictMode's double mount, or a re-created editor)
+  // throws on getHTML(), so skip it; the replacement editor re-runs this.
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
+    if (!editor || editor.isDestroyed) return;
+    if (value !== editor.getHTML()) {
       editor.commands.setContent(value, { emitUpdate: false });
     }
-  }, [value]);
+  }, [editor, value]);
 
   const setLink = useCallback(() => {
     if (!editor) return;

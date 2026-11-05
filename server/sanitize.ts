@@ -102,11 +102,59 @@ export function cleanHtmlFields<T extends Record<string, any>>(
   return body;
 }
 
+/** Turn the five entities the sanitiser writes back into the characters. */
+function decodeBasicEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");   // last, so "&amp;lt;" becomes "&lt;", not "<"
+}
+
 /**
  * Strip ALL tags — for fields that are meant to be plain text but get shown
  * on a page (names, titles, captions). Keeps the text, drops any markup.
+ *
+ * The result is plain text, NOT HTML: "Fish & Chips" stays "Fish & Chips".
+ * (The sanitiser's raw output would be "Fish &amp; Chips", which the page then
+ * shows literally, ampersand-a-m-p and all.) That is safe because plain text
+ * is only ever displayed by React, which escapes it, or put into an email
+ * through email.ts's own escaping.
  */
 export function cleanText(value: unknown): string {
   if (typeof value !== "string" || value === "") return "";
-  return sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} }).trim();
+  return decodeBasicEntities(
+    sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} }),
+  ).trim();
 }
+
+/** Does this look like HTML at all — is there anything resembling a tag? */
+export function looksLikeHtml(value: string): boolean {
+  return /<[a-z!/?]/i.test(value);
+}
+
+/**
+ * For page sections that may be EITHER plain text (a heading) or rich text (a
+ * body written in the editor), on a route that can't tell which.
+ *
+ * Text containing no tags at all is saved exactly as typed; it can't do
+ * anything when displayed, and running it through the HTML cleaner would turn
+ * "&" into "&amp;" on the page. Anything with a tag in it is cleaned in full.
+ */
+export function cleanMaybeHtml(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  return looksLikeHtml(value) ? cleanHtml(value) : value;
+}
+
+/** Repairs text that an earlier version saved HTML-escaped. */
+export function unescapeSavedText(value: string): string {
+  return looksLikeHtml(value) ? value : decodeBasicEntities(value);
+}
+
+/**
+ * Settings whose value is shown on the site as formatted text (rendered as
+ * HTML), and so must be cleaned like editor content. Add a key here if a page
+ * ever starts displaying another setting through RichTextDisplay.
+ */
+export const RICH_TEXT_SETTINGS = ["about_history_body"];

@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { toast } from "@/components/ui/toaster";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -6,8 +7,27 @@ export const queryClient = new QueryClient({
       staleTime: 30_000,
       retry: 1,
     },
+    mutations: {
+      // Any save, delete or toggle that fails and doesn't handle the failure
+      // itself still says so. Without this, a refused save looked exactly like
+      // a successful one: nothing happened, and the change was quietly lost.
+      onError: (err: unknown) => {
+        toast({
+          title: "That didn't save",
+          description: err instanceof Error ? err.message : "Something went wrong. Try again.",
+          variant: "destructive",
+        });
+      },
+    },
   },
 });
+
+/** An error from the server, carrying its HTTP status and any extra detail. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number, readonly data: Record<string, unknown>) {
+    super(message);
+  }
+}
 
 export async function apiRequest(method: string, path: string, body?: unknown) {
   const res = await fetch(path, {
@@ -19,7 +39,7 @@ export async function apiRequest(method: string, path: string, body?: unknown) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message ?? "Request failed");
+    throw new ApiError(err.message ?? "Request failed", res.status, err);
   }
 
   return res.json();

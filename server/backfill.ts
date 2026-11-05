@@ -18,8 +18,10 @@
 
 import { eq } from "drizzle-orm";
 import { db } from "./db";
-import { announcements, juniorsContent, pageContent, customPages, siteSettings } from "@shared/schema";
-import { cleanHtml } from "./sanitize";
+import {
+  announcements, juniorsContent, pageContent, customPages, siteSettings, products, orders,
+} from "@shared/schema";
+import { cleanHtml, unescapeSavedText, RICH_TEXT_SETTINGS } from "./sanitize";
 
 const FLAG = "content_sanitised_v1";
 
@@ -61,5 +63,71 @@ export function backfillSanitiseContent(): void {
     // Never prevent the site starting because of this — it is a tidy-up, not a
     // requirement. Anything it misses is still made safe when next re-saved.
     console.error("[security] Content clean-up skipped:", (err as Error).message);
+  }
+}
+
+// =============================================================================
+// ONE-TIME REPAIR: "&amp;" showing on the site
+// =============================================================================
+// Earlier versions ran plain-text fields (page headings, product descriptions,
+// customers' names and addresses) through the HTML cleaner, which stores "&"
+// as "&amp;" and an apostrophe as "&#39;". The site then showed those codes
+// literally: "Fish &amp; Chips", "O&#39;Brien". New saves no longer do this
+// (server/sanitize.ts); this turns what is already stored back into the text
+// that was typed, once.
+//
+// Only values with no HTML tags in them are touched, so formatted text written
+// in the editor (which always has tags) is left exactly as it is. The same
+// pass also cleans the settings that are displayed as formatted text, which
+// were not being cleaned at all before.
+// =============================================================================
+
+const FLAG_TEXT = "plain_text_repaired_v1";
+
+export function backfillPlainText(): void {
+  try {
+    const [flag] = db.select().from(siteSettings).where(eq(siteSettings.key, FLAG_TEXT)).limit(1).all();
+    if (flag?.value === "done") return;
+
+    let changed = 0;
+    const repair = (table: any, columns: string[]) => {
+      const rows = db.select().from(table).all() as any[];
+      for (const row of rows) {
+        const set: Record<string, string> = {};
+        for (const column of columns) {
+          const before = row[column];
+          if (typeof before !== "string" || before === "") continue;
+          const after = unescapeSavedText(before);
+          if (after !== before) set[column] = after;
+        }
+        if (Object.keys(set).length > 0) {
+          db.update(table).set(set).where(eq(table.id, row.id)).run();
+          changed++;
+        }
+      }
+    };
+
+    repair(pageContent, ["content"]);
+    repair(juniorsContent, ["title", "content"]);
+    repair(products, ["name", "description"]);
+    repair(orders, ["customerName", "customerPhone", "shippingAddress", "notes", "adminNotes"]);
+
+    for (const key of RICH_TEXT_SETTINGS) {
+      const [row] = db.select().from(siteSettings).where(eq(siteSettings.key, key)).limit(1).all();
+      if (row && row.value) {
+        const cleaned = cleanHtml(row.value);
+        if (cleaned !== row.value) {
+          db.update(siteSettings).set({ value: cleaned }).where(eq(siteSettings.key, key)).run();
+          changed++;
+        }
+      }
+    }
+
+    db.insert(siteSettings).values({ key: FLAG_TEXT, value: "done" })
+      .onConflictDoUpdate({ target: siteSettings.key, set: { value: "done" } }).run();
+
+    if (changed > 0) console.log(`[content] Repaired ${changed} item(s) of text that showed "&amp;"-style codes.`);
+  } catch (err) {
+    console.error("[content] Text repair skipped:", (err as Error).message);
   }
 }

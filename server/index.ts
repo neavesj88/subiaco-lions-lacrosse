@@ -30,7 +30,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import compression from "compression";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { backfillSanitiseContent } from "./backfill";
+import { backfillSanitiseContent, backfillPlainText } from "./backfill";
 
 const app = express();
 
@@ -74,8 +74,31 @@ app.use(express.urlencoded({ extended: false }));
 // changed, and it needs someone technical.
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+
+  // The Coaches Board is a self-contained tool (one HTML file with its own
+  // inline script and styles) that the site shows inside a frame on its
+  // /coaches-board page. It gets a policy of its own: it may be framed by
+  // this site only, and may run its own inline code, but still loads nothing
+  // from anywhere else. Everything else keeps the strict policy below.
+  if (req.path === "/coaches-board.html") {
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Content-Security-Policy", [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "manifest-src data:",
+      "worker-src 'self' blob:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'self'",
+    ].join("; "));
+    return next();
+  }
+
+  res.setHeader("X-Frame-Options", "DENY");
 
   // Switch off browser features this site never uses, so a future bug or a
   // compromised third-party embed cannot quietly reach for them.
@@ -126,12 +149,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     isDev
       ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://w.behold.so`
       : `script-src 'self' 'nonce-${nonce}' https://w.behold.so`,
+    // The Instagram widget fetches the posts themselves from feeds.behold.so.
     isDev
-      ? "connect-src 'self' ws: wss: https://w.behold.so"   // ws: is the hot-reload channel
-      : "connect-src 'self' https://w.behold.so",
-    // Embedded panels: the map on the contact page, an embedded Google
-    // Calendar, and the Instagram feed.
-    "frame-src https://www.google.com https://calendar.google.com https://w.behold.so",
+      ? "connect-src 'self' ws: wss: https://w.behold.so https://feeds.behold.so"   // ws: is the hot-reload channel
+      : "connect-src 'self' https://w.behold.so https://feeds.behold.so",
+    // Instagram video posts play from Instagram's own servers.
+    "media-src 'self' https:",
+    // Embedded panels: the site's own Coaches Board, the map on the contact
+    // page, an embedded Google Calendar, and the Instagram feed.
+    "frame-src 'self' https://www.google.com https://calendar.google.com https://w.behold.so",
   ].join("; "));
 
   // HSTS tells browsers to only ever reach this site over HTTPS. Set only in
@@ -161,14 +187,17 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
   // Routes whose response contents must never reach a log file. Logs get
   // copied around, pasted into support emails and kept for months, so account
-  // details and mail settings have no business sitting in them. The request
-  // line itself is still logged — just not what was sent back.
+  // details and mail settings have no business sitting in them.
   const SENSITIVE = ["/api/auth", "/api/settings", "/api/users", "/api/security"];
 
   res.on("finish", () => {
     if (path.startsWith("/api")) {
       let line = `${req.method} ${path} ${res.statusCode} in ${Date.now() - start}ms`;
-      if (captured && !SENSITIVE.some((p) => path.startsWith(p))) {
+      // Only an ERROR's reply is added, because that is what helps diagnose a
+      // problem. A successful reply can be a list of sign-ups — children's
+      // names, parents' emails and phone numbers — which must not end up in
+      // the log.
+      if (captured && res.statusCode >= 400 && !SENSITIVE.some((p) => path.startsWith(p))) {
         line += ` :: ${JSON.stringify(captured)}`.slice(0, 80);
       }
       log(line);
@@ -198,15 +227,15 @@ process.on("unhandledRejection", (reason) => {
   // One-time tidy-up of content saved before HTML sanitising existed.
   // Does nothing on every startup after the first.
   backfillSanitiseContent();
+  backfillPlainText();
 
   // Register all API routes and get back the HTTP server instance
   const server = await registerRoutes(app);
 
-  // Global error handler — catches any unhandled errors from route handlers
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    const status = (err as { status?: number }).status ?? 500;
-    const message = (err as Error).message ?? "Internal Server Error";
-    res.status(status).json({ message });
+  // An /api/ address that doesn't exist answers in the same JSON the admin
+  // panel understands, rather than falling through to the website's page.
+  app.use("/api", (_req: Request, res: Response) => {
+    res.status(404).json({ message: "That isn't something this site can do." });
   });
 
   if (app.get("env") === "development") {
@@ -216,6 +245,26 @@ process.on("unhandledRejection", (reason) => {
     // Production: serve the pre-built React app from dist/public
     serveStatic(app);
   }
+
+  // Global error handler, last so it also catches errors from the page
+  // handlers above. A problem with the request (4xx) is explained to the
+  // admin; a fault on the server (5xx) is logged here and the browser gets a
+  // plain sentence, not the database's own wording.
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    const e = err as { status?: number; name?: string; code?: string; message?: string };
+    let status = e.status ?? 500;
+    let message = e.message ?? "Something went wrong.";
+    if (e.name === "MulterError") {
+      status = e.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+      if (e.code === "LIMIT_FILE_SIZE") message = "That image is over 8 MB. Make it smaller and try again.";
+    }
+    if (status >= 500) {
+      console.error("[error]", err);
+      message = "Something went wrong on the server. Try again, and if it keeps happening check the server log.";
+    }
+    if (res.headersSent) return;
+    res.status(status).json({ message });
+  });
 
   const port = parseInt(process.env.PORT ?? "5000");
   server.listen({ port, host: "0.0.0.0" }, () => {

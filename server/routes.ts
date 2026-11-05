@@ -33,11 +33,12 @@ import session from "express-session";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import bcrypt from "bcrypt";
+import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import { mkdirSync } from "fs";
 import { randomBytes } from "crypto";
-import { eq, desc, gte, and, inArray } from "drizzle-orm";
+import { eq, desc, gte, and, inArray, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, events, registrations, announcements, juniorsContent,
@@ -53,26 +54,28 @@ import {
   insertProductSchema, insertProductVariantSchema,
   loginSchema, createUserSchema,
 } from "@shared/schema";
-import { requireAuth, requirePermission } from "./middleware";
+import { requireAuth, requirePermission, catchAsyncErrors } from "./middleware";
+import { isEmailAddress } from "./input";
+import { ROLES } from "@shared/roles";
 import { notifyContactMessage, notifyNewRegistration, sendTestEmail, notifyOrderPaid } from "./email";
-import { SITEMAP_PAGES } from "@shared/seo";
+import { SITEMAP_PAGES, isPageSwitchedOn } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
 import { getAdminPath, isDefaultPassword} from "./runtime-config";
 import { invalidateSettingsCache, getSettingsSync } from "./site-settings";
-import { cleanHtmlFields, cleanText } from "./sanitize";
+import { cleanHtmlFields, cleanText, cleanMaybeHtml, cleanHtml, RICH_TEXT_SETTINGS } from "./sanitize";
 import { csvFile, csvFilename } from "./csv";
 import { SqliteSessionStore } from "./session-store";
 import {
   getStoreConfig, canTakePayments, isTestMode, paymentSetupStatus,
-  createCheckout, verifyWebhook,
+  createCheckout, verifyWebhook, formatMoney,
 } from "./payments";
 import {
   priceCart, CartError, generateOrderReference, decrementStockForOrder,
-  listProducts, getOrderWithItems,
+  listProducts, getOrderWithItems, restockOrder, isTestOrder,
 } from "./store";
 import {
   getClientIP, isBlocked, recordFailedAttempt, recordSuccessfulLogin,
-  formatTime, getSuspiciousIPs, unblockIP, allowFormSubmission,
+  formatTime, getSuspiciousIPs, unblockIP, allowFormSubmission, TRUST_PROXY,
 } from "./security";
 
 // ── Passport Google OAuth ───────────────────────────────────────────────────
@@ -87,7 +90,8 @@ function setupPassport() {
         { clientID, clientSecret, callbackURL },
         async (_accessToken, _refreshToken, profile, done) => {
           try {
-            const email = profile.emails?.[0]?.value;
+            const googleEmail = profile.emails?.[0] as { value?: string; verified?: boolean } | undefined;
+            const email = googleEmail?.value?.trim().toLowerCase();
             if (!email) return done(new Error("No email from Google"), undefined);
 
             // Find matching admin user by Google ID first, then by email
@@ -95,9 +99,17 @@ function setupPassport() {
               .where(eq(users.googleId, profile.id)).limit(1);
 
             if (!user) {
+              // Only an address Google has actually verified may claim an
+              // admin account; otherwise someone could make a Google account
+              // using a committee member's address and sign in as them.
+              if (googleEmail?.verified !== true) return done(null, false);
+              // Email addresses are case-insensitive: "Jane.Smith@x.com" typed
+              // in Admin -> Users must match "jane.smith@x.com" from Google.
               [user] = await db.select().from(users)
-                .where(eq(users.email, email)).limit(1);
-              // Link google ID to this user
+                .where(sql`lower(trim(${users.email})) = ${email}`).limit(1);
+              // Link this Google account, unless the admin is already linked
+              // to a DIFFERENT one, which must not be silently replaced.
+              if (user?.googleId && user.googleId !== profile.id) return done(null, false);
               if (user) {
                 await db.update(users).set({ googleId: profile.id }).where(eq(users.id, user.id));
               }
@@ -168,7 +180,9 @@ const upload = multer({
   limits: { fileSize: 8 * 1024 * 1024, files: 1 }, // 8 MB, one file per request
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_IMAGE_TYPES[file.mimetype]) return cb(null, true);
-    cb(new Error("Only JPEG, PNG, GIF, WebP or AVIF images can be uploaded."));
+    // status 400 marks it as the admin's mistake, so the error handler in
+    // index.ts shows them this sentence rather than a generic server error.
+    cb(Object.assign(new Error("Only JPEG, PNG, GIF, WebP or AVIF images can be uploaded."), { status: 400 }));
   },
 });
 
@@ -189,8 +203,49 @@ function looksLikeRealImage(buf: Buffer): boolean {
   return false;
 }
 
+// What the public sign-up form may send. The table's own schema only says
+// "text", which let a single request store megabytes, or address the club's
+// automatic reply to a list of strangers ("a@x.com, b@y.com").
+const optionalText = (max: number) => z.string().trim().max(max).nullish();
+const registrationInput = insertRegistrationSchema.extend({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  email: z.string().trim().refine(isEmailAddress, "Please enter a valid email address."),
+  phone: optionalText(40),
+  dateOfBirth: optionalText(20),
+  parentName: optionalText(100),
+  parentEmail: z.string().trim()
+    .refine((v) => v === "" || isEmailAddress(v), "Please enter a valid parent email address.")
+    .nullish(),
+  parentPhone: optionalText(40),
+  howHeard: optionalText(200),
+  message: optionalText(5000),
+  // The form won't submit without the privacy box ticked; this makes the
+  // server insist too. Every saved sign-up therefore records consent given at
+  // the moment in its created_at column.
+  privacyConsent: z.literal(true, { errorMap: () => ({ message: "Please tick the privacy box." }) }),
+});
+
+/** A product's name and description are plain text (typed in a plain box,
+ *  shown as plain text), so tags are stripped but "&" stays "&". */
+function plainProductText<T extends Record<string, unknown>>(body: T): T {
+  if (!body || typeof body !== "object") return body;
+  const out: Record<string, unknown> = { ...body };
+  for (const key of ["name", "description"]) {
+    if (typeof out[key] === "string") out[key] = cleanText(out[key]);
+  }
+  return out as T;
+}
+
+// A password hash of nothing in particular, checked against when a login names
+// a username that doesn't exist (see /api/auth/login).
+const TIMING_DUMMY_HASH = bcrypt.hashSync(randomBytes(16).toString("hex"), 12);
+
 export async function registerRoutes(app: Express) {
   const server = createServer(app);
+  // Before any route: a failing async handler then answers with an error
+  // instead of leaving the request hanging (see middleware.ts).
+  catchAsyncErrors(app);
 
   // Serve uploaded files.
   //
@@ -209,7 +264,12 @@ export async function registerRoutes(app: Express) {
     (await import("express")).default.static(uploadDir, {
       index: false,
       dotfiles: "deny",
-      setHeaders: (res) => res.setHeader("Cache-Control", "public, max-age=86400"),
+      setHeaders: (res, filePath) => {
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        // The built-in list of file types doesn't know AVIF (an upload type we
+        // accept), and with "nosniff" set a browser won't guess.
+        if (filePath.toLowerCase().endsWith(".avif")) res.setHeader("Content-Type", "image/avif");
+      },
     }),
   );
 
@@ -223,10 +283,12 @@ export async function registerRoutes(app: Express) {
   // sent to the browser. The symptom is nasty and hard to diagnose: logging in
   // appears to succeed, then you land straight back on the login page forever.
   //
-  // "1" means: trust exactly one proxy in front of us, which is the normal
-  // setup. It must NOT be blanket-true, or a visitor could spoof their own
-  // address and defeat the login lockout.
-  app.set("trust proxy", 1);
+  // Only our own proxy (on this machine by default; see TRUST_PROXY in
+  // server/security.ts) is trusted to say what the visitor's address and
+  // protocol were. It must NOT be blanket-true, and not "1" either: with "1",
+  // someone connecting straight to the port could write their own
+  // X-Forwarded-For and defeat the login lockout.
+  app.set("trust proxy", TRUST_PROXY);
 
   // ── Session setup ───────────────────────────────────────────────────
   // SECURITY: the session secret signs every admin login cookie. If it were
@@ -256,15 +318,26 @@ export async function registerRoutes(app: Express) {
   // SESSION_IDLE_HOURS (default 2, same policy as neaves.au).
   const idleHours = parseFloat(process.env.SESSION_IDLE_HOURS ?? "2") || 2;
 
+  // Logins are kept in their own small file next to the club's database (so a
+  // DATABASE_URL elsewhere takes the sessions with it).
+  const sessionStore = new SqliteSessionStore(
+    path.join(path.dirname(process.env.DATABASE_URL ?? "./data/club.db"), "sessions.db"),
+  );
+
   app.use(
     session({
-      store: new SqliteSessionStore("./data/sessions.db"),
+      store: sessionStore,
       secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
       rolling: true, // refresh the expiry on every request (sliding idle window)
       cookie: {
-        secure: process.env.NODE_ENV === "production",
+        // "auto": https-only whenever the visitor reached us over https (the
+        // tunnel or nginx), but still usable over plain http. A fixed
+        // `true` silently broke logging in from the clubhouse PC's own
+        // http://<address>:5000 — the login "worked", no cookie was kept,
+        // and the admin landed back on the login page every time.
+        secure: "auto",
         httpOnly: true,   // JavaScript on the page can never read the cookie
         // "lax" means the cookie is not sent on requests started by another
         // website, which blocks cross-site request forgery: a malicious page
@@ -305,30 +378,19 @@ export async function registerRoutes(app: Express) {
     const origin = getOrigin(req);
 
     // Page visibility settings (nav_show_*) decide which optional pages appear
-    const settingRows = await db.select().from(siteSettings);
-    const settingsMap: Record<string, string> = {};
-    for (const r of settingRows) settingsMap[r.key] = r.value;
-    const pageOn = (key: string) => settingsMap[`nav_show_${key}`] !== "false";
-
-    // Map sitemap paths to their visibility key (pages without a key are always on)
-    const visKey: Record<string, string> = {
-      "/gallery": "gallery",
-      "/fixtures": "fixtures",
-      "/store": "store",
-      "/coaches-board": "coaches_board",
-      "/committee": "committee",
-    };
+    const settingsMap = getSettingsSync();
 
     const today = new Date().toISOString().split("T")[0];
+    const entry = (path: string, changefreq: string, priority: number) =>
+      `  <url>\n    <loc>${origin}${path}</loc>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n    <lastmod>${today}</lastmod>\n  </url>`;
     const urls = SITEMAP_PAGES
-      .filter((p) => {
-        const key = visKey[p.path];
-        return !key || pageOn(key);
-      })
-      .map(
-        (p) =>
-          `  <url>\n    <loc>${origin}${p.path}</loc>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n    <lastmod>${today}</lastmod>\n  </url>`
-      );
+      .filter((p) => !p.visibility || isPageSwitchedOn(settingsMap, p.visibility))
+      .map((p) => entry(p.path, p.changefreq, p.priority));
+
+    // Pages the club has made and published.
+    const published = await db.select({ slug: customPages.slug }).from(customPages)
+      .where(eq(customPages.isPublished, true));
+    for (const p of published) urls.push(entry(`/p/${encodeURIComponent(p.slug)}`, "monthly", 0.5));
 
     const xml =
       `<?xml version="1.0" encoding="UTF-8"?>\n` +
@@ -353,27 +415,33 @@ export async function registerRoutes(app: Express) {
       });
     }
 
+    // 2. Count this attempt NOW, before any slow work, so a burst of guesses
+    //    sent at once can't all slip past the check above (security.ts
+    //    explains). A correct password wipes the count again below.
+    const attempt = recordFailedAttempt(ip);
+
+    // Any failure (bad user, inactive, wrong password) ends here. The message
+    // stays generic so attackers can't tell which part was wrong.
+    const fail = (status = 401, msg = "Invalid credentials") => {
+      const m = attempt.blockedUntil
+        ? `Invalid credentials. Too many failed attempts — locked for ${formatTime(attempt.blockedUntil.getTime() - Date.now())}.`
+        : msg;
+      return res.status(status).json({ message: m });
+    };
+
     const parsed = loginSchema.safeParse(req.body);
-    if (!parsed.success) {
-      recordFailedAttempt(ip);
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
+    if (!parsed.success) return fail(400);
 
     const { username, password } = parsed.data;
     const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
 
-    // 2. Any failure (bad user, inactive, wrong password) counts as an attempt.
-    //    The message stays generic so attackers can't tell which part was wrong.
-    const fail = (msg = "Invalid credentials") => {
-      const r = recordFailedAttempt(ip);
-      const m = r.blockedUntil
-        ? `Invalid credentials. Too many failed attempts — locked for ${formatTime(r.blockedUntil.getTime() - Date.now())}.`
-        : msg;
-      return res.status(401).json({ message: m });
-    };
-
-    if (!user || !user.isActive) return fail();
-    if (!user.passwordHash) return res.status(401).json({ message: "This account uses Google Sign-In" });
+    if (!user || !user.isActive || !user.passwordHash) {
+      // Spend the same time a real password check would, so how fast the
+      // answer comes back doesn't reveal which usernames exist.
+      await bcrypt.compare(password, TIMING_DUMMY_HASH);
+      if (user?.isActive && !user.passwordHash) return fail(401, "This account uses Google Sign-In");
+      return fail();
+    }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return fail();
@@ -452,6 +520,9 @@ export async function registerRoutes(app: Express) {
     await db.update(users)
       .set({ passwordHash: await bcrypt.hash(newPassword, 12) })
       .where(eq(users.id, user.id));
+    // Anyone still signed in as them elsewhere is signed out; this browser
+    // stays signed in.
+    sessionStore.destroyForUser(user.id, req.sessionID);
     res.json({ ok: true });
   });
 
@@ -480,10 +551,17 @@ export async function registerRoutes(app: Express) {
 
   // ── Events ──────────────────────────────────────────────────────────
   app.get("/api/events", async (_req: Request, res: Response) => {
-    const now = new Date().toISOString().split("T")[0];
+    // Today in the club's own time zone (the server's clock), not in UTC,
+    // which in Perth is still "yesterday" until 8am.
+    const today = new Date().toLocaleDateString("en-CA");   // YYYY-MM-DD
+    // An event stays listed until its LAST day is over: a weekend carnival
+    // should still be on the calendar on its second day.
     const rows = await db.select().from(events)
-      .where(and(eq(events.isPublished, true), gte(events.startDate, now)))
-      .orderBy(events.startDate).limit(50);
+      .where(and(
+        eq(events.isPublished, true),
+        sql`coalesce(nullif(${events.endDate}, ''), ${events.startDate}) >= ${today}`,
+      ))
+      .orderBy(events.startDate).limit(100);
     res.json(rows);
   });
 
@@ -559,16 +637,22 @@ export async function registerRoutes(app: Express) {
   app.post("/api/registrations", async (req: Request, res: Response) => {
     // Anyone on the internet can post here, and each submission sends two
     // emails, so cap how often one address may do it.
-    if (!allowFormSubmission(getClientIP(req), 5)) {
+    if (!allowFormSubmission(getClientIP(req), 40, "signup")) {
       return res.status(429).json({
         message: "Too many sign-ups from this connection. Please try again later, or email the club directly.",
       });
     }
-    const parsed = insertRegistrationSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+    const parsed = registrationInput.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        message: parsed.error.issues[0]?.message ?? "Please check the form and try again.",
+        errors: parsed.error.issues,
+      });
+    }
+    const { privacyConsent: _consented, ...signup } = parsed.data;
 
     // Save to database — happens regardless of email success
-    const [row] = await db.insert(registrations).values(parsed.data).returning();
+    const [row] = await db.insert(registrations).values(signup).returning();
 
     // Fire both emails in background: club notification + registrant auto-reply
     notifyNewRegistration({
@@ -576,15 +660,17 @@ export async function registerRoutes(app: Express) {
       lastName: row.lastName,
       email: row.email,
       phone: row.phone,
+      dateOfBirth: row.dateOfBirth,
       isJunior: row.isJunior ?? false,
       parentName: row.parentName,
       parentEmail: row.parentEmail,
+      parentPhone: row.parentPhone,
       teamPreference: row.teamPreference,
       experienceLevel: row.experienceLevel,
       kidsportEligible: row.kidsportEligible ?? false,
       howHeard: row.howHeard,
       message: row.message,
-    }).catch(() => {});
+    }, getOrigin(req)).catch(() => {});
 
     res.status(201).json({ ok: true, id: row.id });
   });
@@ -609,7 +695,7 @@ export async function registerRoutes(app: Express) {
   // Email requires CONTACT_EMAIL_USER + CONTACT_EMAIL_PASS in .env.
   // If email isn't configured the message is still saved to the database.
   app.post("/api/contact", async (req: Request, res: Response) => {
-    if (!allowFormSubmission(getClientIP(req), 5)) {
+    if (!allowFormSubmission(getClientIP(req), 10, "contact")) {
       return res.status(429).json({
         message: "Too many messages from this connection. Please try again later.",
       });
@@ -624,7 +710,7 @@ export async function registerRoutes(app: Express) {
       String(name).length > 100 || String(email).length > 200 ||
       String(subject).length > 200 || String(message).length > 5000;
     if (tooLong) return res.status(400).json({ message: "One of those fields is too long." });
-    if (!/^\S+@\S+\.\S+$/.test(String(email))) {
+    if (!isEmailAddress(email)) {
       return res.status(400).json({ message: "Please enter a valid email address." });
     }
 
@@ -656,7 +742,8 @@ export async function registerRoutes(app: Express) {
 
   app.put("/api/juniors-content/:section", requireAuth, requirePermission("juniors"), async (req: Request, res: Response) => {
     const { section } = req.params;
-    const { title, content } = cleanHtmlFields(req.body, ["content"]);
+    const title = typeof req.body?.title === "string" ? cleanText(req.body.title) : req.body?.title;
+    const content = cleanMaybeHtml(req.body?.content) as string;
     const existing = await db.select().from(juniorsContent).where(eq(juniorsContent.section, section)).limit(1);
     if (existing.length > 0) {
       const [row] = await db.update(juniorsContent)
@@ -700,19 +787,84 @@ export async function registerRoutes(app: Express) {
     }
   );
 
+  // Generous rather than unlimited: a club with years of photos still gets
+  // them all, without one request being able to return an unbounded list.
+  const MEDIA_LIST_LIMIT = 5000;
+
   app.get("/api/media", requireAuth, requirePermission("media"), async (_req: Request, res: Response) => {
-    const rows = await db.select().from(mediaUploads).orderBy(desc(mediaUploads.createdAt)).limit(200);
+    const rows = await db.select().from(mediaUploads).orderBy(desc(mediaUploads.createdAt)).limit(MEDIA_LIST_LIMIT);
     res.json(rows);
   });
+
+  // The public Photo Gallery. Separate from the admin list above, which needs
+  // a login — the gallery used to call that one, so every visitor saw an empty
+  // gallery. Only what a visitor needs is sent: no file names or uploaders.
+  app.get("/api/gallery", async (_req: Request, res: Response) => {
+    const rows = await db.select({
+      id: mediaUploads.id, url: mediaUploads.url, caption: mediaUploads.caption,
+      mimeType: mediaUploads.mimeType, createdAt: mediaUploads.createdAt,
+    }).from(mediaUploads).orderBy(desc(mediaUploads.createdAt)).limit(MEDIA_LIST_LIMIT);
+    res.json(rows);
+  });
+
+  /**
+   * Where on the site is this photo used? In: its web address (/uploads/...).
+   * Out: plain-English places, e.g. ["the club logo", 'news post "Grand Final"'].
+   * Used to warn before a delete that would leave a broken image behind.
+   */
+  async function whereImageIsUsed(url: string): Promise<string[]> {
+    const places: string[] = [];
+    const settingNames: Record<string, string> = {
+      club_logo_url: "the club logo", hero_image_url: "the home page photo",
+    };
+    for (const row of await db.select().from(siteSettings)) {
+      if (row.value && row.value.includes(url)) places.push(settingNames[row.key] ?? `the "${row.key}" setting`);
+    }
+    for (const r of await db.select({ name: sponsors.name, logo: sponsors.logoUrl }).from(sponsors)) {
+      if (r.logo === url) places.push(`sponsor "${r.name}"`);
+    }
+    for (const r of await db.select({ name: committeeMembers.name, photo: committeeMembers.photoUrl }).from(committeeMembers)) {
+      if (r.photo === url) places.push(`committee member "${r.name}"`);
+    }
+    for (const r of await db.select({ name: products.name, image: products.imageUrl }).from(products)) {
+      if (r.image === url) places.push(`shop item "${r.name}"`);
+    }
+    for (const r of await db.select({ title: announcements.title, image: announcements.featuredImageUrl, content: announcements.content }).from(announcements)) {
+      if (r.image === url || (r.content ?? "").includes(url)) places.push(`news post "${r.title}"`);
+    }
+    for (const r of await db.select({ title: customPages.title, content: customPages.content }).from(customPages)) {
+      if ((r.content ?? "").includes(url)) places.push(`page "${r.title}"`);
+    }
+    for (const r of await db.select({ page: pageContent.page, content: pageContent.content }).from(pageContent)) {
+      if ((r.content ?? "").includes(url)) places.push(`the ${r.page} page`);
+    }
+    for (const r of await db.select({ content: juniorsContent.content }).from(juniorsContent)) {
+      if ((r.content ?? "").includes(url)) places.push("the Juniors page");
+    }
+    return [...new Set(places)];
+  }
 
   app.delete("/api/media/:id", requireAuth, requirePermission("media"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const [row] = await db.select().from(mediaUploads).where(eq(mediaUploads.id, id)).limit(1);
-    if (row) {
-      const { unlink } = await import("fs/promises");
-      await unlink(path.join(uploadDir, row.filename)).catch(() => {});
-      await db.delete(mediaUploads).where(eq(mediaUploads.id, id));
+    if (!row) return res.json({ ok: true });
+
+    // A photo still in use would leave a broken image wherever it appears.
+    // Say where, and only go ahead once the admin has confirmed with that
+    // list in front of them (the client re-sends with ?force=1).
+    if (req.query.force !== "1") {
+      const usedIn = await whereImageIsUsed(row.url);
+      if (usedIn.length > 0) {
+        return res.status(409).json({
+          message: `This photo is still used on the site: ${usedIn.join(", ")}.`,
+          usedIn,
+        });
+      }
     }
+
+    const { unlink } = await import("fs/promises");
+    await unlink(path.join(uploadDir, row.filename)).catch(() => {});
+    await db.delete(mediaUploads).where(eq(mediaUploads.id, id));
     res.json({ ok: true });
   });
 
@@ -727,6 +879,9 @@ export async function registerRoutes(app: Express) {
     // account. It must never be sent to a browser. (The PUBLISHABLE key is
     // designed to be public and is served via /api/store/config.)
     "stripe_secret_key", "stripe_webhook_secret",
+    // A volunteer's own inbox, used only by the server to send order alerts.
+    // Not a secret, but no reason for every visitor to be able to read it.
+    "store_order_notify_email",
   ];
 
   app.get("/api/settings", async (_req: Request, res: Response) => {
@@ -755,20 +910,46 @@ export async function registerRoutes(app: Express) {
   });
 
   app.put("/api/settings", requireAuth, requirePermission("settings"), async (req: Request, res: Response) => {
-    const updates = req.body as Record<string, string>;
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return res.status(400).json({ message: "Nothing to save." });
+    }
+    // Every setting is stored as text. Numbers and true/false are turned into
+    // text; anything else (a list, an object) is a mistake and is refused, as
+    // is a name that isn't a plain setting name.
+    const updates: Record<string, string> = {};
+    for (const [key, raw] of Object.entries(body)) {
+      if (!/^[a-z0-9_]{1,64}$/.test(key)) {
+        return res.status(400).json({ message: `"${key.slice(0, 40)}" isn't a setting this site has.` });
+      }
+      if (raw === null || raw === undefined) continue;
+      if (!["string", "number", "boolean"].includes(typeof raw)) {
+        return res.status(400).json({ message: `The value for ${key} wasn't text.` });
+      }
+      const value = String(raw);
+      if (value.length > 50_000) return res.status(400).json({ message: `The value for ${key} is far too long.` });
+      updates[key] = value;
+    }
     // Ignore the masked placeholder so re-saving the form doesn't overwrite the
     // real SMTP password with literal asterisks.
     for (const key of ["mail_pass", "stripe_secret_key", "stripe_webhook_secret"]) {
       if (updates[key] === "********") delete updates[key];
     }
-    for (const [key, value] of Object.entries(updates)) {
-      const existing = await db.select().from(siteSettings).where(eq(siteSettings.key, key)).limit(1);
-      if (existing.length > 0) {
-        await db.update(siteSettings).set({ value, updatedAt: new Date().toISOString() }).where(eq(siteSettings.key, key));
-      } else {
-        await db.insert(siteSettings).values({ key, value });
-      }
+    // Settings that are displayed as formatted text get the same cleaning as
+    // anything else written in the editor (see server/sanitize.ts).
+    for (const key of RICH_TEXT_SETTINGS) {
+      if (typeof updates[key] === "string") updates[key] = cleanHtml(updates[key]);
     }
+    // All or nothing: a form that saves twenty settings must never end up
+    // with only half of them changed.
+    const now = new Date().toISOString();
+    db.transaction((tx) => {
+      for (const [key, value] of Object.entries(updates)) {
+        tx.insert(siteSettings).values({ key, value })
+          .onConflictDoUpdate({ target: siteSettings.key, set: { value, updatedAt: now } })
+          .run();
+      }
+    });
     // Drop the server-side cache so the SEO tags injected into the HTML use
     // the new club name/sport straight away instead of up to 30s later.
     invalidateSettingsCache();
@@ -852,18 +1033,21 @@ export async function registerRoutes(app: Express) {
   // Public: POST /api/newsletter/subscribe
   // Admin: GET list + CSV export (club_admin+)
   app.post("/api/newsletter/subscribe", async (req: Request, res: Response) => {
-    if (!allowFormSubmission(getClientIP(req), 10)) {
+    if (!allowFormSubmission(getClientIP(req), 20, "newsletter")) {
       return res.status(429).json({ message: "Too many attempts. Please try again later." });
     }
     const { email, name } = req.body;
-    if (!email || !/\S+@\S+\.\S+/.test(email) || String(email).length > 200)
-      return res.status(400).json({ message: "Valid email required" });
-    try {
-      await db.insert(newsletterSubscribers).values({ email: email.toLowerCase().trim(), name }).onConflictDoNothing();
-      res.json({ ok: true });
-    } catch {
-      res.json({ ok: true }); // Silently ignore duplicate subscriptions
-    }
+    if (!isEmailAddress(email)) return res.status(400).json({ message: "Please enter a valid email address." });
+    const cleanName = typeof name === "string" ? name.trim().slice(0, 100) : null;
+    // Someone an admin removed earlier who signs up again is re-activated,
+    // rather than told "done" while staying switched off.
+    await db.insert(newsletterSubscribers)
+      .values({ email: email.toLowerCase().trim(), name: cleanName })
+      .onConflictDoUpdate({
+        target: newsletterSubscribers.email,
+        set: { isActive: true, ...(cleanName ? { name: cleanName } : {}) },
+      });
+    res.json({ ok: true });
   });
 
   app.get("/api/newsletter/subscribers", requireAuth, requirePermission("newsletter"), async (_req: Request, res: Response) => {
@@ -911,8 +1095,10 @@ export async function registerRoutes(app: Express) {
 
   app.put("/api/page-content/:page/:section", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
     const { page, section } = req.params;
-    const { content } = cleanHtmlFields(req.body, ["content"]);
-    if (!content && content !== "") return res.status(400).json({ message: "content is required" });
+    // Some sections are headings (plain text), some are editor bodies (HTML);
+    // cleanMaybeHtml treats each correctly without needing to be told which.
+    const content = cleanMaybeHtml(req.body?.content) as string;
+    if (typeof content !== "string") return res.status(400).json({ message: "content is required" });
 
     // Upsert — insert if new, update if exists
     const existing = await db.select().from(pageContent)
@@ -992,6 +1178,11 @@ export async function registerRoutes(app: Express) {
     const parsed = createUserSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const { password, ...rest } = parsed.data;
+    // Say so plainly, rather than letting the database refuse the duplicate
+    // and the admin see a generic server error.
+    if ((await db.select({ id: users.id }).from(users).where(eq(users.username, rest.username)).limit(1)).length) {
+      return res.status(400).json({ message: `There is already an admin called "${rest.username}".` });
+    }
     const passwordHash = password ? await bcrypt.hash(password, 12) : null;
     const [row] = await db.insert(users).values({ ...rest, passwordHash: passwordHash ?? "" }).returning({
       id: users.id, username: users.username, name: users.name, email: users.email, role: users.role,
@@ -1008,9 +1199,23 @@ export async function registerRoutes(app: Express) {
     return supers.filter((u) => u.id !== excludeId).length;
   }
 
+  // The same rules as creating an account (shared/schema.ts createUserSchema),
+  // for each field an edit may change. Every field is optional.
+  const editUserSchema = z.object({
+    name: z.string().trim().min(1, "Name can't be blank.").max(100).optional(),
+    email: z.union([z.literal(""), z.string().trim().email("That email address doesn't look right.").max(200)]).optional(),
+    role: z.enum(ROLES).optional(),
+    isActive: z.boolean().optional(),
+    password: z.string().min(8, "Passwords need at least 8 characters.").max(200).optional(),
+  });
+
   app.put("/api/users/:id", requireAuth, requirePermission("users"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    const { name, email, role, isActive, password } = req.body;
+    const parsedEdit = editUserSchema.safeParse(req.body ?? {});
+    if (!parsedEdit.success) {
+      return res.status(400).json({ message: parsedEdit.error.issues[0]?.message ?? "Please check the details." });
+    }
+    const { name, email, role, isActive, password } = parsedEdit.data;
 
     // Look up the user being edited so we can apply lockout safeguards
     const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
@@ -1029,12 +1234,14 @@ export async function registerRoutes(app: Express) {
 
     const updates: Record<string, unknown> = {};
     if (name) updates.name = name;
-    if (email) updates.email = email;
+    if (email !== undefined) updates.email = email.toLowerCase();
     if (role) updates.role = role;
     if (typeof isActive === "boolean") updates.isActive = isActive;
     if (password) updates.passwordHash = await bcrypt.hash(password, 12);
+    if (Object.keys(updates).length === 0) return res.status(400).json({ message: "Nothing to change." });
     const [row] = await db.update(users).set(updates).where(eq(users.id, id))
-      .returning({ id: users.id, name: users.name, role: users.role, isActive: users.isActive });
+      .returning({ id: users.id, name: users.name, email: users.email, role: users.role, isActive: users.isActive });
+    if (password) sessionStore.destroyForUser(id, id === req.session.userId ? req.sessionID : undefined);
     res.json(row);
   });
 
@@ -1054,13 +1261,18 @@ export async function registerRoutes(app: Express) {
     // survive the person leaving. Those tables have a foreign key to users, so
     // deleting the row outright fails ("FOREIGN KEY constraint failed") and
     // would crash the server. Clear the authorship links first, then delete.
+    // All in one go, so a failure part-way can't leave half the links cleared.
     try {
-      await db.update(announcements).set({ createdBy: null }).where(eq(announcements.createdBy, id));
-      await db.update(events).set({ createdBy: null }).where(eq(events.createdBy, id));
-      await db.update(juniorsContent).set({ updatedBy: null }).where(eq(juniorsContent.updatedBy, id));
-      await db.update(mediaUploads).set({ uploadedBy: null }).where(eq(mediaUploads.uploadedBy, id));
-      await db.update(pageContent).set({ updatedBy: null }).where(eq(pageContent.updatedBy, id));
-      await db.delete(users).where(eq(users.id, id));
+      db.transaction((tx) => {
+        tx.update(announcements).set({ createdBy: null }).where(eq(announcements.createdBy, id)).run();
+        tx.update(events).set({ createdBy: null }).where(eq(events.createdBy, id)).run();
+        tx.update(juniorsContent).set({ updatedBy: null }).where(eq(juniorsContent.updatedBy, id)).run();
+        tx.update(mediaUploads).set({ uploadedBy: null }).where(eq(mediaUploads.uploadedBy, id)).run();
+        tx.update(pageContent).set({ updatedBy: null }).where(eq(pageContent.updatedBy, id)).run();
+        tx.update(customPages).set({ createdBy: null }).where(eq(customPages.createdBy, id)).run();
+        tx.delete(users).where(eq(users.id, id)).run();
+      });
+      sessionStore.destroyForUser(id);
     } catch (e: any) {
       // Never let this take the site down — report it instead.
       console.error("[users] Delete failed:", e?.message ?? e);
@@ -1111,8 +1323,12 @@ export async function registerRoutes(app: Express) {
   // ── Custom Pages (admin-created) ────────────────────────────────────
   // Public: list published pages (for the nav) and fetch one by slug.
   // Admin (club_admin+): full create/edit/delete.
+  // Only what the menu needs: this is fetched on every page view, so it
+  // shouldn't carry every page's full text with it.
   app.get("/api/pages", async (_req: Request, res: Response) => {
-    const rows = await db.select().from(customPages)
+    const rows = await db.select({
+      id: customPages.id, slug: customPages.slug, title: customPages.title,
+    }).from(customPages)
       .where(eq(customPages.isPublished, true))
       .orderBy(customPages.sortOrder, customPages.title);
     res.json(rows);
@@ -1190,7 +1406,7 @@ export async function registerRoutes(app: Express) {
   // waiting for a real form submission.
   app.post("/api/security/test-email", requireAuth, requirePermission("security"), async (req: Request, res: Response) => {
     const to = (req.body?.to || "").trim();
-    if (!to || !/\S+@\S+\.\S+/.test(to)) {
+    if (!isEmailAddress(to)) {
       return res.status(400).json({ message: "A valid destination email is required." });
     }
     try {
@@ -1220,6 +1436,9 @@ export async function registerRoutes(app: Express) {
     await db.update(users)
       .set({ passwordHash: await bcrypt.hash(newPassword, 12) })
       .where(eq(users.id, id));
+    // A reset usually means "someone may know the old one": sign them out
+    // everywhere so the old password's logins stop working too.
+    sessionStore.destroyForUser(id, id === req.session.userId ? req.sessionID : undefined);
 
     res.json({ ok: true, message: `Password reset for ${target.name}.` });
   });
@@ -1290,7 +1509,7 @@ export async function registerRoutes(app: Express) {
   app.post("/api/store/checkout", async (req: Request, res: Response) => {
     // Same throttle as the other public forms: creating a checkout makes an
     // outbound API call, so it shouldn't be free to trigger in bulk.
-    if (!allowFormSubmission(getClientIP(req), 20)) {
+    if (!allowFormSubmission(getClientIP(req), 30, "checkout")) {
       return res.status(429).json({ message: "Too many attempts. Please wait a moment and try again." });
     }
 
@@ -1311,7 +1530,7 @@ export async function registerRoutes(app: Express) {
     }
 
     const email = String(customer?.email ?? "").trim();
-    if (!email || !/^\S+@\S+\.\S+$/.test(email) || email.length > 200) {
+    if (!isEmailAddress(email)) {
       return res.status(400).json({ message: "Please enter a valid email address." });
     }
     const name = cleanText(customer?.name).slice(0, 100);
@@ -1410,18 +1629,44 @@ export async function registerRoutes(app: Express) {
         const [order] = await db.select().from(orders)
           .where(eq(orders.paymentRef, event.paymentRef)).limit(1);
 
-        if (order && order.status === "pending") {
-          // Stripe retries webhooks until it gets a 200, and may deliver the
-          // same event twice. Only acting while the order is still "pending"
-          // makes that harmless — stock can never be decremented twice.
-          await db.update(orders).set({
-            status: "paid",
-            paidAt: new Date().toISOString(),
-            paymentIntent: event.paymentIntent ?? null,
-            shippingAddress: order.shippingAddress ?? event.shippingAddress ?? null,
-          }).where(eq(orders.id, order.id));
+        if (!order) {
+          console.warn(`[store] A confirmed payment (${event.paymentRef}) matched no order. Check the Stripe dashboard.`);
+        }
 
-          decrementStockForOrder(order.id);
+        // Acted on only if no payment has been recorded yet. Stripe retries
+        // webhooks and may deliver the same one twice; making the change
+        // conditional, in the UPDATE itself, means stock can never be
+        // decremented twice.
+        //
+        // "cancelled" is included on purpose. An admin may cancel an order that
+        // looked abandoned while the customer was in fact still on the payment
+        // page; if they then pay, the money has been taken, so the order must
+        // come back to life rather than the payment being silently ignored.
+        const changed = order
+          ? db.update(orders).set({
+              status: "paid",
+              paidAt: new Date().toISOString(),
+              paymentIntent: event.paymentIntent ?? null,
+              shippingAddress: order.shippingAddress ?? event.shippingAddress ?? null,
+            }).where(and(
+              eq(orders.id, order.id),
+              sql`${orders.paidAt} IS NULL`,
+              inArray(orders.status, ["pending", "cancelled"]),
+            )).run().changes
+          : 0;
+
+        if (order && changed > 0) {
+          const warnings = decrementStockForOrder(order.id);
+          if (order.status === "cancelled") {
+            warnings.unshift("This order had been cancelled, but the customer then paid. Contact them to sort it out.");
+          }
+          if (warnings.length > 0) {
+            const note = `⚠ ${warnings.join(" · ")}`;
+            await db.update(orders)
+              .set({ adminNotes: order.adminNotes ? `${note}\n${order.adminNotes}` : note })
+              .where(eq(orders.id, order.id));
+            console.warn(`[store] Order ${order.reference}: ${warnings.join("; ")}`);
+          }
 
           const full = getOrderWithItems(order.id);
           if (full) notifyOrderPaid(full).catch(() => {});
@@ -1430,8 +1675,23 @@ export async function registerRoutes(app: Express) {
         await db.update(orders).set({ status: "cancelled" })
           .where(and(eq(orders.paymentRef, event.paymentRef), eq(orders.status, "pending")));
       } else if (event.kind === "refunded" && event.paymentIntent) {
-        await db.update(orders).set({ status: "refunded" })
-          .where(eq(orders.paymentIntent, event.paymentIntent));
+        const [order] = await db.select().from(orders)
+          .where(eq(orders.paymentIntent, event.paymentIntent)).limit(1);
+        if (order) {
+          // Only a FULL refund makes the order "refunded". A partial one (one
+          // jersey of two) leaves it as it was, with a note, so the order isn't
+          // wrongly shown as wholly given back.
+          const refunded = event.amountRefundedCents ?? 0;
+          if (event.fullyRefunded || refunded >= order.totalCents) {
+            await db.update(orders).set({ status: "refunded" }).where(eq(orders.id, order.id));
+          } else if (refunded > 0) {
+            const symbol = getSettingsSync().store_currency_symbol?.trim() || "$";
+            const note = `Partly refunded: ${formatMoney(refunded, symbol)} of ${formatMoney(order.totalCents, symbol)} given back.`;
+            await db.update(orders)
+              .set({ adminNotes: order.adminNotes ? `${note}\n${order.adminNotes}` : note })
+              .where(eq(orders.id, order.id));
+          }
+        }
       }
     } catch (err) {
       // Tell Stripe we failed so it retries, rather than losing the payment.
@@ -1480,14 +1740,14 @@ export async function registerRoutes(app: Express) {
   });
 
   app.post("/api/admin/products", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
-    const parsed = insertProductSchema.safeParse(cleanHtmlFields(req.body, ["description"]));
+    const parsed = insertProductSchema.safeParse(plainProductText(req.body));
     if (!parsed.success) return res.status(400).json({ message: "Invalid product details", errors: parsed.error.issues });
     const [row] = await db.insert(products).values(parsed.data).returning();
     res.status(201).json(row);
   });
 
   app.put("/api/admin/products/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
-    const parsed = insertProductSchema.partial().safeParse(cleanHtmlFields(req.body, ["description"]));
+    const parsed = insertProductSchema.partial().safeParse(plainProductText(req.body));
     if (!parsed.success) return res.status(400).json({ message: "Invalid product details" });
     const [row] = await db.update(products)
       .set({ ...parsed.data, updatedAt: new Date().toISOString() })
@@ -1540,14 +1800,16 @@ export async function registerRoutes(app: Express) {
   app.get("/api/admin/orders", requireAuth, requirePermission("store"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(500);
     const lines = await db.select().from(orderItems);
-    res.json(rows.map((o) => ({ ...o, items: lines.filter((l) => l.orderId === o.id) })));
+    res.json(rows.map((o) => ({ ...o, isTest: isTestOrder(o), items: lines.filter((l) => l.orderId === o.id) })));
   });
 
   // A spreadsheet of orders, ONE ROW PER ITEM — the shape a treasurer needs to
   // reconcile takings against the Stripe payouts, and to see what sizes
   // actually sold when ordering next season's stock.
   app.get("/api/admin/orders/export", requireAuth, requirePermission("store"), async (_req: Request, res: Response) => {
-    const rows = await db.select().from(orders).orderBy(desc(orders.createdAt));
+    // Test purchases made while setting up Stripe moved no real money, so they
+    // are left out: this sheet has to reconcile with real Stripe payouts.
+    const rows = (await db.select().from(orders).orderBy(desc(orders.createdAt))).filter((o) => !isTestOrder(o));
     const lines = await db.select().from(orderItems);
 
     const body: unknown[][] = [];
@@ -1583,16 +1845,51 @@ export async function registerRoutes(app: Express) {
 
   app.put("/api/admin/orders/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    const { status, adminNotes } = req.body ?? {};
+    const { status, adminNotes, restock } = req.body ?? {};
     const allowed = ["pending", "paid", "fulfilled", "cancelled", "refunded"];
     const update: Record<string, unknown> = {};
     if (typeof status === "string" && allowed.includes(status)) update.status = status;
     if (typeof adminNotes === "string") update.adminNotes = cleanText(adminNotes).slice(0, 2000);
     if (Object.keys(update).length === 0) return res.status(400).json({ message: "Nothing to update" });
 
+    const [before] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    if (!before) return res.status(404).json({ message: "Order not found" });
+
     const [row] = await db.update(orders).set(update).where(eq(orders.id, id)).returning();
-    if (!row) return res.status(404).json({ message: "Order not found" });
+
+    // Cancelling or refunding a paid order can put its items back on the
+    // shelf, when the admin ticks that box (items that were never handed over,
+    // or that came back). Only for an order whose stock was actually taken.
+    const wasStockTaken = before.paidAt !== null && ["paid", "fulfilled"].includes(before.status);
+    if (restock === true && wasStockTaken && ["cancelled", "refunded"].includes(row.status)) {
+      restockOrder(id);
+    }
     res.json(row);
+  });
+
+  // Delete an order outright. Only for orders that moved no real money: test
+  // purchases made while setting up Stripe, and orders that were never paid.
+  // A real sale is never deleted (cancel or refund it instead), so the record
+  // of money taken stays complete.
+  app.delete("/api/admin/orders/:id", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    if (!order) return res.json({ ok: true });
+
+    const neverPaid = order.paidAt === null && ["pending", "cancelled"].includes(order.status);
+    if (!isTestOrder(order) && !neverPaid) {
+      return res.status(400).json({ message: "A real, paid order can't be deleted. Cancel or refund it instead." });
+    }
+    // A paid TEST order took stock when its pretend payment came through;
+    // give that back so the test leaves no trace.
+    if (isTestOrder(order) && order.paidAt !== null && ["paid", "fulfilled"].includes(order.status)) {
+      restockOrder(id);
+    }
+    db.transaction((tx) => {
+      tx.delete(orderItems).where(eq(orderItems.orderId, id)).run();
+      tx.delete(orders).where(eq(orders.id, id)).run();
+    });
+    res.json({ ok: true });
   });
 
   return server;

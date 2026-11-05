@@ -61,7 +61,15 @@ export interface PaymentEvent {
   customerEmail?: string;
   customerName?: string;
   shippingAddress?: string;
+  /** For "refunded": how much has been given back so far, in cents, and
+   *  whether that is everything that was paid. */
+  amountRefundedCents?: number;
+  fullyRefunded?: boolean;
 }
+
+/** How long a payment page stays open. Stripe's minimum is 30 minutes. While
+ *  it is open, the items in it are held for that customer (server/store.ts). */
+export const CHECKOUT_MINUTES = 30;
 
 // ── Configuration (admin panel first, .env as a fallback) ────────────────────
 // Same approach as email: a club should be able to paste their keys into the
@@ -177,6 +185,10 @@ export async function createCheckout(req: CheckoutRequest): Promise<{ url: strin
     // that comes back can be matched to the right order.
     client_reference_id: req.reference,
     metadata: { order_reference: req.reference },
+    // Close the payment page after half an hour. Left at Stripe's default
+    // (a day), a customer could pay for the last jersey many hours after
+    // someone else had already bought it.
+    expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_MINUTES * 60 + 60,
     ...(req.customerEmail ? { customer_email: req.customerEmail } : {}),
   });
 
@@ -201,7 +213,11 @@ export async function verifyWebhook(rawBody: Buffer, signature: string): Promise
   const event = await stripe.webhooks.constructEventAsync(rawBody, signature, cfg.webhookSecret);
 
   switch (event.type) {
-    case "checkout.session.completed": {
+    // The second one arrives later for payment methods that take a while to
+    // clear (some bank transfers): the session "completes" unpaid, then this
+    // follows once the money is actually there.
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
       const session = event.data.object as Stripe.Checkout.Session;
       // A session can complete while the payment is still processing (some bank
       // transfers). Only "paid" means the money is actually there.
@@ -219,7 +235,8 @@ export async function verifyWebhook(rawBody: Buffer, signature: string): Promise
 
     // The customer abandoned the payment page. Lets us tidy up the pending
     // order rather than leaving it hanging around forever.
-    case "checkout.session.expired": {
+    case "checkout.session.expired":
+    case "checkout.session.async_payment_failed": {
       const session = event.data.object as Stripe.Checkout.Session;
       return { kind: "expired", paymentRef: session.id };
     }
@@ -231,6 +248,8 @@ export async function verifyWebhook(rawBody: Buffer, signature: string): Promise
       return {
         kind: "refunded",
         paymentIntent: typeof charge.payment_intent === "string" ? charge.payment_intent : undefined,
+        amountRefundedCents: charge.amount_refunded,
+        fullyRefunded: charge.refunded === true,
       };
     }
 

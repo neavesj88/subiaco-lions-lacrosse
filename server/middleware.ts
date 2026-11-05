@@ -23,7 +23,7 @@
 //   app.post("/api/events", requireAuth, requirePermission("events"), handler)
 // =============================================================================
 
-import { type Request, type Response, type NextFunction } from "express";
+import { type Express, type Request, type Response, type NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { users } from "@shared/schema";
@@ -91,6 +91,34 @@ export function requirePermission(permission: Permission) {
     }
     next();
   };
+}
+
+// ── catchAsyncErrors ─────────────────────────────────────────────────────────
+// Express 4 only notices an error thrown straight away. When an async handler
+// fails later (a database error, a duplicate username), Express never hears of
+// it: the admin's request just hangs until the browser gives up. This hands
+// every such failure to the error handler in index.ts instead, for every route
+// registered after it is called, so no handler has to remember to.
+export function catchAsyncErrors(app: Express) {
+  const wrap = (fn: unknown) => {
+    // Four-argument functions are error handlers; Express tells them apart by
+    // their argument count, so they are left exactly as they are.
+    if (typeof fn !== "function" || fn.length === 4) return fn;
+    return (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const result = fn(req, res, next);
+        if (result && typeof result.then === "function") result.catch(next);
+      } catch (err) {
+        next(err);
+      }
+    };
+  };
+  for (const method of ["get", "post", "put", "patch", "delete"] as const) {
+    const original = app[method].bind(app) as (...args: unknown[]) => unknown;
+    // app.get("env") with a single argument reads a setting, not a route.
+    (app as unknown as Record<string, unknown>)[method] = (...args: unknown[]) =>
+      args.length < 2 ? original(...args) : original(...args.map(wrap));
+  }
 }
 
 // Extend express-session's built-in types to include our custom fields

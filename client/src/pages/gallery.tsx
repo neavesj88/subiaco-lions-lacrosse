@@ -14,9 +14,11 @@ export default function Gallery() {
   const [selected, setSelected] = useState<number | null>(null);
   const { get } = usePageContent("gallery");
 
-  const { data: images = [], isLoading } = useQuery<MediaUpload[]>({
-    queryKey: ["/api/media"],
-    queryFn: () => apiRequest("GET", "/api/media"),
+  // The public list (/api/gallery), not the admin library (/api/media), which
+  // needs a login: using that one left the gallery empty for every visitor.
+  const { data: images = [], isLoading } = useQuery<Pick<MediaUpload, "id" | "url" | "caption" | "mimeType" | "createdAt">[]>({
+    queryKey: ["/api/gallery"],
+    queryFn: () => apiRequest("GET", "/api/gallery"),
   });
 
   // Only show images (filter out any non-image uploads)
@@ -65,7 +67,7 @@ export default function Gallery() {
               >
                 <img
                   src={photo.url}
-                  alt={photo.caption ?? photo.originalName}
+                  alt={photo.caption || "Club photo"}
                   className="w-full h-full object-cover transition-transform group-hover:scale-105"
                   loading="lazy"
                 />
@@ -87,7 +89,7 @@ export default function Gallery() {
             {selectedPhoto && (
               <img
                 src={selectedPhoto.url}
-                alt={selectedPhoto.caption ?? selectedPhoto.originalName}
+                alt={selectedPhoto.caption || "Club photo"}
                 className="max-h-[80vh] max-w-full object-contain rounded-lg"
               />
             )}

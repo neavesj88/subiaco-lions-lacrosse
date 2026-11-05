@@ -22,8 +22,8 @@ if ! command -v node &>/dev/null; then
   curl -fsSL https://fnm.vercel.app/install | bash
   export PATH="$HOME/.local/share/fnm:$PATH"
   eval "$(fnm env)"
-  fnm install 20
-  fnm use 20
+  fnm install 22
+  fnm use 22
 fi
 echo -e "${GREEN}✓ Node $(node -v)${NC}"
 
@@ -41,6 +41,10 @@ if [ ! -f .env ]; then
   cp .env.example .env
   SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
   sed -i "s/change-this-to-a-long-random-string/$SECRET/" .env
+  # A non-obvious admin address and a random first password, as the clubhouse
+  # installer does — never a default that is printed in a public repository.
+  sed -i "s|^ADMIN_PATH=.*|ADMIN_PATH=/manage-$(openssl rand -hex 3)|" .env
+  sed -i "s|^SEED_ADMIN_PASSWORD=.*|SEED_ADMIN_PASSWORD=$(openssl rand -base64 12 | tr -d '/+=')|" .env
   echo ""
   echo -e "${YELLOW}⚠️  Edit .env now and set your values:${NC}"
   echo "   nano .env"
@@ -64,10 +68,12 @@ echo -e "${GREEN}✓ data/ directory ready${NC}"
 echo -e "${BLUE}Building...${NC}"
 npm run build
 
-# ── Seed database ────────────────────────────────────────────
-echo -e "${BLUE}Seeding database (creates default admin)...${NC}"
-npm run db:seed
+# ── Database ─────────────────────────────────────────────────
+# Tables first, then the first admin: the seed can't add an admin to a table
+# that doesn't exist yet.
+echo -e "${BLUE}Creating the database and the first admin...${NC}"
 node scripts/migrate.mjs
+npm run db:seed
 
 # ── PM2 log dir ─────────────────────────────────────────────
 sudo mkdir -p /var/log/pm2
@@ -79,14 +85,19 @@ pm2 save
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║          Setup complete! 🦁              ║${NC}"
+echo -e "${GREEN}║          Setup complete!                 ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════╝${NC}"
 echo ""
-echo "App running on port 5000 via PM2."
+APP_PORT="$(grep -E '^PORT=' .env | cut -d= -f2- || true)"
+APP_ADMIN="$(grep -E '^ADMIN_PATH=' .env | cut -d= -f2- || true)"
+APP_PW="$(grep -E '^SEED_ADMIN_PASSWORD=' .env | cut -d= -f2- || true)"
+echo "App running on port ${APP_PORT:-5000} via PM2."
 echo ""
 echo "Next steps:"
-echo "  1. Configure nginx to proxy port 5000  (see DEPLOYMENT.md)"
-echo "  2. Set up Cloudflare DNS + SSL          (same as neaves.au)"
-echo "  3. Log in at /admin/login               admin / ${SEED_ADMIN_PASSWORD:-changeme123!}"
-echo "  4. Change the admin password immediately"
+echo "  1. Configure nginx to proxy port ${APP_PORT:-5000}  (see DEPLOYMENT.md)"
+echo "  2. Point your domain at it through Cloudflare     (see SETUP_HOSTING.md)"
+echo "  3. Log in at ${APP_ADMIN:-/manage}/login"
+echo "       username: admin"
+echo "       password: ${APP_PW:-shown in the box further up}"
+echo "  4. Change the admin password straight away"
 echo ""

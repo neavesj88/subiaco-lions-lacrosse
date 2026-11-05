@@ -120,42 +120,59 @@ export function getSiteName(settings?: Record<string, string>): string {
   return seoTemplateValues(settings).club;
 }
 
-// Public pages for the sitemap, with crawl priority.
-export const SITEMAP_PAGES: { path: string; priority: number; changefreq: string }[] = [
+// Public pages for the sitemap, with crawl priority. `visibility` names the
+// Page Visibility switch (Admin -> Settings) that turns the page off.
+export const SITEMAP_PAGES: { path: string; priority: number; changefreq: string; visibility?: string }[] = [
   { path: "/", priority: 1.0, changefreq: "weekly" },
   { path: "/about", priority: 0.7, changefreq: "monthly" },
-  { path: "/juniors", priority: 0.9, changefreq: "monthly" },
+  { path: "/news", priority: 0.7, changefreq: "weekly" },
+  { path: "/juniors", priority: 0.9, changefreq: "monthly", visibility: "juniors" },
   { path: "/sign-up", priority: 0.9, changefreq: "monthly" },
   { path: "/calendar", priority: 0.8, changefreq: "weekly" },
-  { path: "/fixtures", priority: 0.8, changefreq: "weekly" },
-  { path: "/gallery", priority: 0.5, changefreq: "weekly" },
-  { path: "/store", priority: 0.5, changefreq: "monthly" },
-  { path: "/coaches-board", priority: 0.5, changefreq: "monthly" },
-  { path: "/committee", priority: 0.4, changefreq: "yearly" },
+  { path: "/fixtures", priority: 0.8, changefreq: "weekly", visibility: "fixtures" },
+  { path: "/gallery", priority: 0.5, changefreq: "weekly", visibility: "gallery" },
+  { path: "/store", priority: 0.5, changefreq: "monthly", visibility: "store" },
+  { path: "/coaches-board", priority: 0.5, changefreq: "monthly", visibility: "coaches_board" },
+  { path: "/committee", priority: 0.4, changefreq: "yearly", visibility: "committee" },
   { path: "/contact", priority: 0.6, changefreq: "yearly" },
 ];
+
+/** Is a Page Visibility switch on? Pages are on unless switched off. */
+export function isPageSwitchedOn(settings: Record<string, string> | undefined, key: string): boolean {
+  return (settings ?? {})[`nav_show_${key}`] !== "false";
+}
+
+/** The pages under /store/ (the shop's own steps). */
+const STORE_STEPS = ["/store/checkout", "/store/thank-you", "/store/cancelled"];
 
 /**
  * Does this web address correspond to a real page on the site?
  *
- * In: a path like "/juniors" or "/p/sponsorship". Out: true if the site can
- * actually show something there.
+ * In: a path like "/juniors" or "/p/sponsorship", the admin address, the
+ * club's settings, and a way to ask whether a club-made page exists. Out: true
+ * if the site can actually show something there.
  *
  * Used by the server to decide whether to answer 404 instead of 200. Without
  * it every mistyped address returns "page found" with a Not Found message on
  * it, which search engines index as a real page and link checkers never flag.
- *
- * Custom pages the club creates live under /p/, and admin lives at a secret
- * address, so both are treated as real here and checked properly elsewhere.
+ * A page switched off under Page Visibility counts as not there.
  */
-export function isKnownPath(path: string, adminPath?: string): boolean {
+export function isKnownPath(
+  path: string,
+  adminPath?: string,
+  settings?: Record<string, string>,
+  customPageExists?: (slug: string) => boolean,
+): boolean {
   const clean = path.split("?")[0].replace(/\/+$/, "") || "/";
 
-  if (SITEMAP_PAGES.some((p) => p.path === clean)) return true;
-  if (clean === "/news") return true;                    // news list, not in the sitemap
-  if (clean.startsWith("/p/")) return true;              // pages the club creates
-  if (clean.startsWith("/store/")) return true;          // checkout, thank-you, cancelled
-  if (adminPath && clean.startsWith(adminPath)) return true;
+  const builtIn = SITEMAP_PAGES.find((p) => p.path === clean);
+  if (builtIn) return !builtIn.visibility || isPageSwitchedOn(settings, builtIn.visibility);
+  if (STORE_STEPS.includes(clean)) return isPageSwitchedOn(settings, "store");
+  if (clean.startsWith("/p/")) {
+    const slug = clean.slice(3);
+    return customPageExists ? customPageExists(slug) : slug.length > 0;
+  }
+  if (adminPath && (clean === adminPath || clean.startsWith(adminPath + "/"))) return true;
 
   return false;
 }

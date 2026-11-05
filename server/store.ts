@@ -14,12 +14,12 @@
 //   is simply ignored, because the price is never read from the request.
 // =============================================================================
 
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, gte } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { db } from "./db";
 import { products, productVariants, orders, orderItems } from "@shared/schema";
 import { getSettingsSync } from "./site-settings";
-import type { CheckoutLine } from "./payments";
+import { CHECKOUT_MINUTES, type CheckoutLine } from "./payments";
 
 // What the browser is allowed to tell us: which thing, and how many.
 export interface CartLineInput {
@@ -73,6 +73,12 @@ export function priceCart(input: CartLineInput[], fulfilmentMethod: string): Pri
   let subtotalCents = 0;
   let requiresShipping = false;
 
+  // Sizes other customers are paying for right now (see heldByOpenCheckouts).
+  const held = heldByOpenCheckouts(variantIds);
+  // How many of each PRODUCT, across all its sizes: the "most one person can
+  // buy" limit is for the item, not for each size of it.
+  const perProduct = new Map<number, number>();
+
   // Merge duplicate lines first, so "2 + 3 of the same size" is checked against
   // stock as 5, not as two separate lots of stock that each look available.
   const merged = new Map<number, number>();
@@ -101,18 +107,25 @@ export function priceCart(input: CartLineInput[], fulfilmentMethod: string): Pri
       throw new CartError(`"${product.name}" is sold out.`);
     }
 
-    if (quantity > product.maxPerOrder) {
+    const productTotal = (perProduct.get(product.id) ?? 0) + quantity;
+    perProduct.set(product.id, productTotal);
+    if (productTotal > product.maxPerOrder) {
       throw new CartError(`You can order at most ${product.maxPerOrder} of "${product.name}" at a time.`);
     }
 
     // stock === null means made to order / never runs out.
     if (variant.stock !== null && variant.stock !== undefined) {
-      if (variant.stock <= 0) {
-        throw new CartError(`"${product.name} — ${variant.label}" has sold out.`);
-      }
-      if (quantity > variant.stock) {
+      const available = variant.stock - (held.get(variant.id) ?? 0);
+      if (available <= 0) {
         throw new CartError(
-          `Only ${variant.stock} left of "${product.name} — ${variant.label}". Please reduce the quantity.`,
+          variant.stock > 0
+            ? `"${product.name} — ${variant.label}" is in someone else's checkout right now. Try again in half an hour, in case they don't finish.`
+            : `"${product.name} — ${variant.label}" has sold out.`,
+        );
+      }
+      if (quantity > available) {
+        throw new CartError(
+          `Only ${available} left of "${product.name} — ${variant.label}". Please reduce the quantity.`,
         );
       }
     }
@@ -182,16 +195,42 @@ export function generateOrderReference(): string {
 }
 
 /**
+ * How many of each size are sitting in someone's open payment page.
+ *
+ * Stock itself only goes down on CONFIRMED PAYMENT. But a customer who is
+ * typing in their card details for the last jersey must not have it sold
+ * from under them, so items in a payment page opened in the last half hour
+ * count as taken. A payment page closes after that time (CHECKOUT_MINUTES),
+ * so an abandoned cart holds stock for half an hour, never longer.
+ */
+function heldByOpenCheckouts(variantIds: number[]): Map<number, number> {
+  const held = new Map<number, number>();
+  if (variantIds.length === 0) return held;
+  const since = new Date(Date.now() - (CHECKOUT_MINUTES + 2) * 60_000)
+    .toISOString().replace("T", " ").slice(0, 19);   // SQLite's CURRENT_TIMESTAMP format
+  const rows = db.select({ variantId: orderItems.variantId, quantity: orderItems.quantity })
+    .from(orderItems)
+    .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .where(and(eq(orders.status, "pending"), gte(orders.createdAt, since), inArray(orderItems.variantId, variantIds)))
+    .all();
+  for (const r of rows) {
+    if (r.variantId) held.set(r.variantId, (held.get(r.variantId) ?? 0) + r.quantity);
+  }
+  return held;
+}
+
+/**
  * Reduce stock for a paid order. Called once, when payment is confirmed.
  *
- * Stock is only ever reduced on CONFIRMED PAYMENT, not when the cart is
- * created. Reserving stock at checkout time sounds tidier but means an
- * abandoned cart quietly makes a size unbuyable until someone notices, which
- * for a club shop is worse than the rare case of two people paying for the
- * last jersey seconds apart.
+ * In: the order. Out: a description of each size there WASN'T enough of
+ * (empty when all is well). That can still happen: a size an admin reduced
+ * by hand while someone was paying, or a payment that arrived late. Stock
+ * never goes below zero; the shortfall is reported so the club knows to
+ * contact the customer.
  */
-export function decrementStockForOrder(orderId: number): void {
+export function decrementStockForOrder(orderId: number): string[] {
   const lines = db.select().from(orderItems).where(eq(orderItems.orderId, orderId)).all();
+  const short: string[] = [];
 
   // All the stock changes for one order succeed or fail together, so an error
   // partway through can never leave some sizes decremented and others not.
@@ -201,11 +240,35 @@ export function decrementStockForOrder(orderId: number): void {
       const [variant] = tx.select().from(productVariants)
         .where(eq(productVariants.id, line.variantId)).limit(1).all();
       if (!variant || variant.stock === null || variant.stock === undefined) continue;
+      if (variant.stock < line.quantity) {
+        short.push(`${line.productName}${line.variantLabel ? ` (${line.variantLabel})` : ""}: ordered ${line.quantity}, only ${Math.max(0, variant.stock)} in stock`);
+      }
       const remaining = Math.max(0, variant.stock - line.quantity);
       tx.update(productVariants).set({ stock: remaining })
         .where(eq(productVariants.id, line.variantId)).run();
     }
   });
+  return short;
+}
+
+/** Put a cancelled or refunded order's items back into stock. */
+export function restockOrder(orderId: number): void {
+  const lines = db.select().from(orderItems).where(eq(orderItems.orderId, orderId)).all();
+  db.transaction((tx) => {
+    for (const line of lines) {
+      if (!line.variantId) continue;
+      const [variant] = tx.select().from(productVariants)
+        .where(eq(productVariants.id, line.variantId)).limit(1).all();
+      if (!variant || variant.stock === null || variant.stock === undefined) continue;
+      tx.update(productVariants).set({ stock: variant.stock + line.quantity })
+        .where(eq(productVariants.id, line.variantId)).run();
+    }
+  });
+}
+
+/** Stripe test-mode payments have session ids starting "cs_test_". */
+export function isTestOrder(order: { paymentRef?: string | null }): boolean {
+  return (order.paymentRef ?? "").startsWith("cs_test_");
 }
 
 /** Every product with its sizes attached. `activeOnly` for the public page. */

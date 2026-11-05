@@ -2,6 +2,7 @@
 // exactly as they are by the server (runtime-config and db read them on import).
 import "dotenv/config";
 import bcrypt from "bcrypt";
+import { randomBytes } from "crypto";
 import { db } from "./db";
 import { users, juniorsContent, siteSettings, announcements, events } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -10,10 +11,16 @@ import { SEED_ADMIN_PASSWORD } from "./runtime-config";
 async function seed() {
   console.log("Seeding database...");
 
-  // Default super admin
-  const existing = await db.select().from(users).where(eq(users.username, "admin")).limit(1);
-  if (existing.length === 0) {
-    const passwordHash = await bcrypt.hash(SEED_ADMIN_PASSWORD, 12);
+  // Default super admin — but only on a brand-new database with NO accounts.
+  //
+  // Checking for "a user called admin" instead (as this once did) was a trap:
+  // the Docker setup runs this script on every start, so a club that sensibly
+  // deleted the installer's "admin" account got it silently re-created, with
+  // the starting password, at the next restart.
+  const anyUser = await db.select({ id: users.id }).from(users).limit(1);
+  if (anyUser.length === 0) {
+    const password = SEED_ADMIN_PASSWORD || randomBytes(9).toString("base64url");
+    const passwordHash = await bcrypt.hash(password, 12);
     await db.insert(users).values({
       username: "admin",
       passwordHash,
@@ -21,8 +28,14 @@ async function seed() {
       email: "",
       role: "super_admin",
     });
-    console.log(`Created default admin: admin / ${SEED_ADMIN_PASSWORD}`);
-    console.log("IMPORTANT: Change the admin password immediately after first login.");
+    console.log("");
+    console.log("  ┌─────────────────────────────────────────────────────────┐");
+    console.log("  │  Admin account created. Write this down now:            │");
+    console.log(`  │    username: admin`.padEnd(60) + "│");
+    console.log(`  │    password: ${password}`.padEnd(60) + "│");
+    console.log("  │  Change it once you're logged in.                        │");
+    console.log("  └─────────────────────────────────────────────────────────┘");
+    console.log("");
   }
 
   // Default site settings.
@@ -125,4 +138,9 @@ async function seed() {
   console.log("Seed complete.");
 }
 
-seed().catch(console.error);
+// A failure must be visible to whatever ran this (installer, Docker, a person),
+// not printed and then reported as success.
+seed().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

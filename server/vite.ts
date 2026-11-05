@@ -1,15 +1,11 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
-import { injectSeo, getOrigin } from "./seo-inject";
+import { injectSeo, getOrigin, publishedCustomPage } from "./seo-inject";
 import { injectRuntimeConfig, getAdminPath } from "./runtime-config";
 import { getSettingsSync } from "./site-settings";
 import { isKnownPath } from "@shared/seo";
-
-const viteLogger = createLogger();
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-AU", {
@@ -22,9 +18,14 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
+  // Vite is a build tool, installed only where the site is developed or built.
+  // Loading it here, on demand, rather than at the top of the file means a
+  // production server installed without development tools (Docker, or
+  // `npm ci --omit=dev`) still starts. Vite reads vite.config.ts itself.
+  const { createServer: createViteServer, createLogger } = await import("vite");
+  const viteLogger = createLogger();
   const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
+    configFile: path.resolve(import.meta.dirname, "..", "vite.config.ts"),
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
@@ -59,7 +60,7 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx?v=${Date.now()}"`,
       );
       // Inject per-route SEO tags so dev matches production behaviour
-      template = injectSeo(template, url.split("?")[0], getOrigin(req), getSettingsSync());
+      template = injectSeo(template, url.split("?")[0], getOrigin(req), getSettingsSync(), getAdminPath());
       template = injectRuntimeConfig(template, res.locals.cspNonce);
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
@@ -108,14 +109,16 @@ export function serveStatic(app: Express) {
   const baseHtml = fs.readFileSync(indexPath, "utf-8");
   app.use("*", (req, res) => {
     const path = req.originalUrl.split("?")[0];
-    let html = injectSeo(baseHtml, path, getOrigin(req), getSettingsSync());
+    const settings = getSettingsSync();
+    let html = injectSeo(baseHtml, path, getOrigin(req), settings, getAdminPath());
     html = injectRuntimeConfig(html, res.locals.cspNonce);
 
     // Answer 404 for addresses that aren't real pages. The SAME page is still
     // sent — the app shows its Not Found screen — but the status code now tells
     // the truth, so search engines drop mistyped links instead of indexing them
     // and broken-link checkers actually report them.
-    const status = isKnownPath(path, getAdminPath()) ? 200 : 404;
+    const known = isKnownPath(path, getAdminPath(), settings, (slug) => publishedCustomPage(slug) !== null);
+    const status = known ? 200 : 404;
 
     // Never cache this page. It is rebuilt on every request with the club's
     // current settings and a fresh one-time security token, so a stored copy

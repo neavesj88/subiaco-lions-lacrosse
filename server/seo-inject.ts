@@ -18,8 +18,25 @@
 // shared/club-config.ts. Change them there.
 // =============================================================================
 
+import { and, eq } from "drizzle-orm";
 import { getSeoForPath, getSiteName, type PageSeo } from "@shared/seo";
 import { resolveText } from "@shared/club-config";
+import { customPages } from "@shared/schema";
+import { db } from "./db";
+
+/** A published page the club made, by its address (/p/<slug>), or null. */
+export function publishedCustomPage(slug: string): { title: string; subtitle: string | null } | null {
+  if (!slug) return null;
+  try {
+    const [row] = db.select({ title: customPages.title, subtitle: customPages.subtitle })
+      .from(customPages)
+      .where(and(eq(customPages.slug, slug), eq(customPages.isPublished, true)))
+      .limit(1).all();
+    return row ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Make text safe to sit inside an HTML attribute.
@@ -48,27 +65,48 @@ function escJson(value: string): string {
  * In: the path, the site origin, the resolved SEO text, the club's name.
  * Out: an HTML string of meta tags.
  */
-function buildMetaTags(path: string, origin: string, seo: PageSeo, siteName: string): string {
-  const url = origin + path;
-  const ogImage = origin + "/og-image.jpg";
+function buildMetaTags(
+  path: string, origin: string, seo: PageSeo, siteName: string,
+  settings: Record<string, string> | undefined, noindex: boolean,
+): string {
+  // One address per page: "/about/" and "/about" are the same page, so the
+  // canonical never carries a trailing slash.
+  const cleanPath = path !== "/" ? path.replace(/\/+$/, "") || "/" : "/";
+  const url = origin + cleanPath;
   const t = esc(seo.title);
   const d = esc(seo.description);
+
+  // The picture shown when the site is shared on Facebook, Messages, etc.
+  // The home page photo suits the large card best; the logo is the fallback,
+  // shown as a small square card so it isn't cropped. If the club has set
+  // neither, no picture is claimed at all (rather than one that doesn't exist).
+  const absolute = (u: string) => (/^https?:\/\//i.test(u) ? u : u.startsWith("/") ? origin + u : "");
+  const hero = absolute(resolveText(settings, "hero_image_url").trim());
+  const logo = absolute(resolveText(settings, "club_logo_url").trim());
+  const shareImage = hero || logo;
+  const card = hero ? "summary_large_image" : "summary";
 
   return [
     `<title>${t}</title>`,
     `<meta name="description" content="${d}" />`,
+    // Admin and checkout screens are for the people using them, not for
+    // search results. Saying so in the page itself (not only once the app has
+    // loaded) means search engines see it on their first look.
+    noindex
+      ? `<meta name="robots" content="noindex, nofollow" />`
+      : `<meta name="robots" content="index, follow" />
+    <link rel="canonical" href="${esc(url)}" />`,
     seo.keywords ? `<meta name="keywords" content="${esc(seo.keywords)}" />` : "",
-    `<link rel="canonical" href="${esc(url)}" />`,
     `<meta property="og:title" content="${t}" />`,
     `<meta property="og:description" content="${d}" />`,
     `<meta property="og:url" content="${esc(url)}" />`,
     `<meta property="og:type" content="website" />`,
     `<meta property="og:site_name" content="${esc(siteName)}" />`,
-    `<meta property="og:image" content="${esc(ogImage)}" />`,
-    `<meta name="twitter:card" content="summary_large_image" />`,
+    shareImage ? `<meta property="og:image" content="${esc(shareImage)}" />` : "",
+    `<meta name="twitter:card" content="${card}" />`,
     `<meta name="twitter:title" content="${t}" />`,
     `<meta name="twitter:description" content="${d}" />`,
-    `<meta name="twitter:image" content="${esc(ogImage)}" />`,
+    shareImage ? `<meta name="twitter:image" content="${esc(shareImage)}" />` : "",
   ].filter(Boolean).join("\n    ");
 }
 
@@ -112,17 +150,18 @@ function buildStructuredData(settings: Record<string, string> | undefined, origi
   const email = get("contact_email");
   if (email) data.email = email;
 
-  // Postal address: only included when there is something real to say, and
-  // only the parts the club filled in.
+  // Where the club plays: only included when there is something real to say,
+  // and only the parts the club filled in. The venue is a place ("Rosalie
+  // Park") and the address is one free-text line, so they are given to Google
+  // as exactly that, rather than forced into street/suburb boxes they don't
+  // fit (which put a park's name where a street address should be).
   const venue = get("venue_name");
   const addressLine = get("venue_address");
   if (venue || addressLine) {
-    const address: Record<string, string> = { "@type": "PostalAddress", addressCountry: "AU" };
-    if (venue) address.streetAddress = venue;
-    if (addressLine) address.addressLocality = addressLine;
-    const state = get("region_state");
-    if (state) address.addressRegion = state;
-    data.address = address;
+    const place: Record<string, string> = { "@type": "Place" };
+    if (venue) place.name = venue;
+    if (addressLine) place.address = addressLine;
+    data.location = place;
   }
 
   const region = get("region_name");
@@ -150,6 +189,13 @@ function buildStructuredData(settings: Record<string, string> | undefined, origi
  * HTTP on localhost — which would put the wrong address in every share link.
  */
 export function getOrigin(req: { headers: Record<string, any>; protocol?: string }): string {
+  // The site's own address from .env, when set, beats anything a request
+  // claims. Emails sent to the public use this for their links, and a request
+  // sent straight to the server (not through Cloudflare) can put any name it
+  // likes in its Host header.
+  const configured = (process.env.SITE_URL ?? "").trim().replace(/\/+$/, "");
+  if (/^https?:\/\/[^/\s]+$/i.test(configured)) return configured;
+
   const host = req.headers["host"] ?? "localhost:5000";
   const proto = (req.headers["x-forwarded-proto"] as string) ?? req.protocol ?? "http";
   return `${proto}://${host}`;
@@ -163,9 +209,26 @@ export function getOrigin(req: { headers: Record<string, any>; protocol?: string
 export function injectSeo(
   html: string, path: string, origin: string,
   settings?: Record<string, string>,
+  adminPath?: string,
 ): string {
-  const seo = getSeoForPath(path, settings);
-  const metaBlock = buildMetaTags(path, origin, seo, getSiteName(settings));
+  let seo = getSeoForPath(path, settings);
+
+  // A page the club made gets its own title and description, not the home
+  // page's.
+  const pageMatch = /^\/p\/([^/?#]+)\/?$/.exec(path);
+  const custom = pageMatch ? publishedCustomPage(decodeURIComponent(pageMatch[1])) : null;
+  if (custom) {
+    const siteName = getSiteName(settings);
+    seo = {
+      title: siteName ? `${custom.title} | ${siteName}` : custom.title,
+      description: custom.subtitle || seo.description,
+    };
+  }
+
+  const noindex =
+    (!!adminPath && (path === adminPath || path.startsWith(adminPath + "/"))) ||
+    path.startsWith("/store/");
+  const metaBlock = buildMetaTags(path, origin, seo, getSiteName(settings), settings, noindex);
 
   // The club's own colour, so a phone's browser chrome matches the site.
   const themeColour = esc(resolveText(settings, "theme_primary") || "#7B1E32");
@@ -175,12 +238,15 @@ export function injectSeo(
     .filter(Boolean)
     .join("\n    ");
 
+  // A FUNCTION as the replacement, not a string: in a replacement string "$&",
+  // "$'" and "$$" are instructions, so a club tagline like "Pay $5 at the
+  // gate, it's $$ well spent" used to splice copies of the page into itself.
   if (html.includes("<!--SEO-START-->") && html.includes("<!--SEO-END-->")) {
     return html.replace(
       /<!--SEO-START-->[\s\S]*?<!--SEO-END-->/,
-      `<!--SEO-START-->\n    ${block}\n    <!--SEO-END-->`,
+      () => `<!--SEO-START-->\n    ${block}\n    <!--SEO-END-->`,
     );
   }
   // Fallback for a page shell whose markers were removed.
-  return html.replace(/<title>[\s\S]*?<\/title>/, block);
+  return html.replace(/<title>[\s\S]*?<\/title>/, () => block);
 }

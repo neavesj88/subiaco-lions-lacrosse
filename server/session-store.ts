@@ -133,6 +133,22 @@ export class SqliteSessionStore extends Store {
     }
   }
 
+  /**
+   * Sign one admin out everywhere, except (optionally) the browser they are
+   * using right now. Used when their password changes or their account is
+   * locked: otherwise a stolen or forgotten login on another computer would
+   * carry on working after the password that was meant to stop it changed.
+   */
+  destroyForUser(userId: number, exceptSid?: string): void {
+    try {
+      this.db
+        .prepare("DELETE FROM sessions WHERE json_extract(data, '$.userId') = ? AND sid != ?")
+        .run(userId, exceptSid ?? "");
+    } catch (err) {
+      console.error("[sessions] Couldn't sign the account out elsewhere:", (err as Error).message);
+    }
+  }
+
   /** Log everyone out (used by the admin "sign out all devices" action). */
   clear(cb?: (err?: any) => void): void {
     try {
