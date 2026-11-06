@@ -184,6 +184,10 @@ export const CLUB_DEFAULTS: Record<string, string> = {
     "I understand how {club} will use these details, and if this is for a child under 18 I am their parent or guardian.",
   privacy_contact_notice:
     "We use your details only to reply to this message.",
+  // Under the newsletter box. Australia's Spam Act expects people to know
+  // what they're signing up for and how to stop.
+  privacy_newsletter_notice:
+    "We'll only use your email for club news. To stop, email {email} and we'll take you off the list.",
 
   store_add_to_cart: "Add to cart",
   store_sold_out: "Sold out",

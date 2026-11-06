@@ -338,6 +338,9 @@ export default function Home() {
                 </Button>
               </form>
             )}
+            <p className="text-xs text-stone-500 mt-3">
+              {t("privacy_newsletter_notice").replace("{email}", club.email || "the club")}
+            </p>
           </div>
         </section>
       )}

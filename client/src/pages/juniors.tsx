@@ -43,7 +43,9 @@ export default function Juniors() {
     { age: "U17", description: "High-level junior competition preparing players for senior teams." },
   ];
 
-  const displayPrograms = programList.length > 0 ? programList : defaultPrograms;
+  // The starter examples only when the club has never saved its own list. A
+  // list the club has emptied on purpose means "no programs section".
+  const displayPrograms = programs ? programList : defaultPrograms;
 
   return (
     <>
@@ -72,6 +74,7 @@ export default function Juniors() {
       </section>
 
       {/* Programs */}
+      {displayPrograms.length > 0 && (
       <section className="py-16 px-4 bg-white">
         <div className="max-w-7xl mx-auto">
           <h2 className="section-title text-center">{programs?.title ?? "Our Programs"}</h2>
@@ -79,7 +82,7 @@ export default function Juniors() {
           <p className="section-subtitle text-center">Age-appropriate programs for every stage of development</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
             {displayPrograms.map((p, i) => (
-              <Card key={p.age} className="relative overflow-hidden hover:shadow-md transition-shadow">
+              <Card key={`${p.age}-${i}`} className="relative overflow-hidden hover:shadow-md transition-shadow">
                 <div className="h-2 bg-gradient-to-r from-maroon-700 to-gold-500" />
                 <CardHeader>
                   <div className="w-14 h-14 rounded-full bg-maroon-700 text-white flex items-center justify-center font-bold text-lg mx-auto mb-2 shadow">
@@ -95,6 +98,7 @@ export default function Juniors() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Info cards */}
       <section className="py-16 px-4 bg-stone-50">

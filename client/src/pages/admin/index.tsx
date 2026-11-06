@@ -498,6 +498,69 @@ function UserForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// ── Juniors age-group programs ────────────────────────────────────────────────
+// The cards under "Our Programs" on the Juniors page. Starts with the four
+// example age groups; a club can change, add or remove them, and an empty
+// list hides the section.
+function ProgramsEditor({ content }: { content?: JuniorsContent }) {
+  const qc = useQueryClient();
+  const examples = [
+    { age: "U11", description: "Modified rules focused on fun and skill development. A perfect introduction to the game." },
+    { age: "U13", description: "Building core skills with more structured competition." },
+    { age: "U15", description: "Competitive play with a focus on teamwork and game strategy." },
+    { age: "U17", description: "High-level junior competition preparing players for senior teams." },
+  ];
+  const read = (): Array<{ age: string; description: string }> => {
+    if (!content) return examples;
+    try { const list = JSON.parse(content.content); return Array.isArray(list) ? list : examples; } catch { return examples; }
+  };
+  const [title, setTitle] = useState(content?.title || "Our Programs");
+  const [rows, setRows] = useState(read);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => { if (!dirty) { setRows(read()); setTitle(content?.title || "Our Programs"); } }, [content]);
+
+  const change = (next: Array<{ age: string; description: string }>) => { setRows(next); setDirty(true); };
+  const save = useMutation({
+    mutationFn: () => apiRequest("PUT", "/api/juniors-content/programs", { title, content: JSON.stringify(rows) }),
+    onSuccess: () => { setDirty(false); qc.invalidateQueries({ queryKey: ["/api/juniors-content"] }); toast({ title: "Programs saved" }); },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm text-maroon-700">Programs (age groups)</CardTitle>
+        <p className="text-xs text-stone-500">The cards under the programs heading on the Juniors page. Remove them all to hide that section.</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="programs-title">Heading</Label>
+          <Input id="programs-title" value={title} onChange={(e) => { setTitle(e.target.value); setDirty(true); }} />
+        </div>
+        {rows.map((row, i) => (
+          <div key={i} className="flex gap-2 items-start">
+            <Input className="w-24 shrink-0" aria-label={`Age group ${i + 1}`} placeholder="U13" value={row.age}
+              onChange={(e) => change(rows.map((r, n) => (n === i ? { ...r, age: e.target.value } : r)))} />
+            <Textarea rows={2} aria-label={`Description for ${row.age || `age group ${i + 1}`}`} value={row.description}
+              onChange={(e) => change(rows.map((r, n) => (n === i ? { ...r, description: e.target.value } : r)))} />
+            <Button size="icon" variant="ghost" aria-label={`Remove ${row.age || "this age group"}`}
+              onClick={() => change(rows.filter((_, n) => n !== i))}>
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => change([...rows, { age: "", description: "" }])} disabled={rows.length >= 20}>
+            <Plus className="h-4 w-4" /> Add age group
+          </Button>
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending || !dirty}>
+            <CheckCircle className="h-4 w-4" />{save.isPending ? "Saving..." : dirty ? "Save programs" : "Saved"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Edit an existing admin ─────────────────────────────────────────────────────
 // Name, email and role. Passwords are reset from Security, where the person
 // doing it can see what they are doing.
@@ -569,6 +632,7 @@ const WORDING_FIELDS: Array<{ key: string; label: string; help?: string; long?: 
   { key: "privacy_signup_notice", label: "Privacy notice on the sign-up form", long: true, help: "What the club does with the details people give. Check it matches your privacy policy." },
   { key: "privacy_consent_label", label: "Privacy tick-box wording", long: true },
   { key: "privacy_contact_notice", label: "Privacy note on the contact form", long: true },
+  { key: "privacy_newsletter_notice", label: "Privacy note under the newsletter sign-up", long: true, help: "Say what you'll send and how to stop. {email} is replaced by the club's email address." },
 ];
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
@@ -679,6 +743,15 @@ export default function AdminDashboard() {
     queryKey: ["/api/newsletter/subscribers"],
     queryFn: () => apiRequest("GET", "/api/newsletter/subscribers"),
     enabled: can("newsletter"),
+  });
+
+  // Same list the Orders tab shows, for the "waiting to hand over" count in
+  // the sidebar, so a new sale is noticed without opening Orders.
+  const { data: shopOrders = [] } = useQuery<Array<{ status: string; isTest?: boolean }>>({
+    queryKey: ["/api/admin/orders"],
+    queryFn: () => apiRequest("GET", "/api/admin/orders"),
+    enabled: can("store"),
+    refetchInterval: 120_000,
   });
 
   const { data: contactMsgs = [] } = useQuery<ContactMessage[]>({
@@ -865,6 +938,8 @@ export default function AdminDashboard() {
 
   const newRegs = registrations.filter((r) => r.status === "new").length;
   const unreadMsgs = contactMsgs.filter((m) => !m.isRead).length;
+  // Paid orders not yet handed over or posted (test purchases don't count).
+  const ordersToHandOver = shopOrders.filter((o) => o.status === "paid" && !o.isTest).length;
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -951,7 +1026,8 @@ export default function AdminDashboard() {
                 <div className="flex flex-col gap-0.5">
                   {group.sections.map((sec) => {
                     const Icon = ADMIN_ICONS[sec.icon] ?? FileText;
-                    const badge = sec.id === "signups" ? newRegs : sec.id === "messages" ? unreadMsgs : 0;
+                    const badge = sec.id === "signups" ? newRegs : sec.id === "messages" ? unreadMsgs
+                      : sec.id === "orders" ? ordersToHandOver : 0;
                     return (
                       <TabsTrigger
                         key={sec.id}
@@ -1159,6 +1235,7 @@ export default function AdminDashboard() {
             <TabsContent value="juniors">
               <h2 className="text-lg font-semibold mb-4">Juniors Page Content</h2>
               <div className="space-y-4">
+                <ProgramsEditor content={juniorsContent.find((c) => c.section === "programs")} />
                 {["hero", "kidsport", "equipment", "contact"].map((section) => (
                   <Card key={section}>
                     <CardHeader>

@@ -779,7 +779,19 @@ export async function registerRoutes(app: Express) {
   app.put("/api/juniors-content/:section", requireAuth, requirePermission("juniors"), async (req: Request, res: Response) => {
     const { section } = req.params;
     const title = typeof req.body?.title === "string" ? cleanText(req.body.title) : req.body?.title;
-    const content = cleanMaybeHtml(req.body?.content) as string;
+    let content = cleanMaybeHtml(req.body?.content) as string;
+    // "programs" holds a LIST (age group + description), stored as JSON. It
+    // is checked and cleaned item by item: run through the HTML cleaner as a
+    // whole, a "<" in one description could corrupt the list.
+    if (section === "programs") {
+      let list: unknown;
+      try { list = JSON.parse(String(req.body?.content ?? "[]")); } catch { list = null; }
+      if (!Array.isArray(list)) return res.status(400).json({ message: "The programs list couldn't be read." });
+      content = JSON.stringify(list.slice(0, 20).map((p: any) => ({
+        age: cleanText(String(p?.age ?? "")).slice(0, 20),
+        description: cleanText(String(p?.description ?? "")).slice(0, 500),
+      })).filter((p) => p.age || p.description));
+    }
     const existing = await db.select().from(juniorsContent).where(eq(juniorsContent.section, section)).limit(1);
     if (existing.length > 0) {
       const [row] = await db.update(juniorsContent)
