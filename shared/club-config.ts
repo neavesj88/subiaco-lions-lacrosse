@@ -139,20 +139,28 @@ export const CLUB_DEFAULTS: Record<string, string> = {
 
   // ── About page ────────────────────────────────────────────────────────────
   about_history_title: "Our History",
-  // Placeholder prompt, not real history — every club replaces this from
-  // Admin → Pages → About. Each club's own history lives in their database.
+  // A plain starter that reads as real copy, not instructions: visitors see it
+  // until the club writes its own story (by clicking the pencil on this text
+  // while logged in). Each club's own history lives in their database.
   about_history_body:
-    "<p>Tell your club's story here. When was it founded, and by whom? What are the moments members still talk about?</p><p>Edit this text in Admin → Pages → About. A few short paragraphs works best — visitors mostly want to know who you are and that they'd be welcome.</p>",
+    "<p>{club} is a community {sport} club[[ based at {venue}]]. New players and families are always welcome — whether you've played before or never picked up the game.</p>",
   about_teams_title: "Our Teams",
   about_teams_subtitle: "[[Competing across all divisions of {league}. ]]New players welcome at every level.",
   about_find_us_title: "Find Us",
+  // Quick facts on the About page. A fact with no value isn't shown, so these
+  // start blank: a new club must never display another club's founding year.
+  // Fact 1 shows the "Year founded" from the setup wizard when left blank.
   about_stat1_label: "Founded",
-  about_stat1_value: "1940",
+  about_stat1_value: "",
   about_stat2_label: "Teams",
-  about_stat2_value: "10+",
+  about_stat2_value: "",
   about_stat3_label: "Divisions",
-  about_stat3_value: "State to Div 3",
+  about_stat3_value: "",
   about_stat4_label: "Home Ground",
+  // The name of a government scheme that helps families with junior fees
+  // (KidSport in WA, Active Kids in NSW…). Blank: no scheme is mentioned on
+  // the sign-up form, the Juniors page or in emails.
+  subsidy_name: "",
 
   // ── Store page ────────────────────────────────────────────────────────────
   store_apparel_title: "Available Apparel",
@@ -237,7 +245,13 @@ export function renderTemplate(template: string, values: Record<string, string>)
     return anyMissing ? "" : segment;
   });
 
-  const filled = withOptionals.replace(/\{(\w+)\}/g, (_m, key) => values[key] ?? "");
+  // Only placeholders this function knows are filled (blank if empty). Any
+  // other {word} is left as it is, because the page using the text fills it
+  // in itself: {email} in the privacy notice, {n} "left in stock", {ref} on
+  // the thank-you page. Blanking those here left sentences ending "by
+  // emailing ." and "Only  left".
+  const filled = withOptionals.replace(/\{(\w+)\}/g, (m, key: string) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? values[key] ?? "" : m);
 
   // Tidy up after any placeholder outside a bracketed segment that came out
   // empty, so nothing reaches a browser tab or a Google result looking broken.

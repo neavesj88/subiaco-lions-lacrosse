@@ -85,20 +85,25 @@ async function seed() {
         { age: "U17", description: "High-level junior competition preparing players for senior teams." },
       ]),
     },
+    // Starts EMPTY, and the Juniors page hides the card until it's filled in
+    // (Admin -> Juniors): fee-help schemes differ by state, and a club must
+    // never claim to be a registered provider of one it isn't.
     {
       section: "kidsport",
-      title: "KidSport",
-      content: "If your club is a registered KidSport provider, describe it here. KidSport is a WA Government initiative providing eligible children with up to $200 per year towards club registration fees. Edit or delete this in Admin → Juniors.",
+      title: "",
+      content: "",
     },
+    // Written as real copy, never as instructions to the admin: visitors read
+    // this until the club changes it.
     {
       section: "equipment",
       title: "What to Bring",
-      content: "New players don't need to buy equipment straight away. List what the club can lend here. Just bring runners, a water bottle, and plenty of enthusiasm!",
+      content: "New players don't need to buy equipment straight away. Just bring runners and a water bottle, and ask us about borrowing gear for your first few sessions.",
     },
     {
       section: "contact",
       title: "Junior Coordinator",
-      content: "For all junior enquiries, get in touch and our Juniors Coordinator will get back to you within 48 hours. Add your contact email in Admin → Settings.",
+      content: "For all junior enquiries, get in touch and our Juniors Coordinator will get back to you.",
     },
   ];
 

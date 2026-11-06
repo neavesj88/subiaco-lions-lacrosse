@@ -124,7 +124,7 @@ export default function MediaLibrary({
               the club logo, the home page banner, sponsor logos).
             </span>
           </p>
-          <p className="mt-2 pl-6 text-maroon-800/80">
+          <p className="mt-2 pl-6 text-maroon-800">
             Photos display exactly as uploaded — there's no cropping or reordering
             here, and the gallery always shows newest first. To change how a photo
             looks or is framed, edit it on your phone or computer first, then upload it.

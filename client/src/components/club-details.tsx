@@ -50,6 +50,9 @@ export function useClubDetails() {
  */
 export function ClubMap({ height = 220, className = "" }: { height?: number; className?: string }) {
   const { mapQuery, venue } = useClubDetails();
+  // No location set (Admin -> Settings -> Map location): no map, rather than
+  // a map of nowhere in particular.
+  if (!mapQuery.trim()) return null;
   return (
     <div className={`rounded-xl overflow-hidden border shadow-sm ${className}`}>
       <iframe
@@ -60,7 +63,7 @@ export function ClubMap({ height = 220, className = "" }: { height?: number; cla
         allowFullScreen
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
-        title={`Map of ${venue}`}
+        title={venue ? `Map of ${venue}` : "Map of our ground"}
       />
     </div>
   );

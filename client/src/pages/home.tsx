@@ -131,11 +131,11 @@ export default function Home() {
       </section>
 
       {/* ── Info strip ──────────────────────────────────────────────── */}
-      <section className="bg-gold-500 text-white py-4 px-4">
+      <section className="bg-gold-500 text-on-accent py-4 px-4">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm font-medium">
-          <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {club.fullAddress}</span>
-          <span>{t("home_strip_line2")}</span>
-          <span>{t("home_strip_line3")}</span>
+          {club.fullAddress && <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" aria-hidden="true" /> {club.fullAddress}</span>}
+          {t("home_strip_line2") && <span>{t("home_strip_line2")}</span>}
+          {t("home_strip_line3") && <span>{t("home_strip_line3")}</span>}
         </div>
       </section>
 
@@ -258,13 +258,16 @@ export default function Home() {
       )}
 
       {/* ── Instagram ────────────────────────────────────────────────── */}
-      <section className="py-16 px-4 bg-stone-50">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="section-title text-center">Follow Us on Instagram</h2>
-          <p className="section-subtitle text-center">Stay up to date with club news, game highlights and behind-the-scenes moments</p>
-          <InstagramFeed feedId={settings?.behold_feed_id || ""} handle={t("instagram_handle")} />
-        </div>
-      </section>
+      {/* Only when there's a feed or at least an account to follow. */}
+      {(settings?.behold_feed_id || t("instagram_handle")) && (
+        <section className="py-16 px-4 bg-stone-50">
+          <div className="max-w-7xl mx-auto">
+            <h2 className="section-title text-center">Follow Us on Instagram</h2>
+            <p className="section-subtitle text-center">Stay up to date with club news, game highlights and behind-the-scenes moments</p>
+            <InstagramFeed feedId={settings?.behold_feed_id || ""} handle={t("instagram_handle")} />
+          </div>
+        </section>
+      )}
 
       {/* ── Sponsors ─────────────────────────────────────────────────── */}
       {pageEnabled("sponsors") && sponsorList.length > 0 && (

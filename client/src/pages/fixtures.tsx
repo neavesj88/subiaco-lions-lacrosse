@@ -117,7 +117,7 @@ export default function Fixtures() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {team.divisions.map((div) => (
+                  {team.divisions.map((div) => div.url ? (
                     <a
                       key={div.name}
                       href={div.url}
@@ -128,6 +128,12 @@ export default function Fixtures() {
                       <span className="text-sm font-medium">{div.name}</span>
                       <ExternalLink className="h-3.5 w-3.5 text-stone-500 group-hover:text-maroon-500" />
                     </a>
+                  ) : (
+                    // No fixtures link set for this division (or the club):
+                    // shown as plain text rather than a link to nowhere.
+                    <div key={div.name} className="px-3 py-2 rounded-lg bg-stone-50 text-sm font-medium">
+                      {div.name}
+                    </div>
                   ))}
                 </CardContent>
               </Card>

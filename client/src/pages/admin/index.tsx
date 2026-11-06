@@ -937,7 +937,7 @@ export default function AdminDashboard() {
                         <Icon className="h-4 w-4 shrink-0" />
                         <span className="flex-1 text-left">{sec.label}</span>
                         {badge > 0 && (
-                          <span className="bg-gold-500 text-white text-[10px] rounded-full px-1.5 py-0.5 leading-none">
+                          <span className="bg-gold-500 text-on-accent text-[10px] rounded-full px-1.5 py-0.5 leading-none">
                             {badge}
                           </span>
                         )}
@@ -1334,6 +1334,16 @@ export default function AdminDashboard() {
                     { key: "group", label: "Team (Men's / Women's / Juniors)", placeholder: "Men's", required: true },
                     { key: "title", label: "Division name", placeholder: "Division 1", required: true },
                     { key: "url", label: "Fixtures link (optional)", placeholder: "https://..." },
+                  ]}
+                />
+                <ListManager
+                  listType="affiliation"
+                  title="Affiliations & programs"
+                  description="Cards on the About page under 'Affiliated With', after your league. For example a wellbeing program the club is part of, or a junior fee-help scheme you're a registered provider for. Leave empty if there are none."
+                  fields={[
+                    { key: "title", label: "Name", placeholder: "e.g. Act Belong Commit", required: true },
+                    { key: "body", label: "What it means for members", textarea: true, placeholder: "One or two sentences" },
+                    { key: "url", label: "Website (optional)", placeholder: "https://..." },
                   ]}
                 />
                 <ListManager

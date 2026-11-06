@@ -28,24 +28,25 @@ export default function InstagramFeed({ feedId, handle = "" }: InstagramFeedProp
     };
   }, [feedId]);
 
+  // No live feed set up: just a "follow us" link if there's a handle, and
+  // nothing at all if not. (This used to show visitors a box of setup
+  // instructions meant for the admin.)
   if (!feedId) {
+    const cleanHandle = handle.replace(/^@/, "").trim();
+    if (!cleanHandle) return null;
     return (
-      <div className="rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 p-8 text-center">
-        <Instagram className="h-12 w-12 text-stone-300 mx-auto mb-3" />
-        <p className="font-semibold text-stone-600 mb-1">Instagram Feed</p>
-        <p className="text-sm text-stone-500 mb-3">
-          Follow us{" "}
+      <div className="rounded-xl border bg-stone-50 p-8 text-center">
+        <Instagram className="h-12 w-12 text-maroon-700 mx-auto mb-3" aria-hidden="true" />
+        <p className="text-sm text-stone-600">
+          Follow us on Instagram:{" "}
           <a
-            href={`https://www.instagram.com/${handle}/`}
+            href={`https://www.instagram.com/${encodeURIComponent(cleanHandle)}/`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-maroon-600 hover:underline font-medium"
+            className="text-maroon-700 hover:underline font-medium"
           >
-            @{handle}
+            @{cleanHandle}
           </a>
-        </p>
-        <p className="text-xs text-stone-500">
-          (Admin: add your Behold.so Feed ID in Site Settings to display the live feed here)
         </p>
       </div>
     );

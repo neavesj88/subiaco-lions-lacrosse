@@ -54,38 +54,50 @@ export default function Footer() {
           {/* Contact */}
           <div>
             <h3 className="text-white font-semibold mb-4">Contact & Find Us</h3>
+            {/* Each line only when the club has filled it in: a new club
+                otherwise showed an empty email link and icons going nowhere. */}
             <div className="space-y-3 text-sm">
-              <a
-                href={`mailto:${club.email}`}
-                className="flex items-center gap-2 text-maroon-300 hover:text-gold-400 transition-colors"
-              >
-                <Mail className="h-4 w-4 shrink-0" />
-                {club.email}
-              </a>
-              <div className="flex items-start gap-2 text-maroon-300">
-                <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{club.fullAddress}</span>
-              </div>
-              <div className="flex gap-3 pt-2">
+              {club.email && (
                 <a
-                  href={t("facebook_url")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-maroon-300 hover:text-gold-400 transition-colors"
-                  aria-label="Facebook"
+                  href={`mailto:${club.email}`}
+                  className="flex items-center gap-2 text-maroon-300 hover:text-gold-400 transition-colors break-all"
                 >
-                  <Facebook className="h-5 w-5" />
+                  <Mail className="h-4 w-4 shrink-0" />
+                  {club.email}
                 </a>
-                <a
-                  href={`https://www.instagram.com/${t("instagram_handle")}/`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-maroon-300 hover:text-gold-400 transition-colors"
-                  aria-label="Instagram"
-                >
-                  <Instagram className="h-5 w-5" />
-                </a>
-              </div>
+              )}
+              {club.fullAddress && (
+                <div className="flex items-start gap-2 text-maroon-300">
+                  <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{club.fullAddress}</span>
+                </div>
+              )}
+              {(t("facebook_url") || t("instagram_handle")) && (
+                <div className="flex gap-3 pt-2">
+                  {t("facebook_url") && (
+                    <a
+                      href={t("facebook_url")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-maroon-300 hover:text-gold-400 transition-colors"
+                      aria-label={`${club.clubName} on Facebook`}
+                    >
+                      <Facebook className="h-5 w-5" />
+                    </a>
+                  )}
+                  {t("instagram_handle") && (
+                    <a
+                      href={`https://www.instagram.com/${encodeURIComponent(t("instagram_handle").replace(/^@/, ""))}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-maroon-300 hover:text-gold-400 transition-colors"
+                      aria-label={`${club.clubName} on Instagram`}
+                    >
+                      <Instagram className="h-5 w-5" />
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

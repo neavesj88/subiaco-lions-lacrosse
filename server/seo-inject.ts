@@ -21,6 +21,7 @@
 import { and, eq } from "drizzle-orm";
 import { getSeoForPath, getSiteName, type PageSeo } from "@shared/seo";
 import { resolveText } from "@shared/club-config";
+import { readableTextOn } from "@shared/contrast";
 import { customPages } from "@shared/schema";
 import { db } from "./db";
 
@@ -108,6 +109,32 @@ function buildMetaTags(
     `<meta name="twitter:description" content="${d}" />`,
     shareImage ? `<meta name="twitter:image" content="${esc(shareImage)}" />` : "",
   ].filter(Boolean).join("\n    ");
+}
+
+/**
+ * The club's colours as a style block in the page itself, so the very first
+ * paint uses them. Without it the page appears in the default maroon and gold
+ * for a moment until the settings load, then changes.
+ *
+ * Only plain colour values are let through (#abc, #aabbcc, rgb(...),
+ * hsl(...), or a colour name) and angles like "135deg", so a setting can
+ * never be used to slip other CSS into the page.
+ */
+function themeStyle(settings: Record<string, string> | undefined): string {
+  const colour = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([0-9.,%\s]+\)|[a-z]{3,20})$/i;
+  const angle = /^-?[0-9]{1,3}(\.[0-9]+)?deg$/;
+  const vars: string[] = [];
+  const add = (key: string, cssVar: string, ok: RegExp) => {
+    const value = (settings?.[key] ?? "").trim();
+    if (value && ok.test(value)) vars.push(`${cssVar}:${value}`);
+  };
+  add("theme_primary", "--brand-primary", colour);
+  add("theme_primary_dark", "--brand-primary-dark", colour);
+  add("theme_accent", "--brand-accent", colour);
+  add("theme_gradient_angle", "--brand-gradient-angle", angle);
+  const accent = (settings?.theme_accent ?? "").trim();
+  if (accent && colour.test(accent)) vars.push(`--brand-accent-text:${readableTextOn(accent)}`);
+  return vars.length > 0 ? `<style>:root{${vars.join(";")}}</style>` : "";
 }
 
 /**
@@ -234,7 +261,7 @@ export function injectSeo(
   const themeColour = esc(resolveText(settings, "theme_primary") || "#7B1E32");
   const themeTag = `<meta name="theme-color" content="${themeColour}" />`;
 
-  const block = [metaBlock, themeTag, buildStructuredData(settings, origin)]
+  const block = [metaBlock, themeTag, themeStyle(settings), buildStructuredData(settings, origin)]
     .filter(Boolean)
     .join("\n    ");
 

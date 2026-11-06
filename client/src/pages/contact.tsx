@@ -72,7 +72,7 @@ export default function Contact() {
             </div>
 
             <div className="space-y-4">
-              <a
+              {club.email && <a
                 href={`mailto:${club.email}`}
                 className="flex items-start gap-3 p-4 rounded-xl border bg-white hover:border-maroon-300 transition-colors group"
               >
@@ -81,29 +81,29 @@ export default function Contact() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Email</p>
-                  <p className="text-sm text-stone-900 font-medium">{club.email}</p>
+                  <p className="text-sm text-stone-900 font-medium break-all">{club.email}</p>
                 </div>
-              </a>
+              </a>}
 
-              <div className="flex items-start gap-3 p-4 rounded-xl border bg-white">
+              {(club.venue || club.address) && <div className="flex items-start gap-3 p-4 rounded-xl border bg-white">
                 <div className="w-10 h-10 bg-maroon-100 rounded-lg flex items-center justify-center shrink-0">
                   <MapPin className="h-5 w-5 text-maroon-700" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Home Ground</p>
-                  <p className="text-sm text-stone-900 font-medium">{club.venue}</p>
-                  <p className="text-sm text-stone-500">{club.address}</p>
+                  {club.venue && <p className="text-sm text-stone-900 font-medium">{club.venue}</p>}
+                  {club.address && <p className="text-sm text-stone-500">{club.address}</p>}
                 </div>
-              </div>
+              </div>}
 
               <div className="flex items-start gap-3 p-4 rounded-xl border bg-white">
                 <div className="w-10 h-10 bg-maroon-100 rounded-lg flex items-center justify-center shrink-0">
                   <Clock className="h-5 w-5 text-maroon-700" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Response Time</p>
-                  <p className="text-sm text-stone-900 font-medium">Within 48 hours</p>
-                  <p className="text-sm text-stone-500">We'll get back to you as soon as possible</p>
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-0.5">Replies</p>
+                  <p className="text-sm text-stone-900 font-medium">We'll get back to you as soon as we can</p>
+                  <p className="text-sm text-stone-500">The club is run by volunteers, so evenings and weekends are busiest.</p>
                 </div>
               </div>
             </div>
@@ -173,6 +173,10 @@ export default function Contact() {
                       {errors.message && <p className="text-xs text-red-600">{errors.message.message}</p>}
                     </div>
 
+                    {/* The "what we do with your details" note, editable under
+                        Admin -> Settings -> Wording (it existed as a setting
+                        but was never shown). */}
+                    <p className="text-xs text-stone-500">{t("privacy_contact_notice")}</p>
                     <Button type="submit" size="lg" className="w-full" disabled={mutation.isPending}>
                       {mutation.isPending ? "Sending..." : "Send Message"}
                     </Button>

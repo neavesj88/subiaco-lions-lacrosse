@@ -121,13 +121,18 @@ export default function SignUp() {
                 <p className="text-sm text-stone-500">{t("signup_all_welcome")}</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <Shield className="h-7 w-7 text-green-600 mb-2" />
-                <h3 className="font-semibold mb-1">KidSport</h3>
-                <p className="text-sm text-stone-500">Eligible junior members can receive up to $200/year via the WA Government's KidSport program.</p>
-              </CardContent>
-            </Card>
+            {/* Only for a club that takes part in a fee-help scheme (Admin ->
+                Settings -> Wording). Schemes differ by state, so this was
+                wrongly promising WA's KidSport to every club. */}
+            {t("subsidy_name") && (
+              <Card>
+                <CardContent className="pt-5">
+                  <Shield className="h-7 w-7 text-green-600 mb-2" />
+                  <h3 className="font-semibold mb-1">{t("subsidy_name")}</h3>
+                  <p className="text-sm text-stone-500">Eligible junior members may be able to get help with fees through {t("subsidy_name")}. Tick the box on the form and we'll send you the details.</p>
+                </CardContent>
+              </Card>
+            )}
 
             {settings?.gameday_registration_url && (
               <Card className="border-gold-300 bg-gold-50">
@@ -249,15 +254,17 @@ export default function SignUp() {
                       <Label htmlFor="parentPhone">Parent Phone</Label>
                       <Input id="parentPhone" type="tel" {...register("parentPhone")} />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="kidsportEligible"
-                        onCheckedChange={(c) => setValue("kidsportEligible", c === true)}
-                      />
-                      <Label htmlFor="kidsportEligible" className="cursor-pointer text-sm">
-                        I'd like information about the KidSport subsidy program
-                      </Label>
-                    </div>
+                    {t("subsidy_name") && (
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="kidsportEligible"
+                          onCheckedChange={(c) => setValue("kidsportEligible", c === true)}
+                        />
+                        <Label htmlFor="kidsportEligible" className="cursor-pointer text-sm">
+                          I'd like information about {t("subsidy_name")} help with fees
+                        </Label>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -275,7 +282,7 @@ export default function SignUp() {
                     moment the details are actually handed over. */}
                 <div className="space-y-3 p-4 bg-stone-50 rounded-lg border">
                   <p className="text-xs text-stone-600 leading-relaxed">
-                    {t("privacy_signup_notice").replace("{email}", club.email)}
+                    {t("privacy_signup_notice").replace("{email}", club.email || "the club")}
                   </p>
                   <div className="flex items-start gap-2">
                     <Checkbox

@@ -63,6 +63,21 @@ export function contrastRatio(colourA: string, colourB: string): number | null {
 }
 
 /**
+ * The text colour to put on a background: near-black or white, whichever is
+ * easier to read. In: a hex colour. Out: "#1c1917" or "#ffffff" (near-black
+ * if the colour can't be read, which suits the default gold).
+ *
+ * Used for buttons and strips in the club's ACCENT colour: dark text suits a
+ * gold or yellow, but a club whose accent is navy needs white.
+ */
+export function readableTextOn(background: string): string {
+  const onDark = contrastRatio("#FFFFFF", background);
+  const onLight = contrastRatio("#1c1917", background);
+  if (onDark === null || onLight === null) return "#1c1917";
+  return onDark > onLight ? "#ffffff" : "#1c1917";
+}
+
+/**
  * Plain-English verdict on a colour a club has chosen for a banner or button
  * that will have WHITE text on it.
  *

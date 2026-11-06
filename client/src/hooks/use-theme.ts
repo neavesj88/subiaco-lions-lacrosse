@@ -18,6 +18,7 @@
 
 import { useEffect } from "react";
 import { useSettings } from "@/hooks/use-settings";
+import { readableTextOn } from "@shared/contrast";
 
 // Setting key → the CSS variable it controls
 const COLOUR_VARS: Record<string, string> = {
@@ -44,5 +45,9 @@ export function useTheme() {
         root.style.removeProperty(cssVar);
       }
     }
+    // Readable text on the accent colour, worked out from the colour itself.
+    const accent = settings.theme_accent?.trim();
+    if (accent) root.style.setProperty("--brand-accent-text", readableTextOn(accent));
+    else root.style.removeProperty("--brand-accent-text");
   }, [settings]);
 }

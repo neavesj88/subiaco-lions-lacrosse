@@ -26,6 +26,10 @@ export default function About() {
   // Rows are grouped by their "group" field (Men's / Women's / Juniors),
   // preserving the admin's chosen order — same data the Fixtures page uses.
   const { items: divisions } = useListItems("team_division");
+  // Programs and bodies the club belongs to (Admin -> Page Lists), e.g. a
+  // state wellbeing program or a junior fee-help scheme. A club with none
+  // simply doesn't get the cards.
+  const { items: affiliations } = useListItems("affiliation");
   const teams: { category: string; divisions: string[] }[] = [];
   for (const d of divisions) {
     const cat = d.group ?? "Teams";
@@ -61,13 +65,16 @@ export default function About() {
                 {(c) => <RichTextDisplay html={c} className="space-y-4 text-stone-600 leading-relaxed" />}
               </EditableSection>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 content-start">
+              {/* Quick facts. Any without a value are left out, so a new club
+                  isn't shown someone else's founding year. The first one is
+                  the "Year founded" from the setup wizard unless set here. */}
               {[
-                { icon: Trophy, label: t("about_stat1_label"), value: t("about_stat1_value") },
+                { icon: Trophy, label: t("about_stat1_label"), value: t("about_stat1_value") || t("club_founded") },
                 { icon: Users, label: t("about_stat2_label"), value: t("about_stat2_value") },
                 { icon: Shield, label: t("about_stat3_label"), value: t("about_stat3_value") },
                 { icon: MapPin, label: t("about_stat4_label"), value: club.venue },
-              ].map((s) => (
+              ].filter((s) => s.value.trim() && s.label.trim()).map((s) => (
                 <div key={s.label} className="bg-stone-50 rounded-xl p-5 text-center border">
                   <s.icon className="h-8 w-8 text-maroon-700 mx-auto mb-2" />
                   <div className="text-2xl font-bold text-maroon-700">{s.value}</div>
@@ -122,54 +129,66 @@ export default function About() {
               <h2 className="section-title">{t("about_find_us_title")}</h2>
               <div className="gold-bar" />
               <div className="space-y-3 text-stone-600">
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-maroon-700 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-stone-900">{club.venue}</p>
-                    <p>{club.address}</p>
+                {(club.venue || club.address) && (
+                  <div className="flex items-start gap-3">
+                    <MapPin className="h-5 w-5 text-maroon-700 shrink-0 mt-0.5" />
+                    <div>
+                      {club.venue && <p className="font-medium text-stone-900">{club.venue}</p>}
+                      {club.address && <p>{club.address}</p>}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Mail className="h-5 w-5 text-maroon-700 shrink-0" />
-                  <a href={`mailto:${club.email}`} className="hover:text-maroon-700">
-                    {club.email}
-                  </a>
-                </div>
+                )}
+                {club.email && (
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-5 w-5 text-maroon-700 shrink-0" />
+                    <a href={`mailto:${club.email}`} className="hover:text-maroon-700">
+                      {club.email}
+                    </a>
+                  </div>
+                )}
               </div>
               <ClubMap height={220} className="mt-6" />
             </div>
-            <div>
-              <h2 className="section-title">Affiliated With</h2>
-              <div className="gold-bar" />
-              <div className="space-y-4">
-                <Card>
-                  <CardContent className="pt-5">
-                    <p className="font-semibold text-stone-900 mb-1">{t("league_name")}</p>
-                    <p className="text-sm text-stone-500 mb-2">Our governing body — fixtures, results and competition rules.</p>
-                    <a
-                      href={t("league_url")}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-maroon-600 hover:underline font-medium"
-                    >
-                      {t("league_name")} →
-                    </a>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-5">
-                    <p className="font-semibold text-stone-900 mb-1">Act Belong Commit</p>
-                    <p className="text-sm text-stone-500">Our club is a registered Act Belong Commit club, supporting the mental health and wellbeing of all members.</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-5">
-                    <p className="font-semibold text-stone-900 mb-1">KidSport</p>
-                    <p className="text-sm text-stone-500">Registered KidSport provider — WA Government financial assistance available for eligible junior members.</p>
-                  </CardContent>
-                </Card>
+            {(t("league_name") || affiliations.length > 0) && (
+              <div>
+                <h2 className="section-title">Affiliated With</h2>
+                <div className="gold-bar" />
+                <div className="space-y-4">
+                  {t("league_name") && (
+                    <Card>
+                      <CardContent className="pt-5">
+                        <p className="font-semibold text-stone-900 mb-1">{t("league_name")}</p>
+                        <p className="text-sm text-stone-500 mb-2">Our governing body — fixtures, results and competition rules.</p>
+                        {t("league_url") && (
+                          <a
+                            href={t("league_url")}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-maroon-600 hover:underline font-medium"
+                          >
+                            {t("league_name")} →
+                          </a>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                  {affiliations.map((a) => (
+                    <Card key={a.id}>
+                      <CardContent className="pt-5">
+                        <p className="font-semibold text-stone-900 mb-1">{a.title}</p>
+                        {a.body && <p className="text-sm text-stone-500 whitespace-pre-line">{a.body}</p>}
+                        {a.url && (
+                          <a href={a.url} target="_blank" rel="noopener noreferrer"
+                            className="text-sm text-maroon-600 hover:underline font-medium inline-block mt-2">
+                            More about {a.title} →
+                          </a>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </section>

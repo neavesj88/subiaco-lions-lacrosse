@@ -99,23 +99,25 @@ export default function Juniors() {
       {/* Info cards */}
       <section className="py-16 px-4 bg-stone-50">
         <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-6">
-          <Card className="border-l-4 border-l-gold-500">
-            <CardContent className="pt-6">
-              <Shield className="h-8 w-8 text-gold-500 mb-3" />
-              <h3 className="font-bold text-stone-900 mb-2">{kidsport?.title ?? "KidSport"}</h3>
-              <RichTextDisplay
-                html={kidsport?.content ?? "<p>Registered KidSport provider — WA Government financial assistance up to $200/year for eligible junior members.</p>"}
-                className="text-sm text-stone-500"
-              />
-            </CardContent>
-          </Card>
+          {/* Fee help: only when the club has written something about it
+              (Admin -> Juniors). There's no built-in wording, because schemes
+              differ by state and a club mustn't claim one it isn't part of. */}
+          {(kidsport?.content ?? "").replace(/<[^>]+>/g, "").trim() && (
+            <Card className="border-l-4 border-l-gold-500">
+              <CardContent className="pt-6">
+                <Shield className="h-8 w-8 text-gold-500 mb-3" aria-hidden="true" />
+                <h3 className="font-bold text-stone-900 mb-2">{kidsport?.title || t("subsidy_name") || "Help with fees"}</h3>
+                <RichTextDisplay html={kidsport!.content} className="text-sm text-stone-500" />
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="border-l-4 border-l-maroon-700">
             <CardContent className="pt-6">
               <Heart className="h-8 w-8 text-maroon-700 mb-3" />
               <h3 className="font-bold text-stone-900 mb-2">{equipment?.title ?? "What to Bring"}</h3>
               <RichTextDisplay
-                html={equipment?.content ?? "<p>New players don't need to buy equipment straight away. The club provides loan sticks and helmets. Just bring runners and a water bottle!</p>"}
+                html={equipment?.content || `<p>${t("signup_what_to_bring")}</p>`}
                 className="text-sm text-stone-500"
               />
             </CardContent>
@@ -126,7 +128,7 @@ export default function Juniors() {
               <Mail className="h-8 w-8 text-green-600 mb-3" />
               <h3 className="font-bold text-stone-900 mb-2">{contact?.title ?? "Get in Touch"}</h3>
               <RichTextDisplay
-                html={contact?.content ?? `<p>For all junior enquiries, email us at ${club.email} and our Juniors Coordinator will be in touch within 48 hours.</p>`}
+                html={contact?.content || `<p>For all junior enquiries, ${club.email ? `email us at ${club.email}` : "get in touch"} and our Juniors Coordinator will get back to you.</p>`}
                 className="text-sm text-stone-500"
               />
               <a

@@ -12,7 +12,10 @@ const buttonVariants = cva(
         // Dark text, not white: white on this gold measures 2.75:1, below the
         // 4.5:1 minimum for readable text. Near-black on the same gold is 6.37:1,
         // so the club's gold is preserved exactly and only the text changes.
-        gold: "bg-gold-500 text-stone-900 hover:bg-gold-400",
+        // text-on-accent is near-black on a light accent like this gold and
+        // white on a dark one, so the text stays readable whatever the club's
+        // accent colour is.
+        gold: "bg-gold-500 text-on-accent hover:bg-gold-400",
         outline: "border border-maroon-700 text-maroon-700 bg-transparent hover:bg-maroon-50",
         ghost: "hover:bg-stone-100 text-stone-700",
         destructive: "bg-red-600 text-white hover:bg-red-700",

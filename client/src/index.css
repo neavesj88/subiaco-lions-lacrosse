@@ -26,6 +26,9 @@
     --brand-primary-dark: #3A0C17;
     /* Accent colour (gold bars, highlight buttons, pinned posts) */
     --brand-accent: #C5942A;
+    /* Text on the accent colour: dark on a light accent, white on a dark one.
+       Worked out from the accent by use-theme.ts and by the server. */
+    --brand-accent-text: #1c1917;
     /* Angle of the banner gradient, e.g. "135deg" */
     --brand-gradient-angle: 135deg;
   }

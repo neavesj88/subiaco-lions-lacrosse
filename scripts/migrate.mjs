@@ -236,7 +236,10 @@ db.exec(`
 `);
 
 addSetting('club_logo_url', '');  // Upload a logo in Media Library, paste URL here
-addSetting('nav_show_coaches_board', 'true');   // Coaches Board tactical whiteboard page
+// The Coaches Board is a lacrosse whiteboard (field markings, positions), so
+// it starts switched OFF on a new install; a lacrosse club turns it on under
+// Page Visibility. An existing install keeps whatever it already had.
+addSetting('nav_show_coaches_board', isNewInstall ? 'false' : 'true');
 
 // ── v5: club contact details (used on About, Contact, Juniors, Footer) ───────
 // Previously hardcoded in the page files — now editable in Admin → Settings.
@@ -351,9 +354,8 @@ if (listCount === 0) {
   // URL setting, which means updating that one setting re-points every
   // division link at once.
   const divisions = [
-    ["Men's", "State League"], ["Men's", "Division 1"], ["Men's", "Division 2"], ["Men's", "Division 3"],
-    ["Women's", "State League"], ["Women's", "Division 1"], ["Women's", "Division 2"],
-    ["Juniors", "Under 11"], ["Juniors", "Under 13"], ["Juniors", "Under 15"], ["Juniors", "Under 17"],
+    ["Men's", "Senior Men"], ["Women's", "Senior Women"],
+    ["Juniors", "Under 13"], ["Juniors", "Under 15"], ["Juniors", "Under 17"],
   ];
   divisions.forEach(([group, name], i) => ins.run("team_division", group, name, null, null, null, i));
 
@@ -377,8 +379,7 @@ if (listCount === 0) {
   const faqs = [
     ["What age can my child start?", "We welcome players from age 8 upwards. Our U11 program is designed as a gentle introduction with modified rules."],
     ["Do they need to know how to play?", "Not at all! Most of our junior players start as complete beginners. Our coaches will teach everything from scratch."],
-    ["Is it safe?", "Junior divisions use modified rules appropriate to their age group, and our coaches are accredited. Describe your club's safety approach and any protective equipment required here."],
-    ["What about KidSport?", "If your club is a registered KidSport provider, say so here. Eligible WA families can receive up to $200 per child per year towards registration fees."],
+    ["Is it safe?", "Junior divisions use modified rules suited to each age group, and safety is our coaches' first priority. Ask us about any protective equipment your child will need."],
     ["When is training?", "Training schedules vary by division. Check the Club Calendar for current sessions, or ask us when you register."],
   ];
   faqs.forEach(([title, body], i) => ins.run("faq", null, title, body, null, null, i));
@@ -524,6 +525,35 @@ addCol('products', 'sold_out', 'INTEGER NOT NULL DEFAULT 0');
     addSetting('store_items_migrated', 'true');
   }
 }
+
+// ── v10: club facts that used to be built into the site ──────────────────────
+// The About page's quick facts, the junior fee-help scheme and the "Affiliated
+// With" cards were once written into the site's code, so every club showed the
+// first club's values (founded 1940, KidSport, Act Belong Commit). They now
+// come from settings and Page Lists, starting blank.
+//
+// A site that was ALREADY running was showing those values as its own, so
+// they are written into its database here: it looks exactly as before, and
+// the club can now change them. A new install gets none of them.
+if (!isNewInstall) {
+  addSetting('about_stat1_value', '1940');
+  addSetting('about_stat2_value', '10+');
+  addSetting('about_stat3_value', 'State to Div 3');
+  addSetting('subsidy_name', 'KidSport');
+
+  const seeded = db.prepare("SELECT value FROM site_settings WHERE key = 'affiliations_seeded'").get();
+  const existing = db.prepare("SELECT COUNT(*) AS n FROM list_items WHERE list_type = 'affiliation'").get().n;
+  if (!seeded && existing === 0) {
+    const ins = db.prepare('INSERT INTO list_items (list_type, title, body, sort_order) VALUES (?, ?, ?, ?)');
+    ins.run('affiliation', 'Act Belong Commit',
+      'Our club is a registered Act Belong Commit club, supporting the mental health and wellbeing of all members.', 0);
+    ins.run('affiliation', 'KidSport',
+      'Registered KidSport provider — WA Government financial assistance available for eligible junior members.', 1);
+    console.log('  Kept this club\'s "Affiliated With" cards (now editable in Admin → Page Lists)');
+  }
+}
+// Recorded either way, so deleting those cards later doesn't bring them back.
+addSetting('affiliations_seeded', 'true');
 
 db.close();
 console.log('Migration complete.');
