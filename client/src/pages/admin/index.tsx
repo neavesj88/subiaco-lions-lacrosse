@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RichTextEditor from "@/components/rich-text-editor";
-import ImageUploader from "@/components/image-uploader";
 import ImagePicker from "@/components/image-picker";
 import ChangePasswordDialog from "@/components/change-password-dialog";
 import { ADMIN_LOGIN_PATH } from "@/lib/admin-path";
@@ -228,16 +227,13 @@ function RoleBadge({ role }: { role: string }) {
     club_admin: "bg-blue-100 text-blue-800",
     juniors_coordinator: "bg-green-100 text-green-800",
     content_manager: "bg-yellow-100 text-yellow-800",
+    social_media: "bg-purple-100 text-purple-800",
   };
-  const labels: Record<string, string> = {
-    super_admin: "Super Admin",
-    club_admin: "Club Admin",
-    juniors_coordinator: "Juniors Coordinator",
-    content_manager: "Content Manager",
-  };
+  // Names come from shared/roles.ts, the one list of roles, so a role added
+  // there is never shown here as its raw code name.
   return (
     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${map[role] ?? "bg-stone-100"}`}>
-      {labels[role] ?? role}
+      {ROLE_INFO[role as keyof typeof ROLE_INFO]?.label ?? role}
     </span>
   );
 }
@@ -589,7 +585,7 @@ function checkSettingValue(key: string, value: string): string | null {
 
 export default function AdminDashboard() {
   const [, navigate] = useLocation();
-  const { user, isLoading, logoutMutation, can } = useAuth();
+  const { user, isLoading, isError, logoutMutation, can } = useAuth();
   const qc = useQueryClient();
   // Club-configurable wording, so admin labels match the club's own terms
   // (e.g. their league's name) instead of hardcoded lacrosse ones.
@@ -621,7 +617,9 @@ export default function AdminDashboard() {
 
 
   useEffect(() => {
-    if (!isLoading && !user) navigate(ADMIN_LOGIN_PATH);
+    // null = the server said "not logged in". (undefined with an error just
+    // means the server couldn't be reached; that is shown below instead.)
+    if (!isLoading && user === null) navigate(ADMIN_LOGIN_PATH);
   }, [user, isLoading]);
 
   const { data: events = [] } = useQuery<Event[]>({
@@ -823,7 +821,15 @@ export default function AdminDashboard() {
     !wizardDone && can("settings") && settings?.setup_completed === "false";
 
   if (isLoading) return <div className="min-h-[60vh] flex items-center justify-center text-stone-500">Loading...</div>;
-  if (!user) return null;
+  if (!user) {
+    return isError ? (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-stone-700 font-medium">Can't reach the website's server right now.</p>
+        <p className="text-sm text-stone-500">Check the internet connection, then try again.</p>
+        <Button variant="outline" onClick={() => qc.invalidateQueries({ queryKey: ["/api/auth/me"] })}>Try again</Button>
+      </div>
+    ) : null;
+  }
 
   // FIRST RUN: a brand-new install shows the setup wizard instead of the panel.
   // Sites that already have content are marked setup_completed=true by the

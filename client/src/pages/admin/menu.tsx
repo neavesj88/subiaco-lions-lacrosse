@@ -24,18 +24,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowUp, ArrowDown, Info, RotateCcw, Eye, EyeOff } from "lucide-react";
+import { ArrowUp, ArrowDown, Info, RotateCcw, Eye, EyeOff, Trash2 } from "lucide-react";
 import { useSiteText } from "@/hooks/use-site-text";
 import { useMenu } from "@/hooks/use-menu";
-import { defaultMenu, BUILT_IN_PAGES, type NavItem } from "@shared/nav";
+import {
+  defaultMenu, BUILT_IN_PAGES, normalisePlace, isDropdown, dropdownNames,
+  MAIN, FOOTER, HIDDEN, type NavItem,
+} from "@shared/nav";
 import { checkMenuGroupName, checkLabel } from "@shared/validate";
 import FieldWarning from "@/components/field-warning";
 import type { CustomPage } from "@shared/schema";
-
-/** Where an item can live. Anything else typed in becomes a dropdown name. */
-const MAIN = "main";
-const FOOTER = "footer";
-const HIDDEN = "hidden";
 
 export default function AdminMenu() {
   const qc = useQueryClient();
@@ -43,11 +41,15 @@ export default function AdminMenu() {
   const { menu: liveMenu } = useMenu();
   const [items, setItems] = useState<NavItem[]>([]);
   const [dirty, setDirty] = useState(false);
-  // What the admin literally typed into each "Where" box, kept separately from
-  // where the item ended up. Typing "hidden" DOES hide the item — which is
-  // probably what they meant — but doing that without a word of explanation is
-  // the kind of silent behaviour that makes people think the site is broken.
-  const [typedPlace, setTypedPlace] = useState<Record<number, string>>({});
+  // What the admin literally typed into each "Where" box, by item, kept
+  // separately from where the item ended up. Two reasons:
+  //  - the box must show exactly what's being typed. Tidying it on every key
+  //    press removed the space after "Our", so "Our Club" couldn't be typed;
+  //  - typing "hidden" DOES hide the item (probably what they meant), and that
+  //    deserves a word of explanation rather than happening silently.
+  // Keyed by the item, not its row number, so moving rows keeps each note on
+  // its own row.
+  const [typedPlace, setTypedPlace] = useState<Record<string, string>>({});
 
   const { data: customPages = [] } = useQuery<CustomPage[]>({
     queryKey: ["/api/pages/all"],
@@ -64,6 +66,7 @@ export default function AdminMenu() {
       apiRequest("PUT", "/api/settings", { nav_menu: JSON.stringify(next) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/settings"] });
+      qc.invalidateQueries({ queryKey: ["/api/settings/secure"] });
       setDirty(false);
       toast({ title: "Menu saved", description: "Have a look at your site to see it." });
     },
@@ -90,7 +93,7 @@ export default function AdminMenu() {
    * Out: a short explanation, or null when there is nothing to say.
    */
   const wherePlaceWarning = (typed: string | undefined, place: string): string | null => {
-    const raw = (typed ?? "").trim().toLowerCase();
+    const raw = (typed ?? "").trim().replace(/\s+/g, " ").toLowerCase();
     // They typed a word that means something specific here. It still works —
     // it just did something other than making a dropdown, so say so.
     if (raw === HIDDEN) return "Typing \"hidden\" hides this item rather than making a dropdown called Hidden.";
@@ -109,18 +112,29 @@ export default function AdminMenu() {
   };
 
   /** The dropdowns that exist right now, for the quick-pick buttons. */
-  const existingGroups = [...new Set(
-    items.map((i) => i.place).filter((p) => p !== MAIN && p !== FOOTER && p !== HIDDEN),
-  )];
+  const existingGroups = dropdownNames(items);
+
+  /** A page the club made that has since been deleted. */
+  const isMissing = (key: string) =>
+    key.startsWith("page:") && !customPages.some((p) => p.slug === key.slice(5));
+
+  /** Pages the site can't do without. Home can't be hidden. */
+  const isEssential = (key: string) => !!BUILT_IN_PAGES.find((p) => p.key === key)?.essential;
 
   const describe = (key: string) => {
     if (key.startsWith("page:")) {
       const slug = key.slice(5);
       const page = customPages.find((p) => p.slug === slug);
-      return page ? `Your page — /p/${slug}` : `Missing page — /p/${slug}`;
+      if (!page) return `This page has been deleted — remove it from the menu`;
+      return page.isPublished ? `Your page — /p/${slug}` : `Your page — /p/${slug} (a draft: not shown until it's visible)`;
     }
     const built = BUILT_IN_PAGES.find((p) => p.key === key);
     return built ? built.href : key;
+  };
+
+  const removeRow = (key: string) => {
+    setItems((prev) => prev.filter((i) => i.key !== key));
+    setDirty(true);
   };
 
   return (
@@ -133,7 +147,9 @@ export default function AdminMenu() {
           <li>To make a <strong>dropdown</strong>, type the same name into the "Where" box on two or more rows —
               for example "Teams". They'll group together under a "Teams" button. There's nothing else to set up.</li>
           <li>The <strong>arrows</strong> set the order. A dropdown appears in the bar wherever its first item sits.</li>
-          <li>Pages you create under <strong>Pages</strong> appear here automatically, hidden until you place them.</li>
+          <li>Pages you create under <strong>Pages</strong> appear here too. The "Where in the menu" box in the
+              page editor and this screen change the same menu, so they always agree.</li>
+          <li><strong>Home</strong> can't be hidden — every page links back to it.</li>
         </ul>
       </div>
 
@@ -189,41 +205,56 @@ export default function AdminMenu() {
                   <div className="flex-1 min-w-[180px] space-y-1">
                     <Label className="text-xs">Where</Label>
                     <Input
-                      value={item.place === MAIN || item.place === FOOTER || item.place === HIDDEN ? "" : item.place}
+                      value={typedPlace[item.key] ?? (isDropdown(item.place) ? item.place : "")}
                       placeholder="Top bar (or type a dropdown name)"
+                      aria-label={`Where ${item.label} goes`}
                       onChange={(e) => {
                         const raw = e.target.value;
-                        setTypedPlace((p) => ({ ...p, [index]: raw }));
-                        update(index, { place: raw.trim() || MAIN });
+                        setTypedPlace((p) => ({ ...p, [item.key]: raw }));
+                        const place = normalisePlace(raw);
+                        // Home can't be hidden: everything else on the site
+                        // links back to it.
+                        update(index, { place: place === HIDDEN && isEssential(item.key) ? item.place : place });
                       }}
                     />
-                    <FieldWarning message={wherePlaceWarning(typedPlace[index], item.place)} />
+                    <FieldWarning message={
+                      isEssential(item.key) && normalisePlace(typedPlace[item.key]) === HIDDEN
+                        ? "Home can't be hidden — every page links back to it."
+                        : wherePlaceWarning(typedPlace[item.key], item.place)
+                    } />
                     <div className="flex flex-wrap gap-1 pt-0.5">
-                      <Button size="sm" variant={item.place === MAIN ? "default" : "outline"}
-                        className="h-6 text-xs px-2" onClick={() => update(index, { place: MAIN })}>
-                        Top bar
-                      </Button>
-                      {existingGroups.map((g) => (
-                        <Button key={g} size="sm" variant={item.place === g ? "default" : "outline"}
-                          className="h-6 text-xs px-2" onClick={() => update(index, { place: g })}>
-                          {g}
+                      {/* A quick pick also clears what was typed, so the box
+                          shows the new place rather than the old text. */}
+                      {[
+                        { place: MAIN, label: "Top bar" },
+                        ...existingGroups.map((g) => ({ place: g, label: g })),
+                        { place: FOOTER, label: "Footer" },
+                      ].map(({ place, label }) => (
+                        <Button key={place} size="sm" variant={item.place === place ? "default" : "outline"}
+                          className="h-6 text-xs px-2"
+                          onClick={() => { setTypedPlace((p) => { const n = { ...p }; delete n[item.key]; return n; }); update(index, { place }); }}>
+                          {label}
                         </Button>
                       ))}
-                      <Button size="sm" variant={item.place === FOOTER ? "default" : "outline"}
-                        className="h-6 text-xs px-2" onClick={() => update(index, { place: FOOTER })}>
-                        Footer
-                      </Button>
                       <Button size="sm" variant={item.place === HIDDEN ? "default" : "outline"}
-                        className="h-6 text-xs px-2" onClick={() => update(index, { place: HIDDEN })}>
+                        className="h-6 text-xs px-2" disabled={isEssential(item.key)}
+                        title={isEssential(item.key) ? "Home can't be hidden — every page links back to it." : undefined}
+                        onClick={() => { setTypedPlace((p) => { const n = { ...p }; delete n[item.key]; return n; }); update(index, { place: HIDDEN }); }}>
                         {hiddenRow ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} Hide
                       </Button>
                     </div>
                   </div>
 
-                  <div className="pt-5 shrink-0">
+                  <div className="pt-5 shrink-0 flex flex-col items-end gap-2">
                     <Badge variant="secondary" className="text-xs whitespace-nowrap">
                       {placeLabel(item.place)}
                     </Badge>
+                    {isMissing(item.key) && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs text-red-600"
+                        onClick={() => removeRow(item.key)}>
+                        <Trash2 className="h-3 w-3" /> Remove
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>

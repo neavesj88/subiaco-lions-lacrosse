@@ -45,7 +45,11 @@ interface EditableSectionProps {
 export default function EditableSection({
   page, section, value, richText = false, label, children,
 }: EditableSectionProps) {
-  const { user } = useAuth();
+  // Only people who can actually save page text see the pencils. Showing them
+  // to every logged-in role meant a news volunteer could edit a heading and
+  // then be told "not allowed" on save.
+  const { can } = useAuth();
+  const canEdit = can("pages");
   const { save } = usePageContent(page);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -65,7 +69,7 @@ export default function EditableSection({
   };
 
   // Non-admin: render children transparently
-  if (!user) return <>{children(value)}</>;
+  if (!canEdit) return <>{children(value)}</>;
 
   return (
     <>

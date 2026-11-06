@@ -56,6 +56,8 @@ import {
 } from "@shared/schema";
 import { requireAuth, requirePermission, catchAsyncErrors } from "./middleware";
 import { isEmailAddress } from "./input";
+import { readSavedMenu, saveMenu } from "./menu";
+import { placePage, renamePageSlug, removePage } from "@shared/nav";
 import { ROLES } from "@shared/roles";
 import { notifyContactMessage, notifyNewRegistration, sendTestEmail, notifyOrderPaid } from "./email";
 import { SITEMAP_PAGES, isPageSwitchedOn } from "@shared/seo";
@@ -1391,6 +1393,12 @@ export async function registerRoutes(app: Express) {
     }
 
     const [row] = await db.insert(customPages).values(parsed.data).returning();
+
+    // "Where in the menu" from the Pages editor goes straight into the menu,
+    // so the page appears where the editor said it would.
+    if (typeof req.body?.menuPlace === "string") {
+      saveMenu(placePage(readSavedMenu(), row.slug, row.title, req.body.menuPlace));
+    }
     res.status(201).json(row);
   });
 
@@ -1408,15 +1416,38 @@ export async function registerRoutes(app: Express) {
       }
     }
 
+    const [before] = await db.select().from(customPages).where(eq(customPages.id, id)).limit(1);
     const [row] = await db.update(customPages)
       .set({ ...parsed.data, updatedAt: new Date().toISOString() })
       .where(eq(customPages.id, id)).returning();
     if (!row) return res.status(404).json({ message: "Page not found" });
+
+    // Keep the menu in step with the page:
+    //  - a new web address: the menu entry follows it (it used to vanish);
+    //  - a new title: the menu label follows, unless the club gave the menu
+    //    entry a different name of its own in Admin -> Menu;
+    //  - a place chosen in the editor: moved there.
+    let menu = readSavedMenu();
+    const original = JSON.stringify(menu);
+    if (before && before.slug !== row.slug) menu = renamePageSlug(menu, before.slug, row.slug);
+    if (before && before.title !== row.title) {
+      menu = menu.map((i) => (i.key === `page:${row.slug}` && i.label === before.title ? { ...i, label: row.title } : i));
+    }
+    if (typeof req.body?.menuPlace === "string") menu = placePage(menu, row.slug, row.title, req.body.menuPlace);
+    if (JSON.stringify(menu) !== original) saveMenu(menu);
+
     res.json(row);
   });
 
   app.delete("/api/pages/:id", requireAuth, requirePermission("pages"), async (req: Request, res: Response) => {
-    await db.delete(customPages).where(eq(customPages.id, parseInt(req.params.id)));
+    const id = parseInt(req.params.id);
+    const [page] = await db.select().from(customPages).where(eq(customPages.id, id)).limit(1);
+    await db.delete(customPages).where(eq(customPages.id, id));
+    // Take it out of the menu too, rather than leaving a "missing page" entry.
+    if (page) {
+      const menu = readSavedMenu();
+      if (menu.some((i) => i.key === `page:${page.slug}`)) saveMenu(removePage(menu, page.slug));
+    }
     res.json({ ok: true });
   });
 
@@ -1817,6 +1848,23 @@ export async function registerRoutes(app: Express) {
     const [row] = await db.update(productVariants).set(parsed.data)
       .where(eq(productVariants.id, parseInt(req.params.id))).returning();
     if (!row) return res.status(404).json({ message: "Size not found" });
+    res.json(row);
+  });
+
+  // Add or take away stock (the +/- buttons on the Stock screen). The change is
+  // applied to whatever the stock is NOW, in the database, rather than writing
+  // back a number the screen worked out from what it loaded earlier, which
+  // quietly undid any online sales made since the page was opened.
+  app.post("/api/admin/variants/:id/adjust", requireAuth, requirePermission("store"), async (req: Request, res: Response) => {
+    const delta = Number(req.body?.delta);
+    if (!Number.isInteger(delta) || Math.abs(delta) > 100_000) {
+      return res.status(400).json({ message: "That isn't a whole number of items." });
+    }
+    const [row] = await db.update(productVariants)
+      .set({ stock: sql`max(0, ${productVariants.stock} + ${delta})` })
+      .where(and(eq(productVariants.id, parseInt(req.params.id)), sql`${productVariants.stock} IS NOT NULL`))
+      .returning();
+    if (!row) return res.status(404).json({ message: "That size isn't being counted." });
     res.json(row);
   });
 

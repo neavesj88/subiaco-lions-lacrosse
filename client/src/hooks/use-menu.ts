@@ -56,9 +56,10 @@ export function useMenu() {
     menu,
     /** Top-bar entries: single links and dropdowns, in the club's own order. */
     tree: buildMenuTree(menu, hrefFor, isEnabled),
-    /** Everything visible, flattened — what the mobile menu shows. */
+    /** Everything in the top bar, flattened — what the mobile menu shows.
+     *  Footer-only links stay in the footer, as they do on a computer. */
     flat: menu
-      .filter((i) => i.place !== "hidden" && isEnabled(i.key))
+      .filter((i) => i.place !== "hidden" && i.place !== "footer" && isEnabled(i.key))
       .map((i) => ({ label: i.label, href: hrefFor(i.key) ?? "" }))
       .filter((i) => i.href !== ""),
     footer: footerItems(menu, hrefFor, isEnabled),

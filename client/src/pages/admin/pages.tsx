@@ -11,7 +11,8 @@
 //   2. Edit freely — after that it's the same rich text editor as news posts,
 //      so nothing is locked down.
 //
-// They also choose where the page appears in the menu, and can save it unpublished
+// They also choose where the page appears in the menu (this writes to the same
+// menu as Admin -> Menu, so the two always agree), and can save it unpublished
 // while it's still a work in progress.
 // =============================================================================
 
@@ -36,23 +37,31 @@ import {
   Plus, Pencil, Trash2, ExternalLink, Info,
 } from "lucide-react";
 import { PAGE_TEMPLATES, getTemplate, slugify } from "@shared/page-templates";
+import { dropdownNames, placeOfPage, MAIN, FOOTER, HIDDEN } from "@shared/nav";
+import { useMenu } from "@/hooks/use-menu";
 import type { CustomPage } from "@shared/schema";
 
 // Template icon names → actual components
 const ICONS: Record<string, any> = { FileText, HelpCircle, Users, Link: LinkIcon, Calendar, File };
 
-// Where a page's link can appear, in plain English
-const NAV_OPTIONS = [
-  { value: "club_menu", label: "In the 'Club' menu", hint: "Grouped with Calendar, Fixtures etc. Recommended." },
-  { value: "main", label: "In the main menu bar", hint: "Top level, next to About and Contact. Use sparingly." },
-  { value: "footer", label: "In the footer only", hint: "Quiet placement for policies and fine print." },
-  { value: "hidden", label: "Not in any menu", hint: "The page works if you share the link, but isn't listed." },
-];
+/** Where a page sits, in plain English. */
+function placeLabel(place: string): string {
+  if (place === MAIN) return "In the top menu bar";
+  if (place === FOOTER) return "In the footer only";
+  if (place === HIDDEN) return "Not in any menu";
+  return `In the "${place}" dropdown`;
+}
 
 export default function AdminPages() {
   const qc = useQueryClient();
   const [picking, setPicking] = useState(false);      // template chooser open?
   const [editing, setEditing] = useState<Partial<CustomPage> | null>(null);
+  // Where the page being edited goes in the menu. Read from the menu itself,
+  // which is the one record of what appears where.
+  const [menuPlace, setMenuPlace] = useState<string>(HIDDEN);
+  const { menu } = useMenu();
+  const dropdowns = dropdownNames(menu);
+  const placeOptions = [MAIN, ...dropdowns, FOOTER, HIDDEN];
 
   const { data: pages = [] } = useQuery<CustomPage[]>({
     queryKey: ["/api/pages/all"],
@@ -62,13 +71,23 @@ export default function AdminPages() {
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["/api/pages/all"] });
     qc.invalidateQueries({ queryKey: ["/api/pages"] }); // nav + public list
+    // The server updates the menu along with the page.
+    qc.invalidateQueries({ queryKey: ["/api/settings"] });
+    qc.invalidateQueries({ queryKey: ["/api/settings/secure"] });
+  };
+
+  const openEditor = (p: Partial<CustomPage>, place: string) => {
+    setMenuPlace(place);
+    setEditing(p);
   };
 
   const save = useMutation({
-    mutationFn: (p: Partial<CustomPage>) =>
-      p.id
-        ? apiRequest("PUT", `/api/pages/${p.id}`, p)
-        : apiRequest("POST", "/api/pages", p),
+    mutationFn: (p: Partial<CustomPage>) => {
+      const body = { ...p, menuPlace };
+      return p.id
+        ? apiRequest("PUT", `/api/pages/${p.id}`, body)
+        : apiRequest("POST", "/api/pages", body);
+    },
     onSuccess: () => { refresh(); setEditing(null); toast({ title: "Page saved" }); },
     onError: (e: any) => toast({ title: "Couldn't save", description: e.message, variant: "destructive" }),
   });
@@ -82,10 +101,13 @@ export default function AdminPages() {
   const startFromTemplate = (templateId: string) => {
     const t = getTemplate(templateId);
     setPicking(false);
-    setEditing({
+    // A new page goes into the club's first dropdown (the "Club" menu on a
+    // standard site), as it always did; the editor shows this and it can be
+    // changed before saving.
+    openEditor({
       title: "", slug: "", subtitle: t.subtitle, content: t.content,
-      template: t.id, navLocation: "club_menu", isPublished: true, sortOrder: 0,
-    });
+      template: t.id, isPublished: true, sortOrder: 0,
+    }, dropdowns[0] ?? MAIN);
   };
 
   return (
@@ -133,7 +155,7 @@ export default function AdminPages() {
                     <span className="font-semibold text-stone-900">{p.title}</span>
                     {!p.isPublished && <Badge variant="secondary" className="text-xs">Draft</Badge>}
                     <Badge variant="outline" className="text-xs">
-                      {NAV_OPTIONS.find((n) => n.value === p.navLocation)?.label ?? p.navLocation}
+                      {placeLabel(placeOfPage(menu, p.slug))}
                     </Badge>
                   </div>
                   <a
@@ -144,13 +166,13 @@ export default function AdminPages() {
                   </a>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <Button size="icon" variant="ghost" onClick={() => setEditing(p)} title="Edit page">
+                  <Button size="icon" variant="ghost" onClick={() => openEditor(p, placeOfPage(menu, p.slug))} title="Edit page" aria-label={`Edit ${p.title}`}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
-                    size="icon" variant="ghost" title="Delete page"
+                    size="icon" variant="ghost" title="Delete page" aria-label={`Delete ${p.title}`}
                     onClick={() => {
-                      if (confirm(`Delete "${p.title}"?\n\nThe page and its content will be removed. This can't be undone.`)) {
+                      if (confirm(`Delete the page "${p.title}" (/p/${p.slug})?\n\nThe page and its content are removed, and it's taken out of the menu. This can't be undone.`)) {
                         remove.mutate(p.id);
                       }
                     }}
@@ -256,33 +278,20 @@ export default function AdminPages() {
                 />
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Where should it appear?</Label>
-                  <Select
-                    value={editing.navLocation ?? "club_menu"}
-                    onValueChange={(v) => setEditing((p) => ({ ...p!, navLocation: v as CustomPage["navLocation"] }))}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {NAV_OPTIONS.map((n) => (
-                        <SelectItem key={n.value} value={n.value}>{n.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-stone-500">
-                    {NAV_OPTIONS.find((n) => n.value === (editing.navLocation ?? "club_menu"))?.hint}
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Menu order</Label>
-                  <Input
-                    type="number"
-                    value={editing.sortOrder ?? 0}
-                    onChange={(e) => setEditing((p) => ({ ...p!, sortOrder: parseInt(e.target.value) || 0 }))}
-                  />
-                  <p className="text-xs text-stone-500">Lower numbers appear first.</p>
-                </div>
+              <div className="space-y-1.5">
+                <Label>Where in the menu?</Label>
+                <Select value={menuPlace} onValueChange={setMenuPlace}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {placeOptions.map((place) => (
+                      <SelectItem key={place} value={place}>{placeLabel(place)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-stone-500">
+                  To change the order, rename the link, or make a new dropdown, use <strong>Menu</strong> (under Club Setup).
+                  {!(editing.isPublished ?? true) && " A draft page isn't shown in the menu until you make it visible."}
+                </p>
               </div>
 
               <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg border">

@@ -136,6 +136,8 @@ export default function MediaLibrary({
       <div className="mb-4 p-4 bg-stone-50 border rounded-xl">
         <p className="text-sm font-medium text-stone-700 mb-2">Add photos</p>
         <ImageUploader
+          multiple
+          label=""
           onChange={(url) => { if (url) onChanged(); }}
           hint="Drag photos here or click to browse. JPG, PNG, GIF or WebP, up to 8 MB each."
         />

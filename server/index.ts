@@ -31,6 +31,7 @@ import compression from "compression";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { backfillSanitiseContent, backfillPlainText } from "./backfill";
+import { placePagesFromOldSettings } from "./menu";
 
 const app = express();
 
@@ -228,6 +229,7 @@ process.on("unhandledRejection", (reason) => {
   // Does nothing on every startup after the first.
   backfillSanitiseContent();
   backfillPlainText();
+  placePagesFromOldSettings();
 
   // Register all API routes and get back the HTTP server instance
   const server = await registerRoutes(app);

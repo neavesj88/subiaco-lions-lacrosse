@@ -58,10 +58,18 @@ export default function AdminStock() {
     onError: (e: any) => toast({ title: "Couldn't save", description: e.message, variant: "destructive" }),
   });
 
+  const adjustVariant = useMutation({
+    mutationFn: ({ id, delta }: { id: number; delta: number }) =>
+      apiRequest("POST", `/api/admin/variants/${id}/adjust`, { delta }),
+    onSuccess: () => refresh(),
+    onError: (e: any) => toast({ title: "Couldn't change the stock", description: e.message, variant: "destructive" }),
+  });
+
   const saveThreshold = useMutation({
     mutationFn: (value: string) => apiRequest("PUT", "/api/settings", { store_low_stock_threshold: value }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/settings"] });
+      qc.invalidateQueries({ queryKey: ["/api/settings/secure"] });
       toast({ title: "Low-stock level saved" });
     },
   });
@@ -77,10 +85,11 @@ export default function AdminStock() {
     return threshold > 0 && s > 0 && s <= threshold;
   });
 
+  // +/- change the stock by that much on the server, so a sale that came in
+  // while this screen was open isn't overwritten.
   const adjust = (v: ProductVariant, delta: number) => {
     if (v.stock === null || v.stock === undefined) return;   // made to order
-    const next = Math.max(0, v.stock + delta);
-    saveVariant.mutate({ id: v.id, stock: next });
+    adjustVariant.mutate({ id: v.id, delta });
   };
 
   const commit = (v: ProductVariant) => {

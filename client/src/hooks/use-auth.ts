@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, ApiError } from "@/lib/queryClient";
 
 import { roleHas, type Permission, type Role } from "@shared/roles";
 
@@ -25,10 +25,18 @@ const roleLevel: Record<Role, number> = {
 export function useAuth() {
   const qc = useQueryClient();
 
-  const { data: user, isLoading } = useQuery<AuthUser | null>({
+  // Only the server actually saying "not logged in" (401) counts as logged
+  // out. A dropped Wi-Fi connection or a server restart is an ERROR, which
+  // keeps the account already known: treating it as "logged out" sent the
+  // admin to the login page and threw away whatever they were writing.
+  const { data: user, isLoading, isError } = useQuery<AuthUser | null>({
     queryKey: ["/api/auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").catch(() => null),
+    queryFn: () => apiRequest("GET", "/api/auth/me").catch((err) => {
+      if (err instanceof ApiError && err.status === 401) return null;
+      throw err;
+    }),
     staleTime: 5 * 60_000,
+    retry: 2,
   });
 
   const loginMutation = useMutation({
@@ -55,5 +63,5 @@ export function useAuth() {
   // both reading shared/roles.ts, so the tabs shown always match what's allowed.
   const can = (permission: Permission) => !!user && roleHas(user.role, permission);
 
-  return { user, isLoading, loginMutation, logoutMutation, hasRole, can };
+  return { user, isLoading, isError, loginMutation, logoutMutation, hasRole, can };
 }

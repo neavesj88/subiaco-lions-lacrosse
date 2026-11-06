@@ -53,13 +53,15 @@ export default function AdminCommittee() {
     onSuccess: () => { refresh(); toast({ title: "Removed" }); },
   });
 
-  // Swap sort order with the neighbour to move someone up/down the page.
+  // Move someone up/down the page by renumbering the whole list 0, 1, 2…
+  // Swapping two people's numbers (as this once did) did nothing at all when
+  // they happened to share a number, which they did after a delete and an add.
   const move = (m: CommitteeMember, dir: -1 | 1) => {
     const idx = members.findIndex((x) => x.id === m.id);
-    const other = members[idx + dir];
-    if (!other) return;
-    save.mutate({ id: m.id, sortOrder: other.sortOrder });
-    save.mutate({ id: other.id, sortOrder: m.sortOrder });
+    if (!members[idx + dir]) return;
+    const order = [...members];
+    [order[idx], order[idx + dir]] = [order[idx + dir], order[idx]];
+    order.forEach((x, n) => { if (x.sortOrder !== n) save.mutate({ id: x.id, sortOrder: n }); });
   };
 
   return (
@@ -68,7 +70,7 @@ export default function AdminCommittee() {
         <h2 className="text-lg font-semibold">Committee & Board</h2>
         <Button size="sm" onClick={() => setEditing({
           name: "", position: "", groupName: "Executive",
-          isActive: true, sortOrder: members.length,
+          isActive: true, sortOrder: members.reduce((n, x) => Math.max(n, x.sortOrder + 1), 0),
         })}>
           <Plus className="h-4 w-4" /> Add Person
         </Button>

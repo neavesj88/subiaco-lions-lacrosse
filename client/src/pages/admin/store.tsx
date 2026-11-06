@@ -14,6 +14,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { formatDateTime } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,41 @@ const toCents = (dollars: string): number => {
   const n = Math.round(parseFloat(String(dollars).replace(/[^0-9.]/g, "")) * 100);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 };
+
+/**
+ * A box for a dollar amount that leaves you alone while you type.
+ *
+ * The amount is kept in cents, but the box shows exactly what was typed until
+ * you click away, and only then tidies it to "24.50". Reformatting on every
+ * key press (as the price boxes once did) turned "2" into "2.00" with the
+ * cursor at the end, so the next digit landed in the wrong place and prices
+ * came out wrong.
+ *
+ * `blank` = the box may be left empty (null), e.g. "same price as usual".
+ */
+function MoneyInput({ cents, onCents, blank, ...props }: {
+  cents: number | null | undefined;
+  onCents: (cents: number | null) => void;
+  blank?: boolean;
+} & Omit<React.ComponentProps<typeof Input>, "value" | "onChange">) {
+  const [text, setText] = useState(toDollars(cents));
+  const [typing, setTyping] = useState(false);
+  useEffect(() => { if (!typing) setText(toDollars(cents)); }, [cents, typing]);
+  return (
+    <Input
+      inputMode="decimal"
+      {...props}
+      value={text}
+      onFocus={() => setTyping(true)}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setText(raw);
+        onCents(raw.trim() === "" ? (blank ? null : 0) : toCents(raw));
+      }}
+      onBlur={() => setTyping(false)}
+    />
+  );
+}
 
 // =============================================================================
 // PRODUCTS + SHOP SETTINGS
@@ -204,15 +240,30 @@ function StoreSettings({ status, onSaved }: { status?: { canPay: boolean; testMo
     queryFn: () => apiRequest("GET", "/api/settings/secure"),
   });
 
+  // Take fresh values whenever they arrive, unless something has been typed
+  // here and not saved yet. (Copying them only once meant a change made in
+  // another tab was overwritten by this form's old copy on the next save.)
+  const [dirty, setDirty] = useState(false);
   useEffect(() => {
-    if (settings && !loaded) { setForm(settings); setLoaded(true); }
-  }, [settings, loaded]);
+    if (settings && (!loaded || !dirty)) { setForm(settings); setLoaded(true); }
+  }, [settings, loaded, dirty]);
 
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: string, v: string) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true); };
 
+  const qc = useQueryClient();
   const save = useMutation({
-    mutationFn: (body: Record<string, string>) => apiRequest("PUT", "/api/settings", body),
-    onSuccess: () => { onSaved(); toast({ title: "Shop settings saved" }); },
+    // Only the settings this form changed, never a stale copy of the others.
+    mutationFn: (body: Record<string, string>) => {
+      const changed = Object.fromEntries(Object.entries(body).filter(([k, v]) => (settings?.[k] ?? "") !== v));
+      return Object.keys(changed).length > 0 ? apiRequest("PUT", "/api/settings", changed) : Promise.resolve({ ok: true });
+    },
+    onSuccess: () => {
+      setDirty(false);
+      qc.invalidateQueries({ queryKey: ["/api/settings/secure"] });
+      qc.invalidateQueries({ queryKey: ["/api/settings"] });
+      onSaved();
+      toast({ title: "Shop settings saved" });
+    },
     onError: (e: any) => toast({ title: "Couldn't save", description: e.message, variant: "destructive" }),
   });
 
@@ -351,14 +402,14 @@ function StoreSettings({ status, onSaved }: { status?: { canPay: boolean; testMo
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="shipcost">Postage cost</Label>
-                    <Input id="shipcost" inputMode="decimal" value={toDollars(parseInt(form.store_shipping_cents ?? "0", 10))}
-                      onChange={(e) => set("store_shipping_cents", String(toCents(e.target.value)))} />
+                    <MoneyInput id="shipcost" cents={parseInt(form.store_shipping_cents ?? "0", 10) || 0}
+                      onCents={(c) => set("store_shipping_cents", String(c ?? 0))} />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="freeover">Free over (blank = never)</Label>
-                    <Input id="freeover" inputMode="decimal"
-                      value={form.store_free_shipping_over_cents ? toDollars(parseInt(form.store_free_shipping_over_cents, 10)) : ""}
-                      onChange={(e) => set("store_free_shipping_over_cents", e.target.value ? String(toCents(e.target.value)) : "")} />
+                    <MoneyInput id="freeover" blank
+                      cents={form.store_free_shipping_over_cents ? parseInt(form.store_free_shipping_over_cents, 10) : null}
+                      onCents={(c) => set("store_free_shipping_over_cents", c === null ? "" : String(c))} />
                   </div>
                 </div>
               )}
@@ -419,9 +470,15 @@ function ProductEditor({
       const existingIds = new Set((product.variants ?? []).map((v) => v.id));
       for (const [i, v] of variants.entries()) {
         if (!v.label?.trim()) continue;
+        // Stock is only sent for a size whose count was changed here. Sending
+        // every size's count from when this window opened would undo any
+        // online sales made since — just from renaming the product.
+        const original = (product.variants ?? []).find((o) => o.id === v.id);
+        const stockChanged = !original || (original.stock ?? null) !== (v.stock ?? null);
         const payload = {
           productId: saved.id, label: v.label.trim(), sku: v.sku ?? null,
-          priceCents: v.priceCents ?? null, stock: v.stock ?? null,
+          priceCents: v.priceCents ?? null,
+          ...(stockChanged ? { stock: v.stock ?? null } : {}),
           isActive: v.isActive ?? true, sortOrder: i,
         };
         if (v.id) { await apiRequest("PUT", `/api/admin/variants/${v.id}`, payload); existingIds.delete(v.id); }
@@ -452,8 +509,7 @@ function ProductEditor({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pprice">Price *</Label>
-              <Input id="pprice" inputMode="decimal" value={toDollars(form.priceCents)}
-                onChange={(e) => set("priceCents", toCents(e.target.value))} placeholder="0.00" />
+              <MoneyInput id="pprice" cents={form.priceCents} onCents={(c) => set("priceCents", c ?? 0)} placeholder="0.00" />
               <p className="text-xs text-stone-500">A product priced at 0 can't be bought.</p>
             </div>
           </div>
@@ -540,13 +596,9 @@ function ProductEditor({
                   </div>
                   <div className="w-28 space-y-1">
                     {i === 0 && <p className="text-xs text-stone-500">Price override</p>}
-                    <Input inputMode="decimal" placeholder="same"
-                      value={toDollars(v.priceCents)}
-                      onChange={(e) => {
-                        const raw = e.target.value.trim();
-                        const priceCents = raw === "" ? null : toCents(raw);
-                        setVariants(variants.map((x, n) => n === i ? { ...x, priceCents } : x));
-                      }} />
+                    <MoneyInput placeholder="same" blank aria-label={`Price for ${v.label || "this size"}`}
+                      cents={v.priceCents}
+                      onCents={(priceCents) => setVariants(variants.map((x, n) => n === i ? { ...x, priceCents } : x))} />
                   </div>
                   <div className="flex flex-col items-center gap-1 mb-0.5">
                     {i === 0 && <p className="text-xs text-stone-500">Sell it</p>}
@@ -593,19 +645,40 @@ export function AdminOrders() {
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  const { data: orders = [] } = useQuery<OrderWithItems[]>({
+  const { data: orders = [] } = useQuery<Array<OrderWithItems & { isTest?: boolean }>>({
     queryKey: ["/api/admin/orders"],
     queryFn: () => apiRequest("GET", "/api/admin/orders"),
   });
+  const { data: shop } = useQuery<{ currencySymbol?: string }>({
+    queryKey: ["/api/store/config"],
+    queryFn: () => apiRequest("GET", "/api/store/config"),
+  });
+
+  const refreshStock = () => {
+    qc.invalidateQueries({ queryKey: ["/api/admin/orders"] });
+    qc.invalidateQueries({ queryKey: ["/api/admin/products"] });
+    qc.invalidateQueries({ queryKey: ["/api/products"] });
+  };
 
   const update = useMutation({
-    mutationFn: ({ id, ...body }: { id: number; status?: string; adminNotes?: string }) =>
+    mutationFn: ({ id, ...body }: { id: number; status?: string; adminNotes?: string; restock?: boolean }) =>
       apiRequest("PUT", `/api/admin/orders/${id}`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/admin/orders"] });
-      toast({ title: "Order updated" });
-    },
+    onSuccess: () => { refreshStock(); toast({ title: "Order updated" }); },
   });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/orders/${id}`),
+    onSuccess: () => { refreshStock(); toast({ title: "Order deleted" }); },
+  });
+
+  /** Cancel or refund a paid order, asking whether its items go back on the shelf. */
+  const closePaidOrder = (o: OrderWithItems, status: "cancelled" | "refunded") => {
+    const what = status === "refunded" ? "refunded" : "cancelled";
+    if (!confirm(`Mark order ${o.reference} as ${what}?\n\n${status === "refunded" ? "Give the money back in your Stripe dashboard as well — this only updates the record here." : "If money was taken, refund it in your Stripe dashboard."}`)) return;
+    const count = o.items.reduce((n, i) => n + i.quantity, 0);
+    const restock = confirm(`Put the ${count} item${count === 1 ? "" : "s"} from this order back in stock?\n\nOK = yes, they're back on the shelf.\nCancel = no, leave the stock as it is.`);
+    update.mutate({ id: o.id, status, restock });
+  };
 
   const byStatus = filter === "all" ? orders : orders.filter((o) => o.status === filter);
   // Search covers the things someone actually has to hand when a member rings
@@ -614,21 +687,20 @@ export function AdminOrders() {
   const shown = needle === "" ? byStatus : byStatus.filter((o) =>
     [o.reference, o.customerName, o.customerEmail, o.customerPhone]
       .some((f) => (f ?? "").toLowerCase().includes(needle)));
-  const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const symbol = shop?.currencySymbol || "$";
+  const money = (c: number) => `${symbol}${(c / 100).toFixed(2)}`;
 
-  // Money actually taken — pending and cancelled orders were never charged.
-  const takings = orders
-    .filter((o) => o.status === "paid" || o.status === "fulfilled")
-    .reduce((n, o) => n + o.totalCents, 0);
+  // Money actually taken — pending and cancelled orders were never charged,
+  // and test purchases made while setting up Stripe moved no real money.
+  const realPaid = orders.filter((o) => !o.isTest && (o.status === "paid" || o.status === "fulfilled"));
+  const takings = realPaid.reduce((n, o) => n + o.totalCents, 0);
 
   return (
     <div className="space-y-4">
       <div className="grid sm:grid-cols-3 gap-3">
         <Card><CardContent className="pt-4 pb-4">
           <p className="text-xs text-stone-500">Paid orders</p>
-          <p className="text-2xl font-bold text-stone-900">
-            {orders.filter((o) => o.status === "paid" || o.status === "fulfilled").length}
-          </p>
+          <p className="text-2xl font-bold text-stone-900">{realPaid.length}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-4">
           <p className="text-xs text-stone-500">Total taken</p>
@@ -636,7 +708,7 @@ export function AdminOrders() {
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-4">
           <p className="text-xs text-stone-500">Waiting to hand over</p>
-          <p className="text-2xl font-bold text-blue-700">{orders.filter((o) => o.status === "paid").length}</p>
+          <p className="text-2xl font-bold text-blue-700">{orders.filter((o) => !o.isTest && o.status === "paid").length}</p>
         </CardContent></Card>
       </div>
 
@@ -671,6 +743,11 @@ export function AdminOrders() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-sm font-semibold text-stone-900">{o.reference}</span>
                     <Badge className={`text-xs capitalize ${STATUS_STYLES[o.status] ?? ""}`}>{o.status}</Badge>
+                    {o.isTest && (
+                      <Badge className="text-xs bg-purple-100 text-purple-800" title="Made with Stripe's test keys — no real money changed hands">
+                        TEST
+                      </Badge>
+                    )}
                     <Badge variant="secondary" className="text-xs">
                       {o.fulfilmentMethod === "shipping" ? "Post" : "Collect"}
                     </Badge>
@@ -680,7 +757,7 @@ export function AdminOrders() {
                     {o.customerPhone ? ` · ${o.customerPhone}` : ""}
                   </p>
                   <p className="text-xs text-stone-500 mt-0.5">
-                    {new Date(o.createdAt).toLocaleString("en-AU")}
+                    {formatDateTime(o.createdAt)}
                   </p>
                 </div>
                 <p className="text-lg font-bold text-stone-900">{money(o.totalCents)}</p>
@@ -711,8 +788,15 @@ export function AdminOrders() {
                 </p>
               )}
               {o.notes && (
-                <p className="text-sm text-stone-600 mt-2 bg-stone-50 rounded-lg p-2.5">
+                <p className="text-sm text-stone-600 mt-2 bg-stone-50 rounded-lg p-2.5 whitespace-pre-line">
                   <strong>Their note:</strong> {o.notes}
+                </p>
+              )}
+              {o.adminNotes && (
+                // Includes warnings the site adds itself, e.g. a size that
+                // sold out before this payment arrived.
+                <p className={`text-sm mt-2 rounded-lg p-2.5 whitespace-pre-line ${o.adminNotes.startsWith("⚠") ? "bg-amber-50 text-amber-900 border border-amber-200" : "bg-stone-50 text-stone-600"}`}>
+                  <strong>Club note:</strong> {o.adminNotes}
                 </p>
               )}
 
@@ -732,11 +816,34 @@ export function AdminOrders() {
                     Cancel this unpaid order
                   </Button>
                 )}
+                {(o.status === "paid" || o.status === "fulfilled") && (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => closePaidOrder(o, "refunded")}>Mark as refunded</Button>
+                    <Button size="sm" variant="outline" onClick={() => closePaidOrder(o, "cancelled")}>Cancel order</Button>
+                  </>
+                )}
+                <Button size="sm" variant="ghost" onClick={() => {
+                  const note = prompt(`Club note for order ${o.reference} (only admins see this):`, o.adminNotes ?? "");
+                  if (note !== null) update.mutate({ id: o.id, adminNotes: note });
+                }}>
+                  {o.adminNotes ? "Edit note" : "Add note"}
+                </Button>
+                {/* Only orders that moved no real money can be deleted. */}
+                {(o.isTest || o.status === "pending" || (o.status === "cancelled" && !o.paidAt)) && (
+                  <Button size="sm" variant="ghost" className="text-red-600" onClick={() => {
+                    if (confirm(`Delete order ${o.reference}${o.isTest ? " (a test purchase)" : ""} for ${money(o.totalCents)} from ${o.customerName ?? "unknown"}?${o.isTest && o.paidAt ? "\n\nIts items go back into stock." : ""}\n\nThis can't be undone.`)) {
+                      remove.mutate(o.id);
+                    }
+                  }}>
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </Button>
+                )}
               </div>
 
               {(o.status === "paid" || o.status === "fulfilled") && (
                 <p className="text-xs text-stone-500 mt-2">
-                  To refund, do it in your Stripe dashboard — this page updates itself when Stripe confirms it.
+                  Refunds are made in your Stripe dashboard; this page updates itself when Stripe confirms one.
+                  A partial refund is noted on the order rather than marking it all as refunded.
                 </p>
               )}
             </CardContent>

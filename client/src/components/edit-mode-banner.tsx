@@ -12,11 +12,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { ADMIN_PATH } from "@/lib/admin-path";
 
 export default function EditModeBanner() {
-  const { user } = useAuth();
+  const { can } = useAuth();
+  const canEdit = can("pages");
   const [location] = useLocation();
 
   // Only show for logged-in admins, and not on the admin dashboard/login
-  if (!user) return null;
+  if (!canEdit) return null;
   if (location.startsWith(ADMIN_PATH)) return null;
 
   return (

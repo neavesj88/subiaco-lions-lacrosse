@@ -72,21 +72,48 @@ export const BUILT_IN_PAGES: BuiltInPage[] = [
   { key: "contact",       href: "/contact",       labelKey: "nav_label_contact" },
 ];
 
+/** The three places that aren't dropdowns. */
+export const MAIN = "main";
+export const FOOTER = "footer";
+export const HIDDEN = "hidden";
+
+/**
+ * Tidy what someone typed into a "Where" box into a place.
+ * "  Hidden " -> "hidden", "FOOTER" -> "footer", "" -> "main", "Our Club" stays.
+ * The three special words are recognised whatever their capitals, so typing
+ * "Hidden" really does hide the item rather than make a dropdown called
+ * Hidden.
+ */
+export function normalisePlace(raw: string | null | undefined): string {
+  const trimmed = (raw ?? "").trim().replace(/\s+/g, " ");
+  if (!trimmed) return MAIN;
+  const lower = trimmed.toLowerCase();
+  if (lower === MAIN || lower === FOOTER || lower === HIDDEN) return lower;
+  return trimmed;
+}
+
+/** Is this place a dropdown (rather than top bar, footer or hidden)? */
+export function isDropdown(place: string): boolean {
+  return place !== MAIN && place !== FOOTER && place !== HIDDEN;
+}
+
+/** The name of the starting dropdown: the club's own word if they set one. */
+function clubDropdownName(labelFor: (key: string) => string): string {
+  return labelFor("nav_label_club_menu").trim() || "Club";
+}
+
 /**
  * The menu a club gets before they have touched anything. Matches how the site
  * has always looked: the main pages across the bar, the rest tucked into a
- * "Club" dropdown.
+ * "Club" dropdown (or whatever the club calls it — see nav_label_club_menu).
  */
 export function defaultMenu(labelFor: (key: string) => string): NavItem[] {
-  const place: Record<string, string> = {
-    home: "main", about: "main", juniors: "main", contact: "main",
-    calendar: "Club", fixtures: "Club", gallery: "Club",
-    store: "Club", coaches_board: "Club", committee: "Club",
-  };
+  const club = clubDropdownName(labelFor);
+  const inBar = new Set(["home", "about", "juniors", "contact"]);
   return BUILT_IN_PAGES.map((p) => ({
     key: p.key,
     label: labelFor(p.labelKey),
-    place: place[p.key] ?? "Club",
+    place: inBar.has(p.key) ? MAIN : club,
   }));
 }
 
@@ -105,10 +132,12 @@ export function readMenu(raw: string | undefined, labelFor: (key: string) => str
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return defaultMenu(labelFor);
-    const clean = parsed.filter(
-      (i): i is NavItem =>
-        !!i && typeof i.key === "string" && typeof i.label === "string" && typeof i.place === "string",
-    );
+    const clean = parsed
+      .filter(
+        (i): i is NavItem =>
+          !!i && typeof i.key === "string" && typeof i.label === "string" && typeof i.place === "string",
+      )
+      .map((i) => ({ key: i.key, label: i.label, place: normalisePlace(i.place) }));
     return clean.length > 0 ? clean : defaultMenu(labelFor);
   } catch {
     return defaultMenu(labelFor);
@@ -137,6 +166,53 @@ export function withCustomPages(menu: NavItem[], pages: CustomPageLike[]): NavIt
     .filter((p) => !known.has(`page:${p.slug}`))
     .map((p) => ({ key: `page:${p.slug}`, label: p.title, place: "hidden" }));
   return [...menu, ...additions];
+}
+
+/** The dropdowns a menu currently has, in the order they appear. */
+export function dropdownNames(menu: NavItem[]): string[] {
+  return [...new Set(menu.map((i) => i.place).filter(isDropdown))];
+}
+
+/** Where a club-made page currently sits ("hidden" if it isn't in the menu). */
+export function placeOfPage(menu: NavItem[], slug: string): string {
+  return menu.find((i) => i.key === `page:${slug}`)?.place ?? HIDDEN;
+}
+
+/**
+ * Put a club-made page in a given place, as the Pages editor does.
+ *
+ * In: the menu, the page, and where it should go. Out: the updated menu.
+ * An item already in the menu keeps its position when only its place changes
+ * within the same group; moving into a dropdown puts it at the end of that
+ * dropdown, and into the top bar at the end of the bar, which is where
+ * someone would expect a newly added link to appear.
+ */
+export function placePage(menu: NavItem[], slug: string, label: string, rawPlace: string): NavItem[] {
+  const key = `page:${slug}`;
+  const place = normalisePlace(rawPlace);
+  const existing = menu.find((i) => i.key === key);
+  if (existing && existing.place === place) {
+    return menu.map((i) => (i.key === key ? { ...i, label: i.label || label } : i));
+  }
+  const without = menu.filter((i) => i.key !== key);
+  const item: NavItem = { key, label: existing?.label || label, place };
+  // After the last item already in that place; at the very end otherwise.
+  let at = -1;
+  without.forEach((i, n) => { if (i.place === place) at = n; });
+  const next = [...without];
+  next.splice(at >= 0 ? at + 1 : next.length, 0, item);
+  return next;
+}
+
+/** A page's web address changed: keep its menu entry pointing at it. */
+export function renamePageSlug(menu: NavItem[], oldSlug: string, newSlug: string): NavItem[] {
+  if (oldSlug === newSlug) return menu;
+  return menu.map((i) => (i.key === `page:${oldSlug}` ? { ...i, key: `page:${newSlug}` } : i));
+}
+
+/** A page was deleted: take it out of the menu. */
+export function removePage(menu: NavItem[], slug: string): NavItem[] {
+  return menu.filter((i) => i.key !== `page:${slug}`);
 }
 
 /**

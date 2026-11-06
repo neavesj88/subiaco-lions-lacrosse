@@ -59,20 +59,21 @@ export default function ListManager({ listType, title, description, fields }: Li
     onSuccess: invalidate,
   });
 
-  // Swap sort order with the neighbour (move up/down)
+  // Move up/down by renumbering the whole list 0, 1, 2… Swapping two items'
+  // numbers did nothing when they shared one (as happened after a delete).
   const move = (index: number, dir: -1 | 1) => {
-    const a = items[index];
-    const b = items[index + dir];
-    if (!a || !b) return;
-    reorder.mutate({ id: a.id, sortOrder: b.sortOrder });
-    reorder.mutate({ id: b.id, sortOrder: a.sortOrder });
+    if (!items[index] || !items[index + dir]) return;
+    const order = [...items];
+    [order[index], order[index + dir]] = [order[index + dir], order[index]];
+    order.forEach((x, n) => { if (x.sortOrder !== n) reorder.mutate({ id: x.id, sortOrder: n }); });
   };
 
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <ItemDialog listType={listType} fields={fields} onDone={invalidate} nextSort={items.length} />
+        <ItemDialog listType={listType} fields={fields} onDone={invalidate}
+          nextSort={items.reduce((n, x) => Math.max(n, x.sortOrder + 1), 0)} />
       </div>
       {description && <p className="text-sm text-stone-500 mb-4">{description}</p>}
 
@@ -123,11 +124,19 @@ function ItemDialog({
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<Record<string, string>>(() => {
+  const blankForm = () => {
     const init: Record<string, string> = {};
     fields.forEach((f) => { init[f.key] = (item?.[f.key] as string) ?? ""; });
     return init;
-  });
+  };
+  const [form, setForm] = useState<Record<string, string>>(blankForm);
+  // Start from the item as saved each time the window opens, so "Add" is empty
+  // again rather than showing the last thing added, and Cancel really cancels.
+  const openChange = (next: boolean) => {
+    if (next) setForm(blankForm());
+    setOpen(next);
+  };
+  const missing = fields.filter((f) => f.required && !(form[f.key] ?? "").trim());
 
   const save = useMutation({
     mutationFn: () => {
@@ -141,13 +150,13 @@ function ItemDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={openChange}>
       <DialogTrigger asChild>
         {trigger ?? <Button size="sm"><Plus className="h-4 w-4" />Add</Button>}
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>{item ? "Edit item" : "Add item"}</DialogTitle></DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-3">
+        <form onSubmit={(e) => { e.preventDefault(); if (missing.length === 0) save.mutate(); }} className="space-y-3">
           {fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
               <Label>{f.label}{f.required && " *"}</Label>
@@ -168,10 +177,11 @@ function ItemDialog({
             </div>
           ))}
           <div className="flex gap-2 pt-1">
-            <Button type="submit" disabled={save.isPending} className="flex-1">
+            <Button type="submit" disabled={save.isPending || missing.length > 0} className="flex-1"
+              title={missing.length > 0 ? `Fill in: ${missing.map((f) => f.label).join(", ")}` : undefined}>
               {save.isPending ? "Saving..." : item ? "Update" : "Add"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => openChange(false)}>Cancel</Button>
           </div>
         </form>
       </DialogContent>
