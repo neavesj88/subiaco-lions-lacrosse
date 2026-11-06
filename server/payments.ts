@@ -197,6 +197,19 @@ export async function createCheckout(req: CheckoutRequest): Promise<{ url: strin
 }
 
 /**
+ * Close a payment page that hasn't been paid, so it can no longer be paid.
+ * Out: true if it is now closed (or was already), false if it was PAID — in
+ * which case the order must be left alone for the confirmation to arrive.
+ */
+export async function expireCheckout(paymentRef: string): Promise<boolean> {
+  const stripe = stripeClient(getStoreConfig());
+  const session = await stripe.checkout.sessions.retrieve(paymentRef);
+  if (session.status === "complete") return false;
+  if (session.status === "open") await stripe.checkout.sessions.expire(paymentRef);
+  return true;
+}
+
+/**
  * Check that a webhook really came from Stripe, and reduce it to a
  * PaymentEvent the rest of the site understands.
  *

@@ -88,9 +88,11 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║          Setup complete!                 ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════╝${NC}"
 echo ""
-APP_PORT="$(grep -E '^PORT=' .env | cut -d= -f2- || true)"
-APP_ADMIN="$(grep -E '^ADMIN_PATH=' .env | cut -d= -f2- || true)"
-APP_PW="$(grep -E '^SEED_ADMIN_PASSWORD=' .env | cut -d= -f2- || true)"
+# Values from .env, without the "# explanation" some lines carry after them.
+env_value() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//' || true; }
+APP_PORT="$(env_value PORT)"
+APP_ADMIN="$(env_value ADMIN_PATH)"
+APP_PW="$(env_value SEED_ADMIN_PASSWORD)"
 echo "App running on port ${APP_PORT:-5000} via PM2."
 echo ""
 echo "Next steps:"

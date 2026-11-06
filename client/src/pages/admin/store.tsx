@@ -14,7 +14,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, parseDate } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -831,7 +831,8 @@ export function AdminOrders() {
                   {o.adminNotes ? "Edit note" : "Add note"}
                 </Button>
                 {/* Only orders that moved no real money can be deleted. */}
-                {(o.isTest || o.status === "pending" || (o.status === "cancelled" && !o.paidAt)) && (
+                {(o.isTest || (o.status === "cancelled" && !o.paidAt)
+                  || (o.status === "pending" && Date.now() - parseDate(o.createdAt).getTime() > 32 * 60_000)) && (
                   <Button size="sm" variant="ghost" className="text-red-600" onClick={() => {
                     if (confirm(`Delete order ${o.reference}${o.isTest ? " (a test purchase)" : ""} for ${money(o.totalCents)} from ${o.customerName ?? "unknown"}?${o.isTest && o.paidAt ? "\n\nIts items go back into stock." : ""}\n\nThis can't be undone.`)) {
                       remove.mutate(o.id);

@@ -794,7 +794,12 @@ export default function AdminDashboard() {
       setJuniorsEdit((prev) => {
         const map = { ...prev };
         juniorsContent.forEach((c) => {
-          if (!juniorsDirty.has(c.section)) map[c.section] = { title: c.title ?? "", content: c.content };
+          if (juniorsDirty.has(c.section)) return;
+          // The hero line is plain text. If an older version saved it as
+          // formatted text, turn it into plain text once, here, rather than
+          // on every key press (which swallowed spaces as they were typed).
+          const content = c.section === "hero" ? previewText(c.content ?? "") : c.content;
+          map[c.section] = { title: c.title ?? "", content };
         });
         return map;
       });
@@ -817,7 +822,23 @@ export default function AdminDashboard() {
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
-  useEffect(() => { if (settings) setSettingsForm(settings); }, [settings]);
+  // Fresh settings from the server replace the form, EXCEPT boxes someone has
+  // typed in and not saved yet. Replacing the lot (as this once did) meant
+  // flicking a Page Visibility switch, which saves and refetches, wiped any
+  // unsaved typing elsewhere on the page.
+  const loadedSettings = useRef<Record<string, string> | null>(null);
+  useEffect(() => {
+    if (!settings) return;
+    setSettingsForm((prev) => {
+      const next = { ...settings };
+      const before = loadedSettings.current ?? {};
+      for (const [key, value] of Object.entries(prev)) {
+        if (value !== (before[key] ?? "")) next[key] = value;   // typed, not yet saved
+      }
+      return next;
+    });
+    loadedSettings.current = settings;
+  }, [settings]);
 
   // First-run wizard: only on a brand-new install where setup was never done.
   const showWizard =
@@ -1158,7 +1179,7 @@ export default function AdminDashboard() {
                           // text; formatted text there showed up as raw <p> tags.
                           <Textarea
                             rows={2}
-                            value={previewText(juniorsEdit[section]?.content ?? "")}
+                            value={juniorsEdit[section]?.content ?? ""}
                             onChange={(ev) => editJuniors(section, { content: ev.target.value })}
                             placeholder="One or two sentences under the Juniors heading"
                           />

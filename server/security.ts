@@ -133,9 +133,13 @@ export function recordFailedAttempt(ip: string): { blockedUntil?: Date; attempts
   }
   remember(loginAttempts, ip, attempt);
 
-  // The highest threshold reached (3 fails -> tier 0, 6 -> tier 1, ...).
+  // Block on reaching each threshold (3, 6, 9 … fails), for longer each time;
+  // past the last one, every further failure blocks for the longest time.
+  // In between, the count is kept but doesn't block, so after a lock-out
+  // expires a person gets three more tries, not one.
   const tier = BLOCK_THRESHOLDS.filter((t) => attempt!.count >= t).length - 1;
-  if (tier >= 0) {
+  const last = BLOCK_THRESHOLDS[BLOCK_THRESHOLDS.length - 1];
+  if (tier >= 0 && (BLOCK_THRESHOLDS.includes(attempt.count) || attempt.count > last)) {
     const blockMs = BLOCK_TIMES[Math.min(tier, BLOCK_TIMES.length - 1)];
     attempt.blockedUntil = new Date(now.getTime() + blockMs);
   }

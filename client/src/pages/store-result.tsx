@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, Clock, XCircle } from "lucide-react";
 import { useSiteText } from "@/hooks/use-site-text";
-import { useCart, formatMoney } from "@/hooks/use-cart";
+import { useCart, formatMoney, PENDING_ORDER_KEY } from "@/hooks/use-cart";
 
 interface OrderSummary {
   reference: string;
@@ -59,22 +59,26 @@ export function StoreThankYou() {
     let cancelled = false;
 
     // The confirmation webhook usually lands within a second or two, but it
-    // races the customer's browser coming back here. Poll briefly so the page
-    // settles on "confirmed" rather than showing "processing" and stopping.
+    // races the customer's browser coming back here, and Stripe retries a
+    // late one. Check quickly at first, then more slowly for a few minutes,
+    // and again whenever they come back to this tab, so the page (and the
+    // cart) catch up even with a slow confirmation.
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
       try {
         const data = await apiRequest("GET", `/api/store/order/${encodeURIComponent(reference)}`);
         if (cancelled) return;
         setOrder(data);
-        if (data.status === "paid" || attempts >= 5) { setChecking(false); return; }
-      } catch {
-        if (attempts >= 5) { setChecking(false); return; }
-      }
+        if (data.status === "paid" || data.status === "fulfilled") { setChecking(false); return; }
+      } catch { /* try again below */ }
       attempts++;
-      setTimeout(poll, 1500);
+      if (attempts >= 6) setChecking(false);          // stop the spinner; keep checking
+      if (attempts < 40) timer = setTimeout(poll, attempts < 6 ? 1500 : 5000);
     };
     poll();
-    return () => { cancelled = true; };
+    const onFocus = () => { if (!cancelled) poll(); };
+    window.addEventListener("focus", onFocus);
+    return () => { cancelled = true; clearTimeout(timer); window.removeEventListener("focus", onFocus); };
   }, [reference]);
 
   const confirmed = confirmedNow;
@@ -136,6 +140,12 @@ export function StoreThankYou() {
 
 export function StoreCancelled() {
   const t = useSiteText();
+  // They pressed Cancel on the payment page: release what it was holding.
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) apiRequest("POST", `/api/store/order/${encodeURIComponent(ref)}/release`).catch(() => {});
+    try { sessionStorage.removeItem(PENDING_ORDER_KEY); } catch { /* storage blocked */ }
+  }, []);
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-4 py-16">
       <Card className="max-w-md w-full">

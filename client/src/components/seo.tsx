@@ -74,7 +74,7 @@ export default function SEO({ path, title, description, image }: SEOProps) {
     const siteName = getSiteName(settings);
     const customTitle = slug && custom ? (siteName ? `${custom.title} | ${siteName}` : custom.title) : undefined;
     const finalTitle = title ?? customTitle ?? base.title;
-    const finalDesc = description ?? (slug && custom?.subtitle) ?? base.description;
+    const finalDesc = description ?? ((slug && custom?.subtitle) || base.description);
     // One address per page: no trailing slash.
     const cleanPath = path !== "/" ? path.replace(/\/+$/, "") || "/" : "/";
     const url = window.location.origin + cleanPath;

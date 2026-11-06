@@ -69,7 +69,7 @@ import { csvFile, csvFilename } from "./csv";
 import { SqliteSessionStore } from "./session-store";
 import {
   getStoreConfig, canTakePayments, isTestMode, paymentSetupStatus,
-  createCheckout, verifyWebhook, formatMoney,
+  createCheckout, verifyWebhook, formatMoney, expireCheckout, CHECKOUT_MINUTES,
 } from "./payments";
 import {
   priceCart, CartError, generateOrderReference, decrementStockForOrder,
@@ -1570,10 +1570,22 @@ export async function registerRoutes(app: Express) {
     }
 
     const { cart, customer, fulfilmentMethod, notes } = req.body ?? {};
-    const method = fulfilmentMethod === "shipping" ? "shipping" : "pickup";
+    let method: "pickup" | "shipping" = fulfilmentMethod === "shipping" ? "shipping" : "pickup";
 
+    let priced;
+    try {
+      priced = priceCart(cart, method);          // prices re-read from the database
+    } catch (err) {
+      if (err instanceof CartError) return res.status(400).json({ message: err.message });
+      throw err;
+    }
+
+    // Nothing in the cart needs posting (a ticket, a membership): it's simply
+    // "collected", whatever the shop's collect/post settings are. Otherwise a
+    // postage-only shop could never sell such an item.
     const settings = getSettingsSync();
-    if (method === "pickup" && settings.store_pickup_enabled === "false") {
+    if (!priced.requiresShipping) method = "pickup";
+    else if (method === "pickup" && settings.store_pickup_enabled === "false") {
       return res.status(400).json({ message: "Pickup isn't available." });
     }
     if (method === "shipping" && settings.store_shipping_enabled !== "true") {
@@ -1590,14 +1602,6 @@ export async function registerRoutes(app: Express) {
     const address = cleanText(customer?.address).slice(0, 500);
     if (method === "shipping" && !address) {
       return res.status(400).json({ message: "Please enter a postal address." });
-    }
-
-    let priced;
-    try {
-      priced = priceCart(cart, method);          // prices re-read from the database
-    } catch (err) {
-      if (err instanceof CartError) return res.status(400).json({ message: err.message });
-      throw err;
     }
 
     // Record the order BEFORE sending anyone to pay, so an interrupted payment
@@ -1751,6 +1755,30 @@ export async function registerRoutes(app: Express) {
     }
 
     res.json({ received: true });
+  });
+
+  // The customer came back without paying (pressed Back or Cancel on the
+  // payment page). Close that payment page and release the items it was
+  // holding, so trying again isn't blocked by their own earlier attempt.
+  // Only ever affects an unpaid order, and only if Stripe agrees it wasn't
+  // paid; the worst anyone could do with someone else's reference is make
+  // them start their payment again.
+  app.post("/api/store/order/:reference/release", async (req: Request, res: Response) => {
+    const [order] = await db.select().from(orders)
+      .where(eq(orders.reference, req.params.reference)).limit(1);
+    if (!order || order.status !== "pending" || order.paidAt) return res.json({ ok: true });
+    try {
+      if (order.paymentRef && !(await expireCheckout(order.paymentRef))) {
+        return res.json({ ok: true });   // it WAS paid: the confirmation is on its way
+      }
+    } catch (err) {
+      // Couldn't reach Stripe: leave the hold, which lapses by itself.
+      console.warn("[store] Couldn't close a payment page:", (err as Error).message);
+      return res.json({ ok: true });
+    }
+    await db.update(orders).set({ status: "cancelled" })
+      .where(and(eq(orders.id, order.id), eq(orders.status, "pending")));
+    res.json({ ok: true });
   });
 
   // Order status for the "thank you" page. Deliberately returns no personal
@@ -1947,6 +1975,15 @@ export async function registerRoutes(app: Express) {
     const neverPaid = order.paidAt === null && ["pending", "cancelled"].includes(order.status);
     if (!isTestOrder(order) && !neverPaid) {
       return res.status(400).json({ message: "A real, paid order can't be deleted. Cancel or refund it instead." });
+    }
+    // A pending order may be someone typing in their card right now. Deleting
+    // it would leave their payment with no order to land on, so it has to
+    // wait until the payment page has closed.
+    const ageMinutes = (Date.now() - new Date(order.createdAt.replace(" ", "T") + "Z").getTime()) / 60_000;
+    if (order.status === "pending" && ageMinutes < CHECKOUT_MINUTES + 2) {
+      return res.status(400).json({
+        message: `This order may still be being paid for. Try again after ${CHECKOUT_MINUTES} minutes, when the payment page has closed.`,
+      });
     }
     // A paid TEST order took stock when its pretend payment came through;
     // give that back so the test leaves no trace.

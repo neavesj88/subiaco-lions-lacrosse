@@ -30,9 +30,22 @@ export interface CartLine {
   // Whether this item needs posting. Lets the checkout work out postage the
   // same way the server will: no postage unless something needs posting.
   requiresShipping?: boolean;
+  // The most of this ITEM one person may buy, across all its sizes (the
+  // product's "Most one person can buy"). The server enforces it per item.
+  maxPerProduct?: number | null;
+}
+
+/** How many of this product are already in the cart in OTHER sizes. */
+function otherSizes(lines: CartLine[], productId: number, variantId: number): number {
+  return lines.filter((l) => l.productId === productId && l.variantId !== variantId)
+    .reduce((n, l) => n + l.quantity, 0);
 }
 
 const STORAGE_KEY = "club-store-cart";
+
+/** The order this browser last sent to the payment page, so it can be
+ *  released if the customer comes back without paying (store-checkout.tsx). */
+export const PENDING_ORDER_KEY = "club-store-pending-order";
 
 // A tiny broadcast so every component using this hook updates together —
 // the cart button in the header and the cart panel must never disagree.
@@ -106,7 +119,13 @@ export function syncCartWithShop(products: ProductWithVariants[]): string[] {
       notes.push(`The price of ${label} has changed.`);
     }
     const ceiling = Math.min(product.maxPerOrder, variant.stock ?? Number.MAX_SAFE_INTEGER);
-    const quantity = Math.min(line.quantity, ceiling);
+    // The item's limit counts every size together.
+    const alreadyKept = next.filter((l) => l.productId === product.id).reduce((n, l) => n + l.quantity, 0);
+    const quantity = Math.min(line.quantity, ceiling, product.maxPerOrder - alreadyKept);
+    if (quantity < 1) {
+      notes.push(`You can order at most ${product.maxPerOrder} of ${product.name}, so ${label} was taken out.`);
+      continue;
+    }
     if (quantity < line.quantity) notes.push(`Only ${quantity} of ${label} can be ordered now.`);
     next.push({
       ...line,
@@ -117,6 +136,7 @@ export function syncCartWithShop(products: ProductWithVariants[]): string[] {
       imageUrl: product.imageUrl,
       maxQuantity: Number.isFinite(ceiling) ? ceiling : null,
       requiresShipping: product.requiresShipping,
+      maxPerProduct: product.maxPerOrder,
     });
   }
   if (JSON.stringify(next) !== JSON.stringify(read())) write(next);
@@ -145,18 +165,22 @@ export function useCart() {
     const existing = current.find((l) => l.variantId === variantId);
     const unitPriceCents = variant.priceCents ?? product.priceCents;
 
-    // Never let the cart exceed what's actually in stock, or the per-order cap.
+    // Never let the cart exceed what's actually in stock, or the per-order cap
+    // (which counts every size of the item together).
     const ceiling = Math.min(
       product.maxPerOrder,
       variant.stock ?? Number.MAX_SAFE_INTEGER,
     );
+    const room = product.maxPerOrder - otherSizes(current, product.id, variantId);
+    if (room < 1) return;   // already at the most one person can buy
     const wanted = (existing?.quantity ?? 0) + quantity;
-    const finalQty = Math.max(1, Math.min(wanted, ceiling));
+    const finalQty = Math.max(1, Math.min(wanted, ceiling, room));
 
     if (existing) {
       existing.quantity = finalQty;
       existing.unitPriceCents = unitPriceCents;
       existing.maxQuantity = Number.isFinite(ceiling) ? ceiling : null;
+      existing.maxPerProduct = product.maxPerOrder;
     } else {
       current.push({
         productId: product.id,
@@ -168,6 +192,7 @@ export function useCart() {
         imageUrl: product.imageUrl,
         maxQuantity: Number.isFinite(ceiling) ? ceiling : null,
         requiresShipping: product.requiresShipping,
+        maxPerProduct: product.maxPerOrder,
       });
     }
     write(current);
@@ -184,7 +209,8 @@ export function useCart() {
     // Never let the buttons take someone past what's actually available —
     // better to stop here than to let them reach checkout and be rejected.
     const ceiling = line.maxQuantity ?? Number.MAX_SAFE_INTEGER;
-    line.quantity = Math.min(quantity, ceiling);
+    const room = (line.maxPerProduct ?? Number.MAX_SAFE_INTEGER) - otherSizes(current, line.productId, variantId);
+    line.quantity = Math.max(1, Math.min(quantity, ceiling, room));
     write(current);
   }, []);
 

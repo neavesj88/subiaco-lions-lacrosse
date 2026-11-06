@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock, ShoppingCart, AlertCircle } from "lucide-react";
 import { useSiteText } from "@/hooks/use-site-text";
-import { useCart, formatMoney, syncCartWithShop } from "@/hooks/use-cart";
+import { useCart, formatMoney, syncCartWithShop, PENDING_ORDER_KEY } from "@/hooks/use-cart";
 import type { ProductWithVariants } from "@shared/schema";
 
 interface StoreConfig {
@@ -67,6 +67,15 @@ export default function StoreCheckout() {
     if (products) setChanges(syncCartWithShop(products));
   }, [products]);
 
+  // Back here after leaving the payment page without paying: release what
+  // that attempt was holding, so this one isn't told the items are "in
+  // someone else's checkout" — they were in this customer's own.
+  useEffect(() => {
+    let ref: string | null = null;
+    try { ref = sessionStorage.getItem(PENDING_ORDER_KEY); sessionStorage.removeItem(PENDING_ORDER_KEY); } catch { /* storage blocked */ }
+    if (ref) apiRequest("POST", `/api/store/order/${encodeURIComponent(ref)}/release`).catch(() => {});
+  }, []);
+
   const symbol = config?.currencySymbol ?? "$";
 
   // Only ask "collect or post?" when there's a real choice. Nothing in the
@@ -108,6 +117,7 @@ export default function StoreCheckout() {
       if (res?.url) {
         // Leave the cart intact: if they abandon the payment page and come
         // back, their order is still there rather than silently emptied.
+        try { sessionStorage.setItem(PENDING_ORDER_KEY, res.reference); } catch { /* storage blocked */ }
         window.location.href = res.url;
       } else {
         setError("Couldn't start the payment. Please try again.");
@@ -279,7 +289,7 @@ export default function StoreCheckout() {
                   <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5">{error}</p>
                 )}
 
-                <Button className="w-full gap-2" size="lg" disabled={busy} onClick={pay}>
+                <Button className="w-full gap-2" size="lg" disabled={busy || !config} onClick={pay}>
                   <Lock className="h-4 w-4" />
                   {busy ? "Taking you to payment…" : `${t("store_pay_button")} · ${formatMoney(totalCents, symbol)}`}
                 </Button>

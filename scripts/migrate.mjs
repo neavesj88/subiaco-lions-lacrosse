@@ -535,22 +535,32 @@ addCol('products', 'sold_out', 'INTEGER NOT NULL DEFAULT 0');
 // A site that was ALREADY running was showing those values as its own, so
 // they are written into its database here: it looks exactly as before, and
 // the club can now change them. A new install gets none of them.
-if (!isNewInstall) {
-  addSetting('about_stat1_value', '1940');
-  addSetting('about_stat2_value', '10+');
-  addSetting('about_stat3_value', 'State to Div 3');
-  addSetting('subsidy_name', 'KidSport');
+//
+// Decided ONCE, on the first run of this step, and the decision recorded.
+// "Is this a new install?" can't simply be asked again each time: this script
+// runs on every update (and on every start under Docker), and from the second
+// run on even a brand-new club's database has settings and an admin in it,
+// so it would look "existing" and be given the first club's facts.
+const v10 = db.prepare("SELECT value FROM site_settings WHERE key = 'club_values_v10'").get();
+if (!v10) {
+  if (!isNewInstall) {
+    addSetting('about_stat1_value', '1940');
+    addSetting('about_stat2_value', '10+');
+    addSetting('about_stat3_value', 'State to Div 3');
+    addSetting('subsidy_name', 'KidSport');
 
-  const seeded = db.prepare("SELECT value FROM site_settings WHERE key = 'affiliations_seeded'").get();
-  const existing = db.prepare("SELECT COUNT(*) AS n FROM list_items WHERE list_type = 'affiliation'").get().n;
-  if (!seeded && existing === 0) {
-    const ins = db.prepare('INSERT INTO list_items (list_type, title, body, sort_order) VALUES (?, ?, ?, ?)');
-    ins.run('affiliation', 'Act Belong Commit',
-      'Our club is a registered Act Belong Commit club, supporting the mental health and wellbeing of all members.', 0);
-    ins.run('affiliation', 'KidSport',
-      'Registered KidSport provider — WA Government financial assistance available for eligible junior members.', 1);
-    console.log('  Kept this club\'s "Affiliated With" cards (now editable in Admin → Page Lists)');
+    const seeded = db.prepare("SELECT value FROM site_settings WHERE key = 'affiliations_seeded'").get();
+    const existing = db.prepare("SELECT COUNT(*) AS n FROM list_items WHERE list_type = 'affiliation'").get().n;
+    if (!seeded && existing === 0) {
+      const ins = db.prepare('INSERT INTO list_items (list_type, title, body, sort_order) VALUES (?, ?, ?, ?)');
+      ins.run('affiliation', 'Act Belong Commit',
+        'Our club is a registered Act Belong Commit club, supporting the mental health and wellbeing of all members.', 0);
+      ins.run('affiliation', 'KidSport',
+        'Registered KidSport provider — WA Government financial assistance available for eligible junior members.', 1);
+      console.log("  Kept this club's \"Affiliated With\" cards (now editable in Admin → Page Lists)");
+    }
   }
+  addSetting('club_values_v10', isNewInstall ? 'new-install' : 'kept-existing-values');
 }
 // Recorded either way, so deleting those cards later doesn't bring them back.
 addSetting('affiliations_seeded', 'true');

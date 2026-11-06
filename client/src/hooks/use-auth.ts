@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "@/lib/queryClient";
+import { toast } from "@/components/ui/toaster";
 
 import { roleHas, type Permission, type Role } from "@shared/roles";
 
@@ -43,10 +44,14 @@ export function useAuth() {
     mutationFn: (creds: { username: string; password: string }) =>
       apiRequest("POST", "/api/auth/login", creds),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/auth/me"] }),
+    // The login page shows its own "Login failed" message; without this the
+    // app-wide "That didn't save" message appeared as well.
+    onError: () => {},
   });
 
   const logoutMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/auth/logout"),
+    onError: (e: Error) => toast({ title: "Couldn't sign out", description: e.message, variant: "destructive" }),
     onSuccess: () => {
       qc.setQueryData(["/api/auth/me"], null);
       qc.clear();
