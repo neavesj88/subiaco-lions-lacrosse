@@ -33,6 +33,28 @@ export function getSettingsSync(): Record<string, string> {
   }
 }
 
+// Settings that must never reach a browser: mail login details, Stripe's
+// secret keys, and a volunteer's private inbox used only for order alerts.
+// Everything else is public by nature (the club's name, colours, wording).
+export const PRIVATE_SETTING_KEYS = [
+  "mail_pass", "mail_user", "mail_host", "mail_port", "mail_from", "mail_notify",
+  // The Stripe SECRET key can create charges and issue refunds on the club's
+  // account. (The PUBLISHABLE key is designed to be public and is served via
+  // /api/store/config.)
+  "stripe_secret_key", "stripe_webhook_secret",
+  "store_order_notify_email",
+];
+
+/** Every setting a visitor's browser may see (see PRIVATE_SETTING_KEYS). */
+export function publicSettings(): Record<string, string> {
+  const all = getSettingsSync();
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(all)) {
+    if (!PRIVATE_SETTING_KEYS.includes(key)) out[key] = value;
+  }
+  return out;
+}
+
 /** Call after an admin saves settings so changes appear immediately. */
 export function invalidateSettingsCache(): void {
   cache = null;

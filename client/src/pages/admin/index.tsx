@@ -95,9 +95,12 @@ function normaliseLink(value: string | null | undefined): string | null {
   return /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v.replace(/^\/+/, "")}`;
 }
 
-/** Plain text from editor HTML, for short previews in lists. */
+/** Plain text from editor HTML, for short previews in lists. The browser's
+ *  own parser reads it (so "&amp;" shows as "&"); a parsed document like this
+ *  never runs scripts or loads images. */
 function previewText(html: string): string {
-  return html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  const text = new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
+  return text.replace(/\s+/g, " ").trim();
 }
 
 // ── Result form ────────────────────────────────────────────────────────────────

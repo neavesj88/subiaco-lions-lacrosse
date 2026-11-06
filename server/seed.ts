@@ -28,13 +28,18 @@ async function seed() {
       email: "",
       role: "super_admin",
     });
+    // A box so the password stands out in the installer's scrolling output.
+    const lines = [
+      "Admin account created. Write this down now:",
+      "  username: admin",
+      `  password: ${password}`,
+      "Change it once you're logged in.",
+    ];
+    const width = Math.max(...lines.map((l) => l.length)) + 4;
     console.log("");
-    console.log("  ┌─────────────────────────────────────────────────────────┐");
-    console.log("  │  Admin account created. Write this down now:            │");
-    console.log(`  │    username: admin`.padEnd(60) + "│");
-    console.log(`  │    password: ${password}`.padEnd(60) + "│");
-    console.log("  │  Change it once you're logged in.                        │");
-    console.log("  └─────────────────────────────────────────────────────────┘");
+    console.log(`  ┌${"─".repeat(width)}┐`);
+    for (const l of lines) console.log(`  │  ${l.padEnd(width - 2)}│`);
+    console.log(`  └${"─".repeat(width)}┘`);
     console.log("");
   }
 

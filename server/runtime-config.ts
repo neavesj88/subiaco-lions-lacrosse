@@ -19,6 +19,8 @@
 // Returns the configured admin path, normalised to start with "/" and have no
 // trailing slash. Defaults to "/manage" (still better than "/admin", but you
 // SHOULD set your own secret value in .env).
+import { publicSettings } from "./site-settings";
+
 export function getAdminPath(): string {
   let p = (process.env.ADMIN_PATH || "/manage").trim();
   if (!p.startsWith("/")) p = "/" + p;
@@ -34,7 +36,14 @@ export function injectRuntimeConfig(html: string, nonce?: string): string {
   // an attacker manages to inject. Without it the admin address never reaches
   // the browser and the admin panel cannot be opened.
   const nonceAttr = nonce ? ` nonce="${nonce}"` : "";
-  const tag = `<script${nonceAttr}>window.__ADMIN_PATH__=${JSON.stringify(cfg.adminPath)};</script>`;
+  // The club's public settings travel inside the page too. Without them the
+  // browser first drew the site with the template's defaults ("Our Club",
+  // standard wording) and switched to the club's own a moment later, once a
+  // second request came back — a visible flicker on every visit. Escaped so
+  // nothing in a setting can end the script early.
+  const settings = JSON.stringify(publicSettings())
+    .replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+  const tag = `<script${nonceAttr}>window.__ADMIN_PATH__=${JSON.stringify(cfg.adminPath)};window.__SETTINGS__=${settings};</script>`;
   if (html.includes("<!--RUNTIME-CONFIG-->")) {
     return html.replace("<!--RUNTIME-CONFIG-->", tag);
   }

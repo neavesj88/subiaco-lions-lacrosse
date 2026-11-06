@@ -63,7 +63,7 @@ import { notifyContactMessage, notifyNewRegistration, sendTestEmail, notifyOrder
 import { SITEMAP_PAGES, isPageSwitchedOn } from "@shared/seo";
 import { getOrigin } from "./seo-inject";
 import { getAdminPath, isDefaultPassword} from "./runtime-config";
-import { invalidateSettingsCache, getSettingsSync } from "./site-settings";
+import { invalidateSettingsCache, getSettingsSync, publicSettings } from "./site-settings";
 import { cleanHtmlFields, cleanText, cleanMaybeHtml, cleanHtml, RICH_TEXT_SETTINGS } from "./sanitize";
 import { csvFile, csvFilename } from "./csv";
 import { SqliteSessionStore } from "./session-store";
@@ -909,25 +909,10 @@ export async function registerRoutes(app: Express) {
   // before anyone logs in), so mail credentials must never appear there.
   // They're stripped below and exposed only to super admins via
   // /api/settings/secure, with the password masked.
-  const SECRET_SETTING_KEYS = [
-    "mail_pass", "mail_user", "mail_host", "mail_port", "mail_from", "mail_notify",
-    // The Stripe SECRET key can create charges and issue refunds on the club's
-    // account. It must never be sent to a browser. (The PUBLISHABLE key is
-    // designed to be public and is served via /api/store/config.)
-    "stripe_secret_key", "stripe_webhook_secret",
-    // A volunteer's own inbox, used only by the server to send order alerts.
-    // Not a secret, but no reason for every visitor to be able to read it.
-    "store_order_notify_email",
-  ];
-
+  // The list of what is kept private lives in server/site-settings.ts, shared
+  // with the copy of the settings put into each page (runtime-config.ts).
   app.get("/api/settings", async (_req: Request, res: Response) => {
-    const rows = await db.select().from(siteSettings);
-    const map: Record<string, string> = {};
-    for (const row of rows) {
-      if (SECRET_SETTING_KEYS.includes(row.key)) continue; // never expose publicly
-      map[row.key] = row.value;
-    }
-    res.json(map);
+    res.json(publicSettings());
   });
 
   // Super-admin view INCLUDING mail settings, for the Settings/Security tabs.

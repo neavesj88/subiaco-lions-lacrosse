@@ -256,12 +256,15 @@ export function renderTemplate(template: string, values: Record<string, string>)
 
   // Tidy up after any placeholder outside a bracketed segment that came out
   // empty, so nothing reaches a browser tab or a Google result looking broken.
-  return filled
+  const tidy = filled
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,.!?])/g, "$1")
     .replace(/([|–—-])\s*+/g, "$1")
     .replace(/^[\s|–—-]+|[\s|–—-]+$/g, "")
     .trim();
+  // A sentence that began with a left-out segment ("[[Perth's ]]home of
+  // lacrosse") still starts with a capital: "Home of lacrosse".
+  return template.startsWith("[[") ? tidy.charAt(0).toUpperCase() + tidy.slice(1) : tidy;
 }
 
 

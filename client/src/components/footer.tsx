@@ -51,7 +51,8 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Contact */}
+          {/* Contact — left out entirely until the club has some details to show */}
+          {(club.email || club.fullAddress || t("facebook_url") || t("instagram_handle")) && (
           <div>
             <h3 className="text-white font-semibold mb-4">Contact & Find Us</h3>
             {/* Each line only when the club has filled it in: a new club
@@ -100,6 +101,7 @@ export default function Footer() {
               )}
             </div>
           </div>
+          )}
         </div>
 
         <div className="mt-8 pt-6 border-t border-maroon-700 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-maroon-200">
