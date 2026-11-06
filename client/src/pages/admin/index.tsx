@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -54,15 +54,74 @@ import { Switch } from "@/components/ui/switch";
 import ListManager from "@/components/list-manager";
 import type { Event, Announcement, Registration, JuniorsContent, ContactMessage, MediaUpload, Sponsor, MatchResult, NewsletterSubscriber } from "@shared/schema";
 
+// ── A dialog holding a form ────────────────────────────────────────────────────
+// The form closes itself when it has saved (or Cancel is pressed), and starts
+// empty again each time it opens. Clicking outside it does NOT close it: that
+// is far too easy to do by accident halfway through writing a post, and it
+// threw away everything typed.
+function FormDialog({ trigger, title, wide, children }: {
+  trigger: ReactNode;
+  title: string;
+  wide?: boolean;
+  children: (close: () => void) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className={wide ? "max-w-2xl" : "max-w-md"} onInteractOutside={(e) => e.preventDefault()}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        {open && children(() => setOpen(false))}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The team choices, in the club's own words (Admin -> Settings -> Wording). */
+function useTeamOptions(withAll: boolean) {
+  const t = useSiteText();
+  const teams = [
+    { value: "mens", label: t("team_label_mens") },
+    { value: "womens", label: t("team_label_womens") },
+    { value: "juniors", label: t("team_label_juniors") },
+  ];
+  return withAll ? [{ value: "all", label: t("team_label_all") }, ...teams] : teams;
+}
+
+/** "www.acme.com" -> "https://www.acme.com", so a link works when clicked
+ *  instead of being treated as a page on this site. Blank stays blank. */
+function normaliseLink(value: string | null | undefined): string | null {
+  const v = (value ?? "").trim();
+  if (!v) return null;
+  return /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v.replace(/^\/+/, "")}`;
+}
+
+/** Plain text from editor HTML, for short previews in lists. */
+function previewText(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+}
+
 // ── Result form ────────────────────────────────────────────────────────────────
-function ResultForm({ onDone }: { onDone: () => void }) {
+function ResultForm({ result, onDone }: { result?: MatchResult; onDone: () => void }) {
   const qc = useQueryClient();
-  const { register, handleSubmit, setValue } = useForm({
-    defaultValues: { matchDate: "", opposition: "", ourScore: "", theirScore: "", teamCategory: "mens", division: "", venue: "", isHome: true, notes: "", isPublished: true },
+  const teams = useTeamOptions(false);
+  const { register, handleSubmit, setValue, watch } = useForm({
+    defaultValues: {
+      matchDate: result?.matchDate ?? "", opposition: result?.opposition ?? "",
+      ourScore: result?.ourScore != null ? String(result.ourScore) : "",
+      theirScore: result?.theirScore != null ? String(result.theirScore) : "",
+      teamCategory: result?.teamCategory ?? "mens", division: result?.division ?? "",
+      venue: result?.venue ?? "", isHome: result?.isHome ?? true, notes: result?.notes ?? "",
+      isPublished: result?.isPublished ?? true,
+    },
   });
+  const score = (v: string) => (v !== "" && Number.isFinite(parseInt(v)) ? parseInt(v) : null);
   const mutation = useMutation({
-    mutationFn: (d: any) => apiRequest("POST", "/api/results", { ...d, ourScore: d.ourScore !== "" ? parseInt(d.ourScore) : null, theirScore: d.theirScore !== "" ? parseInt(d.theirScore) : null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/results/all"] }); qc.invalidateQueries({ queryKey: ["/api/results"] }); toast({ title: "Result added" }); onDone(); },
+    mutationFn: (d: any) => {
+      const body = { ...d, ourScore: score(d.ourScore), theirScore: score(d.theirScore) };
+      return result ? apiRequest("PUT", `/api/results/${result.id}`, body) : apiRequest("POST", "/api/results", body);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/results/all"] }); qc.invalidateQueries({ queryKey: ["/api/results"] }); toast({ title: result ? "Result updated" : "Result added" }); onDone(); },
     onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
   return (
@@ -71,12 +130,10 @@ function ResultForm({ onDone }: { onDone: () => void }) {
         <div className="space-y-1"><Label>Date *</Label><Input type="date" {...register("matchDate", { required: true })} /></div>
         <div className="space-y-1">
           <Label>Team</Label>
-          <Select onValueChange={(v) => setValue("teamCategory", v)} defaultValue="mens">
+          <Select onValueChange={(v) => setValue("teamCategory", v as any)} defaultValue={watch("teamCategory")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="mens">Men's</SelectItem>
-              <SelectItem value="womens">Women's</SelectItem>
-              <SelectItem value="juniors">Juniors</SelectItem>
+              {teams.map((tm) => <SelectItem key={tm.value} value={tm.value}>{tm.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -91,8 +148,16 @@ function ResultForm({ onDone }: { onDone: () => void }) {
         <div className="space-y-1"><Label>Venue</Label><Input placeholder="e.g. your home ground" {...register("venue")} /></div>
       </div>
       <div className="space-y-1"><Label>Notes</Label><Input placeholder="Optional notes or summary" {...register("notes")} /></div>
+      <div className="flex flex-col gap-2 p-3 bg-stone-50 rounded-lg border text-sm">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" className="rounded" {...register("isHome")} /> Home game (shown as "vs"; away games show "@")
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" className="rounded" {...register("isPublished")} /> Show on the website (untick to keep as a draft)
+        </label>
+      </div>
       <div className="flex gap-2 pt-1">
-        <Button type="submit" disabled={mutation.isPending} className="flex-1">{mutation.isPending ? "Saving..." : "Add Result"}</Button>
+        <Button type="submit" disabled={mutation.isPending} className="flex-1">{mutation.isPending ? "Saving..." : result ? "Save Changes" : "Add Result"}</Button>
         <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
       </div>
     </form>
@@ -100,25 +165,36 @@ function ResultForm({ onDone }: { onDone: () => void }) {
 }
 
 // ── Sponsor form ───────────────────────────────────────────────────────────────
-function SponsorForm({ onDone }: { onDone: () => void }) {
+function SponsorForm({ sponsor, onDone }: { sponsor?: Sponsor; onDone: () => void }) {
   const qc = useQueryClient();
-  const [logoUrl, setLogoUrl] = useState<string | undefined>();
-  const { register, handleSubmit, setValue } = useForm({
-    defaultValues: { name: "", websiteUrl: "", tier: "partner", sortOrder: 0 },
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(sponsor?.logoUrl ?? undefined);
+  const { register, handleSubmit, setValue, watch } = useForm({
+    defaultValues: {
+      name: sponsor?.name ?? "", websiteUrl: sponsor?.websiteUrl ?? "",
+      tier: sponsor?.tier ?? "partner", sortOrder: sponsor?.sortOrder ?? 0,
+    },
   });
   const mutation = useMutation({
-    mutationFn: (d: any) => apiRequest("POST", "/api/sponsors", { ...d, logoUrl: logoUrl ?? null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sponsors/all"] }); qc.invalidateQueries({ queryKey: ["/api/sponsors"] }); toast({ title: "Sponsor added" }); onDone(); },
+    mutationFn: (d: any) => {
+      // The number box hands back text once edited; the server wants a number.
+      const body = { ...d, sortOrder: Number(d.sortOrder) || 0, websiteUrl: normaliseLink(d.websiteUrl), logoUrl: logoUrl ?? null };
+      return sponsor ? apiRequest("PUT", `/api/sponsors/${sponsor.id}`, body) : apiRequest("POST", "/api/sponsors", body);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sponsors/all"] }); qc.invalidateQueries({ queryKey: ["/api/sponsors"] }); toast({ title: sponsor ? "Sponsor updated" : "Sponsor added" }); onDone(); },
     onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
   return (
     <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-3">
       <div className="space-y-1"><Label>Sponsor Name *</Label><Input placeholder="e.g. Acme Pty Ltd" {...register("name", { required: true })} /></div>
-      <div className="space-y-1"><Label>Website URL</Label><Input placeholder="https://..." {...register("websiteUrl")} /></div>
+      <div className="space-y-1">
+        <Label>Website URL</Label>
+        <Input placeholder="https://..." {...register("websiteUrl")} />
+        <FieldWarning message={checkUrl(watch("websiteUrl") ?? "")} />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Tier</Label>
-          <Select onValueChange={(v) => setValue("tier", v)} defaultValue="partner">
+          <Select onValueChange={(v) => setValue("tier", v as any)} defaultValue={watch("tier")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="gold">Gold (largest)</SelectItem>
@@ -128,7 +204,7 @@ function SponsorForm({ onDone }: { onDone: () => void }) {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1"><Label>Sort order</Label><Input type="number" min="0" {...register("sortOrder")} /></div>
+        <div className="space-y-1"><Label>Sort order</Label><Input type="number" min="0" {...register("sortOrder")} /><p className="text-xs text-stone-500">Lower numbers show first.</p></div>
       </div>
       <ImagePicker
         label="Sponsor Logo"
@@ -137,7 +213,7 @@ function SponsorForm({ onDone }: { onDone: () => void }) {
         hint="Upload a new logo or pick one from your media library."
       />
       <div className="flex gap-2 pt-1">
-        <Button type="submit" disabled={mutation.isPending} className="flex-1">{mutation.isPending ? "Saving..." : "Add Sponsor"}</Button>
+        <Button type="submit" disabled={mutation.isPending} className="flex-1">{mutation.isPending ? "Saving..." : sponsor ? "Save Changes" : "Add Sponsor"}</Button>
         <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
       </div>
     </form>
@@ -184,6 +260,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function EventForm({ event, onDone }: { event?: Event; onDone: () => void }) {
   const qc = useQueryClient();
+  const teams = useTeamOptions(true);
   const { register, handleSubmit, setValue, watch } = useForm({
     defaultValues: {
       title: event?.title ?? "",
@@ -252,14 +329,15 @@ function EventForm({ event, onDone }: { event?: Event; onDone: () => void }) {
           <Select onValueChange={(v) => setValue("teamCategory", v as any)} defaultValue={watch("teamCategory")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Teams</SelectItem>
-              <SelectItem value="mens">Men's</SelectItem>
-              <SelectItem value="womens">Women's</SelectItem>
-              <SelectItem value="juniors">Juniors</SelectItem>
+              {teams.map((tm) => <SelectItem key={tm.value} value={tm.value}>{tm.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       </div>
+      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg border text-sm cursor-pointer">
+        <input type="checkbox" className="rounded" {...register("isPublished")} />
+        Show on the website (untick to keep as a draft)
+      </label>
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={mutation.isPending} className="flex-1">
           {mutation.isPending ? "Saving..." : event ? "Update Event" : "Create Event"}
@@ -421,6 +499,79 @@ function UserForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+// ── Edit an existing admin ─────────────────────────────────────────────────────
+// Name, email and role. Passwords are reset from Security, where the person
+// doing it can see what they are doing.
+function UserEditForm({ account, isSelf, onDone }: {
+  account: { id: number; name: string; email: string; role: string; isActive: boolean };
+  isSelf: boolean;
+  onDone: () => void;
+}) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(account.name);
+  const [email, setEmail] = useState(account.email ?? "");
+  const [role, setRole] = useState(account.role);
+  const mutation = useMutation({
+    mutationFn: () => apiRequest("PUT", `/api/users/${account.id}`, { name, email, ...(isSelf ? {} : { role }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/users"] }); toast({ title: "Account updated" }); onDone(); },
+    onError: (e) => toast({ title: "Couldn't save", description: e.message, variant: "destructive" }),
+  });
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
+      <div className="space-y-1.5"><Label>Full Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+      <div className="space-y-1.5">
+        <Label>Email</Label>
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <FieldWarning message={checkEmail(email)} />
+        <p className="text-xs text-stone-500">Must match their Google account if they sign in with Google.</p>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Role</Label>
+        <Select value={role} onValueChange={setRole} disabled={isSelf}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_INFO[r].label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {isSelf && <p className="text-xs text-stone-500">You can't change your own role — ask another Super Admin.</p>}
+      </div>
+      <div className="flex gap-2 pt-2">
+        <Button type="submit" disabled={mutation.isPending || !name.trim()} className="flex-1">
+          {mutation.isPending ? "Saving..." : "Save Changes"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
+      </div>
+    </form>
+  );
+}
+
+// The settings that make up the club's own wording and details. Shown as one
+// card in Settings so everything the setup wizard asked about (and the privacy
+// wording the sign-up form shows) can be changed again later.
+const WORDING_FIELDS: Array<{ key: string; label: string; help?: string; long?: boolean }> = [
+  { key: "club_short_name", label: "Short name", help: "Used in casual wording, e.g. \"Join the Sharks\"." },
+  { key: "club_founded", label: "Year founded", help: "Shown on the About page. Leave blank to hide it." },
+  { key: "sport_name", label: "Sport (lowercase)", help: "e.g. netball — used mid-sentence." },
+  { key: "sport_name_title", label: "Sport (capitalised)", help: "e.g. Netball — used in headings." },
+  { key: "venue_word", label: "What you call your venue", help: "ground, court, pitch, rink…" },
+  { key: "region_name", label: "City / region", help: "e.g. Perth. Used in page titles for search engines." },
+  { key: "region_state", label: "State", help: "e.g. WA" },
+  { key: "league_name", label: "League or association", help: "Leave blank if you're not affiliated." },
+  { key: "league_url", label: "League website" },
+  { key: "team_label_mens", label: "Name for the men's team(s)" },
+  { key: "team_label_womens", label: "Name for the women's team(s)" },
+  { key: "team_label_juniors", label: "Name for the junior team(s)" },
+  { key: "team_label_all", label: "Name for \"all teams\"" },
+  { key: "subsidy_name", label: "Junior fee-help scheme", help: "The name of a government scheme that helps families with fees, e.g. KidSport in WA. Leave blank if there isn't one: the sign-up form then doesn't mention one." },
+  { key: "about_stat2_label", label: "About page fact 2 — label", help: "The About page shows up to four quick facts. Leave a value blank to hide that fact." },
+  { key: "about_stat2_value", label: "About page fact 2 — value" },
+  { key: "about_stat3_label", label: "About page fact 3 — label" },
+  { key: "about_stat3_value", label: "About page fact 3 — value" },
+  { key: "privacy_signup_notice", label: "Privacy notice on the sign-up form", long: true, help: "What the club does with the details people give. Check it matches your privacy policy." },
+  { key: "privacy_consent_label", label: "Privacy tick-box wording", long: true },
+  { key: "privacy_contact_notice", label: "Privacy note on the contact form", long: true },
+];
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 
 /**
@@ -458,6 +609,13 @@ export default function AdminDashboard() {
   // Open the first section they're allowed to see (falls back to Help).
   const firstSection = visibleGroups[0]?.sections[0]?.id ?? "help";
   const [activeTab, setActiveTab] = useState(firstSection);
+  // On a fresh page load the account isn't known yet when the line above
+  // runs, so it always fell back to Help. Once it is known, open the first
+  // section this person can use — unless they've already picked one.
+  const pickedTab = useRef(false);
+  useEffect(() => {
+    if (user && !pickedTab.current) setActiveTab(firstSection);
+  }, [user?.id, firstSection]);
   const [wizardDone, setWizardDone] = useState(false);
   const currentSection = ALL_SECTIONS.find((sec) => sec.id === activeTab);
 
@@ -540,14 +698,26 @@ export default function AdminDashboard() {
     mutationFn: (id: number) => apiRequest("DELETE", `/api/events/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/events/all"] });
+      qc.invalidateQueries({ queryKey: ["/api/events"] });
       toast({ title: "Event deleted" });
     },
+  });
+
+  const deleteRegistration = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/registrations/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/registrations"] }); toast({ title: "Sign-up deleted" }); },
+  });
+
+  const deleteMessage = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/contact/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/contact"] }); toast({ title: "Message deleted" }); },
   });
 
   const deleteAnn = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/announcements/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/announcements/all"] });
+      qc.invalidateQueries({ queryKey: ["/api/announcements"] });
       toast({ title: "Announcement deleted" });
     },
   });
@@ -559,7 +729,16 @@ export default function AdminDashboard() {
   });
 
   const saveSettings = useMutation({
-    mutationFn: (data: Record<string, string>) => apiRequest("PUT", "/api/settings", data),
+    // Only what actually changed is sent. Sending the whole form (as this
+    // once did) quietly put back old values for anything changed elsewhere
+    // since the page loaded — the Shop tab's Stripe keys, the Menu — because
+    // this form was still holding the old copy.
+    mutationFn: (data: Record<string, string>) => {
+      const changed = Object.fromEntries(
+        Object.entries(data).filter(([key, value]) => (settings?.[key] ?? "") !== value),
+      );
+      return Object.keys(changed).length > 0 ? apiRequest("PUT", "/api/settings", changed) : Promise.resolve({ ok: true });
+    },
     onSuccess: () => {
       // Refresh both: the secure copy (this form) and the public one (drives
       // the live site colours, logo etc. via useTheme/useSettings).
@@ -600,12 +779,24 @@ export default function AdminDashboard() {
   // Juniors content editing
   const [juniorsEdit, setJuniorsEdit] = useState<Record<string, { title: string; content: string }>>({});
   const [savingJuniors, setSavingJuniors] = useState(false);
+  // Sections with unsaved typing. Fresh data from the server only replaces
+  // sections that AREN'T in here, so saving one section can't wipe what
+  // someone has typed (and not yet saved) in another.
+  const [juniorsDirty, setJuniorsDirty] = useState<Set<string>>(new Set());
+  const editJuniors = (section: string, change: Partial<{ title: string; content: string }>) => {
+    setJuniorsEdit((p) => ({ ...p, [section]: { ...{ title: "", content: "" }, ...p[section], ...change } }));
+    setJuniorsDirty((d) => new Set(d).add(section));
+  };
 
   useEffect(() => {
     if (juniorsContent.length > 0) {
-      const map: Record<string, { title: string; content: string }> = {};
-      juniorsContent.forEach((c) => { map[c.section] = { title: c.title ?? "", content: c.content }; });
-      setJuniorsEdit(map);
+      setJuniorsEdit((prev) => {
+        const map = { ...prev };
+        juniorsContent.forEach((c) => {
+          if (!juniorsDirty.has(c.section)) map[c.section] = { title: c.title ?? "", content: c.content };
+        });
+        return map;
+      });
     }
   }, [juniorsContent]);
 
@@ -613,6 +804,7 @@ export default function AdminDashboard() {
     setSavingJuniors(true);
     try {
       await apiRequest("PUT", `/api/juniors-content/${section}`, juniorsEdit[section]);
+      setJuniorsDirty((d) => { const n = new Set(d); n.delete(section); return n; });
       qc.invalidateQueries({ queryKey: ["/api/juniors-content"] });
       toast({ title: "Juniors content updated" });
     } catch (e: any) {
@@ -717,7 +909,7 @@ export default function AdminDashboard() {
             ))}
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical"
+        <Tabs value={activeTab} onValueChange={(v) => { pickedTab.current = true; setActiveTab(v); }} orientation="vertical"
               className="flex flex-col md:flex-row gap-6 items-start">
           {/* Grouped sidebar — only shows sections this person may use */}
           <TabsList className="w-full md:w-56 shrink-0 flex-col h-auto bg-transparent p-0 gap-4 items-stretch">
@@ -775,15 +967,9 @@ export default function AdminDashboard() {
             <TabsContent value="events">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Events</h2>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm"><Plus className="h-4 w-4" />Add Event</Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle>New Event</DialogTitle></DialogHeader>
-                    <EventForm onDone={() => {}} />
-                  </DialogContent>
-                </Dialog>
+                <FormDialog title="New Event" trigger={<Button size="sm"><Plus className="h-4 w-4" />Add Event</Button>}>
+                  {(close) => <EventForm onDone={close} />}
+                </FormDialog>
               </div>
               <div className="space-y-3">
                 {events.map((e) => (
@@ -798,19 +984,14 @@ export default function AdminDashboard() {
                         <p className="text-xs text-stone-500 mt-0.5">{formatDate(e.startDate)} {e.location && `· ${e.location}`}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button size="icon" variant="ghost"><Pencil className="h-4 w-4" /></Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-md">
-                            <DialogHeader><DialogTitle>Edit Event</DialogTitle></DialogHeader>
-                            <EventForm event={e} onDone={() => {}} />
-                          </DialogContent>
-                        </Dialog>
+                        <FormDialog title="Edit Event" trigger={<Button size="icon" variant="ghost" aria-label={`Edit ${e.title}`}><Pencil className="h-4 w-4" /></Button>}>
+                          {(close) => <EventForm event={e} onDone={close} />}
+                        </FormDialog>
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => { if (confirm("Delete this event?")) deleteEvent.mutate(e.id); }}
+                          aria-label={`Delete ${e.title}`}
+                          onClick={() => { if (confirm(`Delete the event "${e.title}" (${formatDate(e.startDate)})?\n\nThis can't be undone.`)) deleteEvent.mutate(e.id); }}
                         >
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
@@ -828,15 +1009,9 @@ export default function AdminDashboard() {
             <TabsContent value="news">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Announcements</h2>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm"><Plus className="h-4 w-4" />New Post</Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle>New Announcement</DialogTitle></DialogHeader>
-                    <AnnouncementForm onDone={() => {}} />
-                  </DialogContent>
-                </Dialog>
+                <FormDialog wide title="New Announcement" trigger={<Button size="sm"><Plus className="h-4 w-4" />New Post</Button>}>
+                  {(close) => <AnnouncementForm onDone={close} />}
+                </FormDialog>
               </div>
               <div className="space-y-3">
                 {announcements.map((a) => (
@@ -854,22 +1029,17 @@ export default function AdminDashboard() {
                           <img src={a.featuredImageUrl} alt="" className="w-16 h-10 object-cover rounded mb-1" />
                         )}
                         <p className="font-medium text-stone-900">{a.title}</p>
-                        <p className="text-sm text-stone-500 line-clamp-2 mt-0.5">{a.content}</p>
+                        <p className="text-sm text-stone-500 line-clamp-2 mt-0.5">{previewText(a.content)}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button size="icon" variant="ghost"><Pencil className="h-4 w-4" /></Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-md">
-                            <DialogHeader><DialogTitle>Edit Announcement</DialogTitle></DialogHeader>
-                            <AnnouncementForm ann={a} onDone={() => {}} />
-                          </DialogContent>
-                        </Dialog>
+                        <FormDialog wide title="Edit Announcement" trigger={<Button size="icon" variant="ghost" aria-label={`Edit ${a.title}`}><Pencil className="h-4 w-4" /></Button>}>
+                          {(close) => <AnnouncementForm ann={a} onDone={close} />}
+                        </FormDialog>
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => { if (confirm("Delete?")) deleteAnn.mutate(a.id); }}
+                          aria-label={`Delete ${a.title}`}
+                          onClick={() => { if (confirm(`Delete the post "${a.title}"?\n\nThis can't be undone.`)) deleteAnn.mutate(a.id); }}
                         >
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
@@ -885,9 +1055,14 @@ export default function AdminDashboard() {
           {/* ── Registrations ── */}
           {can("signups") && (
             <TabsContent value="signups">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex items-center justify-between gap-2 flex-wrap">
                 <h2 className="text-lg font-semibold">Sign-Up Enquiries</h2>
-                <span className="text-sm text-stone-500">{registrations.length} total</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-stone-500">{registrations.length} total</span>
+                  <Button size="sm" variant="outline" asChild>
+                    <a href="/api/registrations/export" download><Download className="h-4 w-4" />Export CSV</a>
+                  </Button>
+                </div>
               </div>
               <div className="space-y-3">
                 {registrations.map((r) => (
@@ -899,19 +1074,21 @@ export default function AdminDashboard() {
                             <span className="font-semibold text-stone-900">{r.firstName} {r.lastName}</span>
                             <StatusBadge status={r.status} />
                             {r.isJunior && <Badge variant="secondary" className="text-xs">Junior</Badge>}
-                            {r.kidsportEligible && <Badge variant="gold" className="text-xs">KidSport</Badge>}
+                            {r.kidsportEligible && <Badge variant="gold" className="text-xs">{t("subsidy_name") || "Fee help"} info</Badge>}
                           </div>
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-500">
                             <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{r.email}</span>
                             {r.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{r.phone}</span>}
+                            {r.dateOfBirth && <span>Born {r.dateOfBirth}</span>}
                             <span className="capitalize">{r.teamPreference} · {r.experienceLevel}</span>
                             <span>{formatDate(r.createdAt)}</span>
                           </div>
-                          {r.isJunior && r.parentName && (
-                            <p className="text-xs text-stone-500 mt-1 flex items-center gap-1">
-                              <User className="h-3 w-3" />Parent: {r.parentName} {r.parentEmail && `· ${r.parentEmail}`}
+                          {r.isJunior && (r.parentName || r.parentEmail || r.parentPhone) && (
+                            <p className="text-xs text-stone-500 mt-1 flex items-center gap-1 flex-wrap">
+                              <User className="h-3 w-3" />Parent: {[r.parentName, r.parentEmail, r.parentPhone].filter(Boolean).join(" · ")}
                             </p>
                           )}
+                          {r.howHeard && <p className="text-xs text-stone-500 mt-1">Heard about us: {r.howHeard}</p>}
                           {r.message && <p className="text-xs text-stone-500 mt-1 italic">"{r.message}"</p>}
                         </div>
                         <Select
@@ -928,6 +1105,16 @@ export default function AdminDashboard() {
                             <SelectItem value="declined">Declined</SelectItem>
                           </SelectContent>
                         </Select>
+                        <Button
+                          size="icon" variant="ghost" aria-label={`Delete the sign-up from ${r.firstName} ${r.lastName}`}
+                          onClick={() => {
+                            if (confirm(`Delete the sign-up from ${r.firstName} ${r.lastName}?\n\nAll their details are removed from the website for good. Do this when they ask you to, or once you've moved them into your registration system.`)) {
+                              deleteRegistration.mutate(r.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -952,20 +1139,32 @@ export default function AdminDashboard() {
                         <Label>Heading</Label>
                         <Input
                           value={juniorsEdit[section]?.title ?? ""}
-                          onChange={(ev) => setJuniorsEdit((p) => ({ ...p, [section]: { ...p[section], title: ev.target.value } }))}
+                          onChange={(ev) => editJuniors(section, { title: ev.target.value })}
                         />
                       </div>
                       <div className="space-y-1.5">
                         <Label>Content</Label>
-                        <RichTextEditor
-                          value={juniorsEdit[section]?.content ?? ""}
-                          onChange={(html) => setJuniorsEdit((p) => ({ ...p, [section]: { ...p[section], content: html } }))}
-                          placeholder={`Content for the ${section} section...`}
-                          minHeight="100px"
-                        />
+                        {section === "hero" ? (
+                          // The hero line sits under the page heading as plain
+                          // text; formatted text there showed up as raw <p> tags.
+                          <Textarea
+                            rows={2}
+                            value={previewText(juniorsEdit[section]?.content ?? "")}
+                            onChange={(ev) => editJuniors(section, { content: ev.target.value })}
+                            placeholder="One or two sentences under the Juniors heading"
+                          />
+                        ) : (
+                          <RichTextEditor
+                            value={juniorsEdit[section]?.content ?? ""}
+                            onChange={(html) => editJuniors(section, { content: html })}
+                            placeholder={`Content for the ${section} section...`}
+                            minHeight="100px"
+                          />
+                        )}
                       </div>
                       <Button size="sm" onClick={() => saveJuniors(section)} disabled={savingJuniors}>
                         <CheckCircle className="h-4 w-4" />Save {section}
+                        {juniorsDirty.has(section) && <span className="text-[10px] ml-1">(unsaved)</span>}
                       </Button>
                     </CardContent>
                   </Card>
@@ -979,15 +1178,9 @@ export default function AdminDashboard() {
             <TabsContent value="results">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Match Results</h2>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm"><Plus className="h-4 w-4" />Add Result</Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle>Add Match Result</DialogTitle></DialogHeader>
-                    <ResultForm onDone={() => {}} />
-                  </DialogContent>
-                </Dialog>
+                <FormDialog title="Add Match Result" trigger={<Button size="sm"><Plus className="h-4 w-4" />Add Result</Button>}>
+                  {(close) => <ResultForm onDone={close} />}
+                </FormDialog>
               </div>
               <div className="space-y-3">
                 {resultList.map((r) => {
@@ -1011,9 +1204,15 @@ export default function AdminDashboard() {
                           )}
                           {r.notes && <p className="text-xs text-stone-500 italic mt-0.5">{r.notes}</p>}
                         </div>
-                        <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) deleteResult.mutate(r.id); }}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        <div className="flex gap-1 shrink-0">
+                          <FormDialog title="Edit Match Result" trigger={<Button size="icon" variant="ghost" aria-label={`Edit the result against ${r.opposition}`}><Pencil className="h-4 w-4" /></Button>}>
+                            {(close) => <ResultForm result={r} onDone={close} />}
+                          </FormDialog>
+                          <Button size="icon" variant="ghost" aria-label={`Delete the result against ${r.opposition}`}
+                            onClick={() => { if (confirm(`Delete the result against ${r.opposition} (${r.matchDate})?`)) deleteResult.mutate(r.id); }}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   );
@@ -1028,15 +1227,9 @@ export default function AdminDashboard() {
             <TabsContent value="sponsors">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Sponsors</h2>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm"><Plus className="h-4 w-4" />Add Sponsor</Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle>Add Sponsor</DialogTitle></DialogHeader>
-                    <SponsorForm onDone={() => {}} />
-                  </DialogContent>
-                </Dialog>
+                <FormDialog title="Add Sponsor" trigger={<Button size="sm"><Plus className="h-4 w-4" />Add Sponsor</Button>}>
+                  {(close) => <SponsorForm onDone={close} />}
+                </FormDialog>
               </div>
               <div className="space-y-3">
                 {sponsorList.map((s) => (
@@ -1055,10 +1248,16 @@ export default function AdminDashboard() {
                         {s.websiteUrl && <p className="text-xs text-maroon-600 hover:underline"><a href={s.websiteUrl} target="_blank" rel="noopener noreferrer">{s.websiteUrl}</a></p>}
                       </div>
                       <div className="flex gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => {
-                          apiRequest("PUT", `/api/sponsors/${s.id}`, { isActive: !s.isActive })
-                            .then(() => qc.invalidateQueries({ queryKey: ["/api/sponsors/all"] }));
-                        }}>
+                        <FormDialog title="Edit Sponsor" trigger={<Button size="icon" variant="ghost" aria-label={`Edit ${s.name}`}><Pencil className="h-4 w-4" /></Button>}>
+                          {(close) => <SponsorForm sponsor={s} onDone={close} />}
+                        </FormDialog>
+                        <Button size="icon" variant="ghost" title={s.isActive ? "Hide from the website" : "Show on the website"}
+                          aria-label={s.isActive ? `Hide ${s.name}` : `Show ${s.name}`}
+                          onClick={() => {
+                            apiRequest("PUT", `/api/sponsors/${s.id}`, { isActive: !s.isActive })
+                              .then(() => { qc.invalidateQueries({ queryKey: ["/api/sponsors/all"] }); qc.invalidateQueries({ queryKey: ["/api/sponsors"] }); })
+                              .catch((e) => toast({ title: "Couldn't change that", description: e.message, variant: "destructive" }));
+                          }}>
                           <Eye className="h-4 w-4 text-stone-500" />
                         </Button>
                         <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Remove ${s.name}?`)) deleteSponsor.mutate(s.id); }}>
@@ -1071,7 +1270,7 @@ export default function AdminDashboard() {
                 {sponsorList.length === 0 && (
                   <div className="text-center py-8 text-stone-500">
                     <p>No sponsors yet.</p>
-                    <p className="text-xs mt-1">Upload logos via the Media tab, copy the URL, then add sponsors here.</p>
+                    <p className="text-xs mt-1">Press Add Sponsor, then upload their logo or pick one from your photo library.</p>
                   </div>
                 )}
               </div>
@@ -1106,7 +1305,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-stone-500">{s.subscribedAt?.split("T")[0]}</span>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" onClick={() => unsubscribe.mutate(s.id)}>Remove</Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" onClick={() => { if (confirm(`Remove ${s.email} from the list?\n\nTheir address is deleted from the website.`)) unsubscribe.mutate(s.id); }}>Remove</Button>
                     </div>
                   </div>
                 ))}
@@ -1180,7 +1379,7 @@ export default function AdminDashboard() {
                             <Mail className="h-3 w-3" />{m.email}
                           </p>
                           <p className="text-sm font-medium text-stone-700 mb-1">{m.subject}</p>
-                          <p className="text-sm text-stone-500">{m.message}</p>
+                          <p className="text-sm text-stone-500 whitespace-pre-line">{m.message}</p>
                         </div>
                         <div className="flex gap-1 shrink-0">
                           {!m.isRead && (
@@ -1189,11 +1388,15 @@ export default function AdminDashboard() {
                               <Eye className="h-4 w-4 text-stone-500" />
                             </Button>
                           )}
-                          <a href={`mailto:${m.email}?subject=Re: ${m.subject}`}>
-                            <Button size="icon" variant="ghost" title="Reply by email">
+                          <Button size="icon" variant="ghost" title="Reply by email" aria-label={`Reply to ${m.name} by email`} asChild>
+                            <a href={`mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent(`Re: ${m.subject}`)}`}>
                               <Mail className="h-4 w-4 text-maroon-600" />
-                            </Button>
-                          </a>
+                            </a>
+                          </Button>
+                          <Button size="icon" variant="ghost" title="Delete message" aria-label={`Delete the message from ${m.name}`}
+                            onClick={() => { if (confirm(`Delete the message from ${m.name} ("${m.subject}")?`)) deleteMessage.mutate(m.id); }}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -1209,15 +1412,9 @@ export default function AdminDashboard() {
             <TabsContent value="users">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Admin Users</h2>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm"><Plus className="h-4 w-4" />Add Admin</Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle>Create Admin User</DialogTitle></DialogHeader>
-                    <UserForm onDone={() => {}} />
-                  </DialogContent>
-                </Dialog>
+                <FormDialog title="Create Admin User" trigger={<Button size="sm"><Plus className="h-4 w-4" />Add Admin</Button>}>
+                  {(close) => <UserForm onDone={close} />}
+                </FormDialog>
               </div>
               <div className="space-y-3">
                 {adminUsers.map((u) => (
@@ -1231,15 +1428,21 @@ export default function AdminDashboard() {
                         </div>
                         <p className="text-xs text-stone-500">@{u.username} · {u.email}</p>
                       </div>
-                      {u.id !== (user as any)?.id && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => { if (confirm(`Remove ${u.name}?`)) deleteUser.mutate(u.id); }}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      )}
+                      <div className="flex gap-1 shrink-0">
+                        <FormDialog title={`Edit ${u.name}`} trigger={<Button size="icon" variant="ghost" aria-label={`Edit ${u.name}`}><Pencil className="h-4 w-4" /></Button>}>
+                          {(close) => <UserEditForm account={u} isSelf={u.id === (user as any)?.id} onDone={close} />}
+                        </FormDialog>
+                        {u.id !== (user as any)?.id && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Remove ${u.name}`}
+                            onClick={() => { if (confirm(`Remove ${u.name} (@${u.username})?\n\nThey won't be able to log in. Their posts and photos stay on the site.`)) deleteUser.mutate(u.id); }}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -1274,13 +1477,13 @@ export default function AdminDashboard() {
                     label="Club Logo"
                     value={settingsForm.club_logo_url || undefined}
                     onChange={(url) => setSettingsForm((p) => ({ ...p, club_logo_url: url ?? "" }))}
-                    hint="Replaces the 'L' placeholder in the navigation and home hero. Leave blank to use the default."
+                    hint="Shown in the menu bar and on the home page. Leave blank to show the club's initial instead."
                   />
                   <ImagePicker
                     label="Hero Background Image"
                     value={settingsForm.hero_image_url || undefined}
                     onChange={(url) => setSettingsForm((p) => ({ ...p, hero_image_url: url ?? "" }))}
-                    hint="Appears as the home page hero background with a maroon overlay."
+                    hint="The big photo behind the home page heading (shown under a tint of your primary colour). Also used as the picture when the site is shared on social media."
                   />
 
                   {/* Text settings */}
@@ -1317,6 +1520,41 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
+              {/* ── Wording & club details ── */}
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-maroon-700" />
+                    Wording &amp; club details
+                  </CardTitle>
+                  <p className="text-sm text-stone-500">
+                    The words the site uses about your club. Everything the setup wizard asked about is
+                    here too, so it can be changed again. Leave a box empty to use the standard wording.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {WORDING_FIELDS.map(({ key, label, help, long }) => (
+                    <div key={key} className="space-y-1.5">
+                      <Label htmlFor={`wording-${key}`}>{label}</Label>
+                      {long ? (
+                        <Textarea id={`wording-${key}`} rows={3} placeholder={t(key)}
+                          value={settingsForm[key] ?? ""}
+                          onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))} />
+                      ) : (
+                        <Input id={`wording-${key}`} placeholder={t(key)}
+                          value={settingsForm[key] ?? ""}
+                          onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.value }))} />
+                      )}
+                      <FieldWarning message={checkSettingValue(key, settingsForm[key] ?? "")} />
+                      {help && <p className="text-xs text-stone-500">{help}</p>}
+                    </div>
+                  ))}
+                  <Button onClick={() => saveSettings.mutate(settingsForm)} disabled={saveSettings.isPending}>
+                    {saveSettings.isPending ? "Saving..." : "Save Wording"}
+                  </Button>
+                </CardContent>
+              </Card>
+
               {/* ── Page Visibility ── */}
               <Card className="mt-4">
                 <CardHeader>
@@ -1325,8 +1563,8 @@ export default function AdminDashboard() {
                     Page Visibility
                   </CardTitle>
                   <p className="text-sm text-stone-500">
-                    Toggle pages on or off. When off, the page is hidden from the navigation and shows a 404 to visitors.
-                    Changes take effect instantly — no rebuild needed.
+                    Toggle pages on or off. When off, the page disappears from the menu, footer and search
+                    engines, and its address shows "page not found". Changes take effect instantly.
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1348,10 +1586,13 @@ export default function AdminDashboard() {
                       </div>
                       <Switch
                         checked={settingsForm[key] !== "false"}
+                        aria-label={label}
                         onCheckedChange={(checked) => {
-                          const updated = { ...settingsForm, [key]: checked ? "true" : "false" };
-                          setSettingsForm(updated);
-                          saveSettings.mutate(updated);
+                          const value = checked ? "true" : "false";
+                          setSettingsForm((p) => ({ ...p, [key]: value }));
+                          // Just this one switch: never the rest of the form,
+                          // which may hold unsaved typing.
+                          saveSettings.mutate({ ...(settings ?? {}), [key]: value });
                         }}
                       />
                     </div>
@@ -1469,14 +1710,15 @@ export default function AdminDashboard() {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        const reset = { ...settingsForm,
+                        const colours = {
                           theme_primary: "#7B1E32", theme_primary_dark: "#3A0C17",
                           theme_accent: "#C5942A", theme_gradient_angle: "135deg" };
-                        setSettingsForm(reset);
-                        saveSettings.mutate(reset);
+                        if (!confirm("Put the colours back to the starting maroon and gold?")) return;
+                        setSettingsForm((p) => ({ ...p, ...colours }));
+                        saveSettings.mutate({ ...(settings ?? {}), ...colours });
                       }}
                     >
-                      Reset to club defaults
+                      Reset colours
                     </Button>
                   </div>
                 </CardContent>

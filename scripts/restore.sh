@@ -17,8 +17,23 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# A value from the site's .env file ("" if it isn't set there), without the
+# "# explanation" comments .env lines may carry after the value.
+env_value() {
+  [ -f "$PROJECT_DIR/.env" ] || return 0
+  grep -E "^$1=" "$PROJECT_DIR/.env" | tail -1 | cut -d= -f2- \
+    | sed -E 's/[[:space:]]+#.*$//; s/^["'"'"']//; s/["'"'"']$//' || true
+}
+
+# The same places the backups and the database really are: what's set for
+# this command, else what .env says (where a USB-stick BACKUP_DIR is usually
+# set), else the defaults.
+BACKUP_DIR="${BACKUP_DIR:-$(env_value BACKUP_DIR)}"
 BACKUP_DIR="${BACKUP_DIR:-$PROJECT_DIR/data/backups}"
-DB_FILE="$PROJECT_DIR/data/club.db"
+DB_FILE="$(env_value DATABASE_URL)"
+DB_FILE="${DB_FILE:-./data/club.db}"
+case "$DB_FILE" in /*) ;; *) DB_FILE="$PROJECT_DIR/${DB_FILE#./}" ;; esac
 UPLOADS_DIR="$PROJECT_DIR/public/uploads"
 APP_NAME="$(node -e "try{console.log(require('$PROJECT_DIR/ecosystem.config.cjs').apps[0].name)}catch(e){console.log('club-website')}" 2>/dev/null || echo club-website)"
 SERVICE_NAME="${SERVICE_NAME:-club-website}"
@@ -67,15 +82,20 @@ read -r -p "Type YES to confirm: " CONFIRM
 [ "$CONFIRM" = "YES" ] || { echo "Cancelled — nothing changed."; exit 0; }
 
 # ── Safety net: snapshot the current state first ────────────────────────────
+# With pruning switched off for this one: the usual "keep the newest 30" could
+# otherwise delete the very backup you are about to restore.
 echo ""
 echo "Saving the current state first, in case you need to undo this..."
-BACKUP_DIR="$BACKUP_DIR" node "$PROJECT_DIR/scripts/backup.mjs"
+BACKUP_DIR="$BACKUP_DIR" BACKUP_KEEP=1000000 node "$PROJECT_DIR/scripts/backup.mjs"
 
 # ── Stop the site ───────────────────────────────────────────────────────────
 # The database must not be in use while its file is swapped underneath it.
+# From here on, the site is started again however this script ends, even if a
+# step below fails: a failed restore must never leave the club's website off.
 echo ""
 echo "Stopping the website..."
 stop_site
+trap 'start_site; echo "Website restarted."' EXIT
 
 # ── Restore the database ────────────────────────────────────────────────────
 cp "$SOURCE/club.db" "$DB_FILE"
@@ -92,14 +112,21 @@ echo "✓ Database restored"
 # ── Restore the uploaded photos ─────────────────────────────────────────────
 if [ -d "$SOURCE/uploads" ]; then
   mkdir -p "$UPLOADS_DIR"
-  cp -r "$SOURCE/uploads/." "$UPLOADS_DIR/"
+  # Backups on the same disk share their photos with the live site (backup.mjs
+  # explains why). A photo that is literally the same file is already in
+  # place, and plain `cp` refuses to copy a file onto itself, so skip it.
+  for photo in "$SOURCE/uploads/"*; do
+    [ -f "$photo" ] || continue
+    dest="$UPLOADS_DIR/$(basename "$photo")"
+    [ "$photo" -ef "$dest" ] && continue
+    cp -f "$photo" "$dest"
+  done
   echo "✓ Photos restored"
 else
   echo "· No photos in this backup — leaving existing ones alone"
 fi
 
-# ── Start the site again ────────────────────────────────────────────────────
-start_site
-echo "✓ Website restarted"
+# ── Done ────────────────────────────────────────────────────────────────────
+# The site is started again by the trap above, as this script exits.
 echo ""
 echo "Done. Open the site in a browser and check a few pages look right."

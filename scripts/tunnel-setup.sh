@@ -17,7 +17,7 @@
 # The script will:
 #   • install cloudflared (if needed)
 #   • open a browser login so you can authorise your Cloudflare account
-#   • create a tunnel named "lions-lacrosse"
+#   • create a tunnel named "club-website"
 #   • point yourdomain.com AND www.yourdomain.com at this server
 #   • install it as a systemd service so it starts on boot and self-heals
 #
@@ -25,9 +25,21 @@
 # =============================================================================
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# A value from the site's .env ("" if unset), minus any trailing "# comment".
+env_value() {
+  [ -f "$PROJECT_DIR/.env" ] || return 0
+  grep -E "^$1=" "$PROJECT_DIR/.env" | tail -1 | cut -d= -f2- \
+    | sed -E 's/[[:space:]]+#.*$//; s/^["'"'"']//; s/["'"'"']$//' || true
+}
+
 DOMAIN="${1:-}"
-PORT="${2:-5001}"
-TUNNEL_NAME="lions-lacrosse"
+# The port the site runs on: as given, else the PORT in .env, else 5000 (what
+# the clubhouse installer uses).
+PORT="${2:-$(env_value PORT)}"
+PORT="${PORT:-5000}"
+TUNNEL_NAME="club-website"
 
 if [ -z "$DOMAIN" ]; then
   echo "Usage: ./scripts/tunnel-setup.sh <yourdomain.com> [port]"
@@ -67,6 +79,12 @@ fi
 echo "✓ Authorised with Cloudflare"
 
 # ── 3. Create the tunnel (skip if it already exists) ─────────────────────────
+# Installs set up before the rename used "lions-lacrosse"; carry on with that
+# one rather than creating a second tunnel next to it.
+if ! cloudflared tunnel list 2>/dev/null | grep -qw "$TUNNEL_NAME" \
+   && cloudflared tunnel list 2>/dev/null | grep -qw "lions-lacrosse"; then
+  TUNNEL_NAME="lions-lacrosse"
+fi
 if cloudflared tunnel list 2>/dev/null | grep -qw "$TUNNEL_NAME"; then
   echo "✓ Tunnel '$TUNNEL_NAME' already exists"
 else
@@ -102,9 +120,29 @@ EOF
 echo "✓ Wrote /etc/cloudflared/config.yml"
 
 # ── 5. Point the domain at this tunnel (creates the DNS records for you) ─────
-cloudflared tunnel route dns "$TUNNEL_NAME" "$DOMAIN"       2>/dev/null || echo "  (DNS for $DOMAIN already routed)"
-cloudflared tunnel route dns "$TUNNEL_NAME" "www.$DOMAIN"   2>/dev/null || echo "  (DNS for www.$DOMAIN already routed)"
-echo "✓ DNS records created in Cloudflare"
+# Re-running this script is fine: a name that already points at THIS tunnel is
+# reported as such. Anything else — most often an old A or CNAME record left
+# over from previous hosting — is shown as it is, because the site will not be
+# reachable at that name until it is fixed.
+route_dns() {
+  local out
+  if out="$(cloudflared tunnel route dns "$TUNNEL_NAME" "$1" 2>&1)"; then
+    echo "✓ $1 now points at the tunnel"
+  elif echo "$out" | grep -qi "already configured to route to your tunnel"; then
+    echo "✓ $1 already points at the tunnel"
+  else
+    echo ""
+    echo "✗ Couldn't point $1 at the tunnel. Cloudflare said:"
+    echo "$out" | sed 's/^/    /'
+    echo ""
+    echo "  If that says a record already exists: in the Cloudflare dashboard,"
+    echo "  open DNS for this domain, delete the existing record for $1, then"
+    echo "  run this script again."
+    exit 1
+  fi
+}
+route_dns "$DOMAIN"
+route_dns "www.$DOMAIN"
 
 # ── 6. Run it as a service so it survives reboots ────────────────────────────
 sudo cloudflared service install 2>/dev/null || true
@@ -112,16 +150,29 @@ sudo systemctl enable --now cloudflared
 sleep 2
 sudo systemctl restart cloudflared
 
+# The site's own address goes into .env (if not set already), so links in the
+# emails the site sends point at the real domain.
+if [ -f "$PROJECT_DIR/.env" ] && [ -z "$(env_value SITE_URL)" ]; then
+  if grep -qE '^SITE_URL=' "$PROJECT_DIR/.env"; then
+    sed -i "s|^SITE_URL=.*|SITE_URL=https://${DOMAIN}|" "$PROJECT_DIR/.env"
+  else
+    echo "SITE_URL=https://${DOMAIN}" >> "$PROJECT_DIR/.env"
+  fi
+  echo "✓ Set SITE_URL=https://${DOMAIN} in .env (restart the site to use it)"
+fi
+
+ADMIN_PATH_VALUE="$(env_value ADMIN_PATH)"
 echo ""
 echo "════════════════════════════════════════════════"
 echo " ✅ Tunnel is live"
 echo "════════════════════════════════════════════════"
 echo " Your site:  https://${DOMAIN}"
-echo " Admin:      https://${DOMAIN}\${ADMIN_PATH}/login   (see .env)"
+echo " Admin:      https://${DOMAIN}${ADMIN_PATH_VALUE:-/manage}/login"
 echo ""
 echo " Check it:   sudo systemctl status cloudflared"
 echo " Logs:       sudo journalctl -u cloudflared -f"
 echo ""
-echo " NOTE: make sure the site itself is running on port ${PORT}:"
-echo "       pm2 start ecosystem.config.cjs --env production"
+echo " NOTE: the site itself must be running on port ${PORT}. Check with:"
+echo "       sudo systemctl status club-website     (clubhouse PC)"
+echo "       pm2 status                             (rented server)"
 echo ""

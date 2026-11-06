@@ -680,6 +680,31 @@ export async function registerRoutes(app: Express) {
     res.json(rows);
   });
 
+  // A spreadsheet of every sign-up, for the registrar — and the way to hand a
+  // person a copy of what the club holds about them if they ask.
+  app.get("/api/registrations/export", requireAuth, requirePermission("signups"), async (_req: Request, res: Response) => {
+    const rows = await db.select().from(registrations).orderBy(desc(registrations.createdAt));
+    const csv = csvFile(
+      ["submitted", "status", "first_name", "last_name", "email", "phone", "date_of_birth", "junior",
+        "parent_name", "parent_email", "parent_phone", "team", "experience", "subsidy_info_wanted",
+        "how_heard", "message"],
+      rows.map((r) => [r.createdAt, r.status, r.firstName, r.lastName, r.email, r.phone, r.dateOfBirth,
+        r.isJunior ? "yes" : "no", r.parentName, r.parentEmail, r.parentPhone, r.teamPreference,
+        r.experienceLevel, r.kidsportEligible ? "yes" : "no", r.howHeard, r.message]),
+    );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${csvFilename("sign-ups")}"`);
+    res.send(csv);
+  });
+
+  // Deleting a sign-up or a message: for tidying up, and for when someone
+  // asks the club to delete their details (which the Privacy Act expects a
+  // club to be able to do).
+  app.delete("/api/registrations/:id", requireAuth, requirePermission("signups"), async (req: Request, res: Response) => {
+    await db.delete(registrations).where(eq(registrations.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  });
+
   app.put("/api/registrations/:id/status", requireAuth, requirePermission("signups"), async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
     const { status } = req.body;
@@ -726,6 +751,11 @@ export async function registerRoutes(app: Express) {
   app.get("/api/contact", requireAuth, requirePermission("messages"), async (_req: Request, res: Response) => {
     const rows = await db.select().from(contactMessages).orderBy(desc(contactMessages.createdAt)).limit(200);
     res.json(rows);
+  });
+
+  app.delete("/api/contact/:id", requireAuth, requirePermission("messages"), async (req: Request, res: Response) => {
+    await db.delete(contactMessages).where(eq(contactMessages.id, parseInt(req.params.id)));
+    res.json({ ok: true });
   });
 
   app.put("/api/contact/:id/read", requireAuth, requirePermission("messages"), async (req: Request, res: Response) => {
@@ -1071,10 +1101,11 @@ export async function registerRoutes(app: Express) {
     res.send(csv);
   });
 
+  // Removing a subscriber deletes their address outright. Under the Privacy
+  // Act a person who asks to be removed should be, not kept on file switched
+  // off; and if they sign up again later they simply rejoin.
   app.delete("/api/newsletter/subscribers/:id", requireAuth, requirePermission("newsletter"), async (req: Request, res: Response) => {
-    await db.update(newsletterSubscribers)
-      .set({ isActive: false })
-      .where(eq(newsletterSubscribers.id, parseInt(req.params.id)));
+    await db.delete(newsletterSubscribers).where(eq(newsletterSubscribers.id, parseInt(req.params.id)));
     res.json({ ok: true });
   });
 

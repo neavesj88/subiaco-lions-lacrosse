@@ -18,14 +18,17 @@
 # When the club has a real domain, use scripts/tunnel-setup.sh instead.
 #
 # USAGE:
-#   ./scripts/tunnel-quick.sh          # tunnels the default port (5001)
-#   ./scripts/tunnel-quick.sh 5000     # tunnels a different port
+#   ./scripts/tunnel-quick.sh          # tunnels the site's port (PORT in .env, else 5000)
+#   ./scripts/tunnel-quick.sh 5001     # tunnels a different port
 #
 # Press Ctrl+C to stop the tunnel (the site keeps running locally).
 # =============================================================================
 set -euo pipefail
 
-PORT="${1:-5001}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+ENV_PORT="$( [ -f "$PROJECT_DIR/.env" ] && grep -E '^PORT=' "$PROJECT_DIR/.env" | tail -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//' || true)"
+PORT="${1:-${ENV_PORT:-5000}}"
 
 # ── Check the site is actually running on that port ──────────────────────────
 # Done FIRST so we don't install anything before knowing there's a site to serve.
@@ -33,10 +36,11 @@ if ! curl -fsS --max-time 3 "http://localhost:${PORT}/" >/dev/null 2>&1; then
   echo ""
   echo "⚠ Nothing is responding on http://localhost:${PORT}"
   echo "  Start the site first, e.g.:"
-  echo "    pm2 start ecosystem.config.cjs --env production     (production)"
+  echo "    sudo systemctl start club-website                    (clubhouse PC)"
+  echo "    pm2 start ecosystem.config.cjs --env production     (rented server)"
   echo "    npm run dev                                          (development)"
   echo ""
-  echo "  Or point at a different port:  ./scripts/tunnel-quick.sh 5000"
+  echo "  Or point at a different port:  ./scripts/tunnel-quick.sh 5001"
   echo ""
   exit 1
 fi
