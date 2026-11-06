@@ -10,7 +10,7 @@
 // a break-in on the clubhouse PC could never expose anyone's card.
 // =============================================================================
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -21,7 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock, ShoppingCart, AlertCircle } from "lucide-react";
 import { useSiteText } from "@/hooks/use-site-text";
-import { useCart, formatMoney } from "@/hooks/use-cart";
+import { useCart, formatMoney, syncCartWithShop } from "@/hooks/use-cart";
+import type { ProductWithVariants } from "@shared/schema";
 
 interface StoreConfig {
   mode: string;
@@ -51,17 +52,43 @@ export default function StoreCheckout() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
-  const [method, setMethod] = useState<"pickup" | "shipping">("pickup");
+  const [chosenMethod, setMethod] = useState<"pickup" | "shipping" | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // The current shop, to bring the cart's prices and stock up to date before
+  // anyone pays (syncCartWithShop explains why).
+  const { data: products } = useQuery<ProductWithVariants[]>({
+    queryKey: ["/api/products"],
+    queryFn: () => apiRequest("GET", "/api/products"),
+  });
+  const [changes, setChanges] = useState<string[]>([]);
+  useEffect(() => {
+    if (products) setChanges(syncCartWithShop(products));
+  }, [products]);
+
   const symbol = config?.currencySymbol ?? "$";
 
-  // Shown so the total matches what they'll see on the payment page. The
-  // server works this out again independently — this is display only.
+  // Only ask "collect or post?" when there's a real choice. Nothing in the
+  // cart needs posting: it's collected. Only one option switched on: that
+  // one. (Defaulting to "collect" even when only posting was offered meant a
+  // postage-only shop rejected almost every order with "Pickup isn't
+  // available".)
+  const needsPosting = cart.lines.some((l) => l.requiresShipping !== false);
+  const canCollect = !!config?.pickupEnabled || !needsPosting;
+  const canPost = !!config?.shippingEnabled && needsPosting;
+  const method: "pickup" | "shipping" =
+    chosenMethod === "shipping" && canPost ? "shipping"
+    : chosenMethod === "pickup" && canCollect ? "pickup"
+    : canCollect ? "pickup" : "shipping";
+  const offerChoice = canCollect && canPost;
+
+  // Shown so the total matches what they'll see on the payment page. Worked
+  // out the same way as the server: postage only when something needs
+  // posting, free over the threshold. The server still decides for real.
   const freeOver = config?.freeShippingOverCents ?? 0;
   const shippingCents =
-    method === "shipping" && config?.shippingEnabled
+    method === "shipping" && canPost && config
       ? (freeOver > 0 && cart.subtotalCents >= freeOver ? 0 : config.shippingCents)
       : 0;
   const totalCents = cart.subtotalCents + shippingCents;
@@ -155,12 +182,20 @@ export default function StoreCheckout() {
               <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
             </div>
 
-            {/* How they want it */}
+            {changes.length > 0 && (
+              <div className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1" role="status">
+                <p className="font-medium">Your cart has been updated:</p>
+                {changes.map((c) => <p key={c}>{c}</p>)}
+              </div>
+            )}
+
+            {/* How they want it — only asked when there's a real choice */}
+            {offerChoice && (
             <div className="space-y-2">
               <Label>How would you like it?</Label>
               <div className="grid sm:grid-cols-2 gap-3">
-                {config?.pickupEnabled && (
-                  <button type="button" onClick={() => setMethod("pickup")}
+                {canCollect && (
+                  <button type="button" onClick={() => setMethod("pickup")} aria-pressed={method === "pickup"}
                     className={`text-left border rounded-xl p-4 transition-colors ${
                       method === "pickup" ? "border-maroon-600 bg-maroon-50" : "border-stone-200 hover:border-stone-300"
                     }`}>
@@ -169,8 +204,8 @@ export default function StoreCheckout() {
                     <p className="text-xs font-medium text-green-700 mt-1">Free</p>
                   </button>
                 )}
-                {config?.shippingEnabled && (
-                  <button type="button" onClick={() => setMethod("shipping")}
+                {canPost && config && (
+                  <button type="button" onClick={() => setMethod("shipping")} aria-pressed={method === "shipping"}
                     className={`text-left border rounded-xl p-4 transition-colors ${
                       method === "shipping" ? "border-maroon-600 bg-maroon-50" : "border-stone-200 hover:border-stone-300"
                     }`}>
@@ -185,6 +220,14 @@ export default function StoreCheckout() {
                 )}
               </div>
             </div>
+            )}
+            {!offerChoice && config && (
+              <p className="text-sm text-stone-600 bg-stone-50 border rounded-lg p-3">
+                {method === "shipping"
+                  ? <>This order will be <strong>posted</strong> to you.</>
+                  : <><strong>{t("store_pickup_option")}</strong> — {t("store_pickup_note")}</>}
+              </p>
+            )}
 
             {method === "shipping" && (
               <div className="space-y-1.5">

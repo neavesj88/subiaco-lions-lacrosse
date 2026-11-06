@@ -85,6 +85,7 @@ export const CLUB_DEFAULTS: Record<string, string> = {
   // ── Page names (navigation + headings) ────────────────────────────────────
   nav_label_home: "Home",
   nav_label_about: "About",
+  nav_label_news: "News",
   nav_label_calendar: "Calendar",
   nav_label_fixtures: "Fixtures",
   nav_label_gallery: "Photo Gallery",

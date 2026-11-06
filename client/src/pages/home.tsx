@@ -13,7 +13,7 @@ import { usePageContent } from "@/hooks/use-page-content";
 import EditableSection from "@/components/editable-section";
 import { useClubDetails } from "@/components/club-details";
 import { useSiteText } from "@/hooks/use-site-text";
-import { formatDate, formatDateShort } from "@/lib/utils";
+import { formatDate, formatDateShort, parseDate } from "@/lib/utils";
 import { CalendarDays, UserPlus, MapPin, Megaphone, Trophy, Mail } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 import type { Announcement, Event, Sponsor, MatchResult } from "@shared/schema";
@@ -161,12 +161,15 @@ export default function Home() {
                     </div>
                   )}
                   <CardHeader className={a.featuredImageUrl ? "pt-4" : undefined}>
-                    {a.isPinned && <span className="text-xs font-semibold text-gold-600 flex items-center gap-1 mb-1">📌 Pinned</span>}
+                    {a.isPinned && <span className="text-xs font-semibold text-gold-800 flex items-center gap-1 mb-1">📌 Pinned</span>}
                     <CardTitle className="text-base">{a.title}</CardTitle>
                     <p className="text-xs text-stone-500">{formatDate(a.createdAt)}</p>
                   </CardHeader>
                   <CardContent>
                     <RichTextDisplay html={a.content} className="text-sm text-stone-600 line-clamp-4 [&_*]:text-sm" />
+                    <Link href={`/news#post-${a.id}`} className="inline-block mt-3 text-sm font-medium text-maroon-700 hover:underline">
+                      Read more<span className="sr-only">: {a.title}</span> →
+                    </Link>
                   </CardContent>
                 </Card>
               ))}
@@ -192,8 +195,8 @@ export default function Home() {
                   <CardContent className="pt-6">
                     <div className="flex items-start gap-3">
                       <div className="bg-maroon-700 text-white rounded-lg px-3 py-2 text-center min-w-[56px] shrink-0">
-                        <div className="text-xs uppercase tracking-wide">{new Date(e.startDate).toLocaleDateString("en-AU", { month: "short" })}</div>
-                        <div className="text-2xl font-bold leading-none">{new Date(e.startDate).getDate()}</div>
+                        <div className="text-xs uppercase tracking-wide">{parseDate(e.startDate).toLocaleDateString("en-AU", { month: "short" })}</div>
+                        <div className="text-2xl font-bold leading-none">{parseDate(e.startDate).getDate()}</div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <Badge variant={e.eventType as any} className="mb-1.5 text-xs capitalize">{e.eventType}</Badge>
@@ -239,7 +242,7 @@ export default function Home() {
                   <CardContent className="pt-4 pb-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <Badge variant="secondary" className="text-xs mb-1 capitalize">{r.teamCategory}</Badge>
+                        <Badge variant="secondary" className="text-xs mb-1">{t(`team_label_${r.teamCategory}`) || r.teamCategory}</Badge>
                         <p className="font-semibold text-sm text-stone-900 truncate">
                           {r.isHome ? "vs" : "@"} {r.opposition}
                         </p>
@@ -314,6 +317,8 @@ export default function Home() {
                 <input
                   type="text"
                   placeholder="Your name (optional)"
+                  aria-label="Your name (optional)"
+                  autoComplete="name"
                   value={subName}
                   onChange={(e) => setSubName(e.target.value)}
                   className="flex-1 h-10 px-3 rounded-md border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-maroon-500"
@@ -321,6 +326,8 @@ export default function Home() {
                 <input
                   type="email"
                   placeholder="Your email address"
+                  aria-label="Your email address"
+                  autoComplete="email"
                   value={subEmail}
                   onChange={(e) => setSubEmail(e.target.value)}
                   required

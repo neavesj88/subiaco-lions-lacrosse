@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,12 +38,20 @@ export function StoreThankYou() {
   const cart = useCart();
   const [order, setOrder] = useState<OrderSummary | null>(null);
   const [checking, setChecking] = useState(true);
+  const { data: shop } = useQuery<{ currencySymbol?: string }>({
+    queryKey: ["/api/store/config"],
+    queryFn: () => apiRequest("GET", "/api/store/config"),
+  });
+  const symbol = shop?.currencySymbol || "$";
 
+  // Empty the cart only once the payment is CONFIRMED. Anyone can open this
+  // page's address; it used to empty the cart (and say "payment received")
+  // whether or not anything had been paid.
+  const confirmedNow = order?.status === "paid" || order?.status === "fulfilled";
   useEffect(() => {
-    // Empty the cart now the customer has actually paid for it.
-    cart.clear();
+    if (confirmedNow) cart.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [confirmedNow]);
 
   useEffect(() => {
     if (!reference) { setChecking(false); return; }
@@ -68,7 +77,7 @@ export function StoreThankYou() {
     return () => { cancelled = true; };
   }, [reference]);
 
-  const confirmed = order?.status === "paid";
+  const confirmed = confirmedNow;
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-4 py-16">
@@ -81,15 +90,17 @@ export function StoreThankYou() {
           )}
 
           <h1 className="text-2xl font-bold text-stone-900 mb-2">
-            {confirmed ? t("store_thanks_title") : "Payment received — confirming"}
+            {confirmed ? t("store_thanks_title") : reference ? "Checking your payment" : "No order to show"}
           </h1>
 
           <p className="text-stone-600 mb-6">
-            {confirmed
-              ? t("store_thanks_body").replace("{ref}", reference)
-              : checking
-                ? "Just confirming with the payment provider…"
-                : `We're still confirming this one. Your reference is ${reference} — if you don't get an email shortly, contact the club and quote it.`}
+            {!reference
+              ? "This page shows an order after you've paid for it. Your cart is still saved if you want to go back to it."
+              : confirmed
+                ? t("store_thanks_body").replace("{ref}", reference)
+                : checking
+                  ? "Just confirming with the payment provider…"
+                  : `We're still confirming this one. Your reference is ${reference} — if you don't get an email shortly, contact the club and quote it.`}
           </p>
 
           {order && order.items.length > 0 && (
@@ -102,11 +113,11 @@ export function StoreThankYou() {
                       <span className="text-stone-500"> ({i.variantLabel})</span>
                     )}
                   </span>
-                  <span>{formatMoney(i.unitPriceCents * i.quantity)}</span>
+                  <span>{formatMoney(i.unitPriceCents * i.quantity, symbol)}</span>
                 </div>
               ))}
               <div className="flex justify-between font-semibold pt-2 border-t text-sm">
-                <span>{t("store_total")}</span><span>{formatMoney(order.totalCents)}</span>
+                <span>{t("store_total")}</span><span>{formatMoney(order.totalCents, symbol)}</span>
               </div>
               <p className="text-xs text-stone-500 pt-2">
                 {order.fulfilmentMethod === "shipping"

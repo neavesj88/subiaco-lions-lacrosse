@@ -33,10 +33,14 @@ export function Toaster() {
   }, []);
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 w-80">
+    // A "live region": screen readers read each message out as it appears, so
+    // someone who can't see the corner of the screen still hears that their
+    // form failed to send. Errors interrupt (alert); other messages wait.
+    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]" aria-live="polite">
       {list.map((t) => (
         <div
           key={t.id}
+          role={t.variant === "destructive" ? "alert" : "status"}
           className={cn(
             "rounded-lg border p-4 shadow-lg bg-white flex items-start gap-3",
             t.variant === "destructive" && "border-red-200 bg-red-50"
@@ -58,8 +62,9 @@ export function Toaster() {
               listeners.forEach((l) => l([...toasts]));
             }}
             className="text-stone-500 hover:text-stone-700"
+            aria-label="Dismiss message"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       ))}

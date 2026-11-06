@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ImageIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePageContent } from "@/hooks/use-page-content";
@@ -85,6 +85,7 @@ export default function Gallery() {
       {/* Lightbox */}
       <Dialog open={selected !== null} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="max-w-5xl w-full p-2 bg-black/95 border-none">
+          <DialogTitle className="sr-only">{selectedPhoto?.caption || "Club photo"}</DialogTitle>
           <div className="relative flex items-center justify-center min-h-[60vh]">
             {selectedPhoto && (
               <img
@@ -98,6 +99,7 @@ export default function Gallery() {
             {selected !== null && selected > 0 && (
               <button
                 onClick={prev}
+                aria-label="Previous photo"
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full p-2 transition-colors"
               >
                 <ChevronLeft className="h-6 w-6" />
@@ -106,6 +108,7 @@ export default function Gallery() {
             {selected !== null && selected < photos.length - 1 && (
               <button
                 onClick={next}
+                aria-label="Next photo"
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full p-2 transition-colors"
               >
                 <ChevronRight className="h-6 w-6" />
@@ -115,6 +118,7 @@ export default function Gallery() {
             {/* Close */}
             <button
               onClick={() => setSelected(null)}
+              aria-label="Close photo"
               className="absolute top-2 right-2 bg-black/50 hover:bg-black/80 text-white rounded-full p-1.5 transition-colors"
             >
               <X className="h-5 w-5" />

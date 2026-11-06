@@ -209,7 +209,7 @@ export default function Store() {
               </div>
 
               {cart.lines.some((l) => l.maxQuantity != null && l.quantity >= l.maxQuantity) && (
-                <p className="text-xs text-amber-600">
+                <p className="text-xs text-amber-800">
                   You've reached the most we have available of one of these.
                 </p>
               )}
@@ -318,7 +318,7 @@ function ProductCard({
               })}
             </div>
             {chosen && isAvailable(chosen) && chosen.stock !== null && chosen.stock !== undefined && chosen.stock > 0 && chosen.stock <= 3 && (
-              <p className="text-xs text-amber-600 mt-1.5">
+              <p className="text-xs text-amber-800 mt-1.5">
                 {t("store_low_stock").replace("{n}", String(chosen.stock))}
               </p>
             )}

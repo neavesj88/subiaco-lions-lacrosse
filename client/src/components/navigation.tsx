@@ -42,7 +42,16 @@ export default function Navigation() {
     const onDown = (e: MouseEvent) => {
       if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenDropdown(null);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenDropdown(null); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Put keyboard focus back on the dropdown's own button. The menu links
+      // disappear as it closes, and without this focus fell back to the top
+      // of the page, so a keyboard user had to tab through everything again.
+      const trigger = navRef.current?.querySelector<HTMLButtonElement>(
+        `[data-dropdown="${CSS.escape(openDropdown)}"]`);
+      setOpenDropdown(null);
+      trigger?.focus();
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -90,8 +99,12 @@ export default function Navigation() {
                   className="relative"
                   onMouseEnter={() => setOpenDropdown(entry.label)}
                   onMouseLeave={() => setOpenDropdown(null)}
+                  // Tabbing out of the dropdown closes it, rather than leaving
+                  // it open over the page.
+                  onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpenDropdown(null); }}
                 >
                   <button
+                    data-dropdown={entry.label}
                     className={cn("flex items-center gap-1", linkClass(
                       entry.children.some((c) => c.href === location)))}
                     aria-expanded={openDropdown === entry.label}
@@ -137,16 +150,16 @@ export default function Navigation() {
               ),
             )}
 
-            <Link href="/sign-up" className="ml-1">
-              <Button size="sm" variant="gold">{t("nav_label_signup")}</Button>
-            </Link>
+            {/* A link styled as a button (asChild), not a button inside a link:
+                one thing to tab to, and announced correctly as a link. */}
+            <Button asChild size="sm" variant="gold" className="ml-1">
+              <Link href="/sign-up">{t("nav_label_signup")}</Link>
+            </Button>
 
             {user && (
-              <Link href={ADMIN_PATH} className="ml-1">
-                <Button size="sm" variant="outline" className="border-maroon-400 text-white hover:bg-maroon-600 gap-1.5">
-                  <Shield className="h-3.5 w-3.5" /> Admin
-                </Button>
-              </Link>
+              <Button asChild size="sm" variant="outline" className="ml-1 border-maroon-400 text-white hover:bg-maroon-600 gap-1.5">
+                <Link href={ADMIN_PATH}><Shield className="h-3.5 w-3.5" aria-hidden="true" /> Admin</Link>
+              </Button>
             )}
           </div>
 
@@ -177,15 +190,15 @@ export default function Navigation() {
                 {item.label}
               </Link>
             ))}
-            <Link href="/sign-up" onClick={() => setMobileOpen(false)}>
-              <Button size="sm" variant="gold" className="w-full mt-1">{t("nav_label_signup")}</Button>
-            </Link>
+            <Button asChild size="sm" variant="gold" className="w-full mt-1">
+              <Link href="/sign-up" onClick={() => setMobileOpen(false)}>{t("nav_label_signup")}</Link>
+            </Button>
             {user && (
-              <Link href={ADMIN_PATH} onClick={() => setMobileOpen(false)}>
-                <Button size="sm" variant="outline" className="w-full mt-1 border-maroon-400 text-white gap-1.5">
-                  <Shield className="h-3.5 w-3.5" /> Admin Panel
-                </Button>
-              </Link>
+              <Button asChild size="sm" variant="outline" className="w-full mt-1 border-maroon-400 text-white gap-1.5">
+                <Link href={ADMIN_PATH} onClick={() => setMobileOpen(false)}>
+                  <Shield className="h-3.5 w-3.5" aria-hidden="true" /> Admin Panel
+                </Link>
+              </Button>
             )}
           </div>
         </div>

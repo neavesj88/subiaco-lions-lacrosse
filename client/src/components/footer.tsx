@@ -102,7 +102,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-maroon-700 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-maroon-400">
+        <div className="mt-8 pt-6 border-t border-maroon-700 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-maroon-200">
           <p>© {new Date().getFullYear()} {club.clubFullName}. All rights reserved.</p>
           {t("league_name") && (
             <p>

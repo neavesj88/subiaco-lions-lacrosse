@@ -51,6 +51,11 @@ export const PAGE_SEO: Record<string, PageSeo> = {
       "Game schedules, scores and ladders for all {club} teams across Men's, Women's and Junior divisions.",
     keywords: "{club} fixtures, {sport} results[[ {region}]], {sport} ladder",
   },
+  "/news": {
+    title: "Club News | {club}",
+    description: "The latest news and announcements from {club}.",
+    keywords: "{club} news, {sport} club news[[ {region}]]",
+  },
   "/gallery": {
     title: "Photo Gallery | {club}",
     description: "Match day moments, training sessions and club life at {club}. Browse our photo gallery.",

@@ -70,6 +70,10 @@ export default function SignUp() {
     onSuccess: () => {
       setSubmitted(true);
       reset();
+      // The junior section follows this, so it must go back to unticked with
+      // the form; otherwise "Submit another" showed the parent fields for an
+      // adult sign-up.
+      setIsJunior(false);
     },
     onError: (e) => {
       toast({ title: "Submission failed", description: e.message, variant: "destructive" });
@@ -192,15 +196,16 @@ export default function SignUp() {
                     <Input id="dateOfBirth" type="date" {...register("dateOfBirth")} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Team Preference</Label>
+                    <Label htmlFor="teamPreference">Team Preference</Label>
                     <Select onValueChange={(v) => setValue("teamPreference", v as any)} defaultValue="unsure">
-                      <SelectTrigger>
+                      <SelectTrigger id="teamPreference">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="mens">Men's</SelectItem>
-                        <SelectItem value="womens">Women's</SelectItem>
-                        <SelectItem value="juniors">Juniors</SelectItem>
+                        {/* The club's own team names (Admin -> Settings -> Wording) */}
+                        <SelectItem value="mens">{t("team_label_mens")}</SelectItem>
+                        <SelectItem value="womens">{t("team_label_womens")}</SelectItem>
+                        <SelectItem value="juniors">{t("team_label_juniors")}</SelectItem>
                         <SelectItem value="unsure">Not sure yet</SelectItem>
                       </SelectContent>
                     </Select>
@@ -208,9 +213,9 @@ export default function SignUp() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Experience Level</Label>
+                  <Label htmlFor="experienceLevel">Experience Level</Label>
                   <Select onValueChange={(v) => setValue("experienceLevel", v as any)} defaultValue="beginner">
-                    <SelectTrigger>
+                    <SelectTrigger id="experienceLevel">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

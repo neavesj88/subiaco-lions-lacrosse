@@ -27,6 +27,9 @@ export interface CartLine {
   // was captured when the item was added and someone else may have bought the
   // last one since.
   maxQuantity?: number | null;
+  // Whether this item needs posting. Lets the checkout work out postage the
+  // same way the server will: no postage unless something needs posting.
+  requiresShipping?: boolean;
 }
 
 const STORAGE_KEY = "club-store-cart";
@@ -38,7 +41,16 @@ function notify() {
   for (const l of listeners) l();
 }
 
+// The cart as last written, kept in memory as well. Some browsers (private
+// windows, strict settings) refuse to store anything; without this copy,
+// every change was read back from that empty storage and lost at once, so the
+// cart simply didn't work there. It now works for the visit, just not across
+// visits.
+let memory: CartLine[] = [];
+let storageWorks = true;
+
 function read(): CartLine[] {
+  if (!storageWorks) return memory.map((l) => ({ ...l }));
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -56,12 +68,59 @@ function isValidLine(l: unknown): l is CartLine {
 }
 
 function write(lines: CartLine[]) {
+  memory = lines.map((l) => ({ ...l }));
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
+    storageWorks = true;
   } catch {
-    /* private browsing can refuse storage — the cart still works this session */
+    storageWorks = false;   // keep going from the in-memory copy (see above)
   }
   notify();
+}
+
+/**
+ * Bring the cart up to date with the shop as it is now.
+ *
+ * In: the current products from the server. Out: plain-English notes about
+ * anything that changed (empty if nothing did).
+ *
+ * A cart can sit in a browser for days. Prices change, sizes sell out, items
+ * get taken down. Without this the cart and the Pay button showed the old
+ * price, and Stripe then charged the new one — a total that changes between
+ * the button and the payment page.
+ */
+export function syncCartWithShop(products: ProductWithVariants[]): string[] {
+  const notes: string[] = [];
+  const next: CartLine[] = [];
+  for (const line of read()) {
+    const product = products.find((p) => p.id === line.productId);
+    const variant = product?.variants.find((v) => v.id === line.variantId);
+    const label = line.variantLabel && line.variantLabel !== "One size" ? `${line.productName} (${line.variantLabel})` : line.productName;
+    if (!product || !variant || !product.isActive || product.soldOut || variant.isActive === false
+        || (variant.stock !== null && variant.stock !== undefined && variant.stock <= 0)) {
+      notes.push(`${label} is no longer available, so it was taken out of your cart.`);
+      continue;
+    }
+    const price = variant.priceCents ?? product.priceCents;
+    if (price !== line.unitPriceCents) {
+      notes.push(`The price of ${label} has changed.`);
+    }
+    const ceiling = Math.min(product.maxPerOrder, variant.stock ?? Number.MAX_SAFE_INTEGER);
+    const quantity = Math.min(line.quantity, ceiling);
+    if (quantity < line.quantity) notes.push(`Only ${quantity} of ${label} can be ordered now.`);
+    next.push({
+      ...line,
+      productName: product.name,
+      variantLabel: variant.label,
+      unitPriceCents: price,
+      quantity,
+      imageUrl: product.imageUrl,
+      maxQuantity: Number.isFinite(ceiling) ? ceiling : null,
+      requiresShipping: product.requiresShipping,
+    });
+  }
+  if (JSON.stringify(next) !== JSON.stringify(read())) write(next);
+  return notes;
 }
 
 export function useCart() {
@@ -108,6 +167,7 @@ export function useCart() {
         quantity: finalQty,
         imageUrl: product.imageUrl,
         maxQuantity: Number.isFinite(ceiling) ? ceiling : null,
+        requiresShipping: product.requiresShipping,
       });
     }
     write(current);

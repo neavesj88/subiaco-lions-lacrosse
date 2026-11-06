@@ -62,6 +62,7 @@ export interface BuiltInPage {
 export const BUILT_IN_PAGES: BuiltInPage[] = [
   { key: "home",          href: "/",              labelKey: "nav_label_home",          essential: true },
   { key: "about",         href: "/about",         labelKey: "nav_label_about" },
+  { key: "news",          href: "/news",          labelKey: "nav_label_news" },
   { key: "calendar",      href: "/calendar",      labelKey: "nav_label_calendar" },
   { key: "fixtures",      href: "/fixtures",      labelKey: "nav_label_fixtures",      visibilityKey: "fixtures" },
   { key: "gallery",       href: "/gallery",       labelKey: "nav_label_gallery",       visibilityKey: "gallery" },
@@ -138,7 +139,14 @@ export function readMenu(raw: string | undefined, labelFor: (key: string) => str
           !!i && typeof i.key === "string" && typeof i.label === "string" && typeof i.place === "string",
       )
       .map((i) => ({ key: i.key, label: i.label, place: normalisePlace(i.place) }));
-    return clean.length > 0 ? clean : defaultMenu(labelFor);
+    if (clean.length === 0) return defaultMenu(labelFor);
+    // A page the site gained after this menu was saved (News, say) is added
+    // hidden, so it shows up in Admin -> Menu ready to be placed, instead of
+    // being impossible to add to a menu that was saved before it existed.
+    const missing = BUILT_IN_PAGES
+      .filter((p) => !clean.some((i) => i.key === p.key))
+      .map((p) => ({ key: p.key, label: labelFor(p.labelKey), place: HIDDEN }));
+    return [...clean, ...missing];
   } catch {
     return defaultMenu(labelFor);
   }

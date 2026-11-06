@@ -18,7 +18,7 @@
 //   4. Add its SEO entry in shared/seo.ts and nav link in navigation.tsx
 // =============================================================================
 
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense, type ComponentType } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -29,30 +29,57 @@ import EditModeBanner from "@/components/edit-mode-banner";
 import ErrorBoundary from "@/components/error-boundary";
 import SEO from "@/components/seo";
 import { useTheme } from "@/hooks/use-theme";
+import { useSettings } from "@/hooks/use-settings";
 import { ADMIN_PATH, ADMIN_LOGIN_PATH } from "@/lib/admin-path";
 
 // Home is loaded eagerly — it's the page most visitors land on first.
 import Home from "@/pages/home";
 
+/**
+ * Load a page's code on demand, recovering from a site update.
+ *
+ * After the site is updated, the page already open in someone's browser still
+ * asks for the OLD code files, which no longer exist, and the visitor got the
+ * "Something went wrong" screen. Reloading fetches the new site, so that is
+ * done once, automatically. Only once per visit, so a genuinely broken
+ * connection shows the error rather than reloading forever.
+ */
+function lazyPage<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) {
+  return lazy(() => load().catch((err) => {
+    const key = "reloaded-for-site-update";
+    let already = true;
+    try {
+      already = sessionStorage.getItem(key) === "1";
+      if (!already) sessionStorage.setItem(key, "1");
+    } catch { /* storage blocked: don't risk a reload loop */ }
+    if (!already) {
+      window.location.reload();
+      return new Promise<{ default: T }>(() => {});   // the reload takes over
+    }
+    throw err;
+  }));
+}
+
 // Everything else loads on demand (see PERFORMANCE note above).
-const About = lazy(() => import("@/pages/about"));
-const Calendar = lazy(() => import("@/pages/calendar"));
-const Fixtures = lazy(() => import("@/pages/fixtures"));
-const Gallery = lazy(() => import("@/pages/gallery"));
-const SignUp = lazy(() => import("@/pages/sign-up"));
-const Juniors = lazy(() => import("@/pages/juniors"));
-const Store = lazy(() => import("@/pages/store"));
-const StoreCheckout = lazy(() => import("@/pages/store-checkout"));
-const StoreThankYou = lazy(() => import("@/pages/store-result").then((m) => ({ default: m.StoreThankYou })));
-const StoreCancelled = lazy(() => import("@/pages/store-result").then((m) => ({ default: m.StoreCancelled })));
-const Contact = lazy(() => import("@/pages/contact"));
-const CoachesBoard = lazy(() => import("@/pages/coaches-board"));
+const About = lazyPage(() => import("@/pages/about"));
+const Calendar = lazyPage(() => import("@/pages/calendar"));
+const Fixtures = lazyPage(() => import("@/pages/fixtures"));
+const Gallery = lazyPage(() => import("@/pages/gallery"));
+const SignUp = lazyPage(() => import("@/pages/sign-up"));
+const Juniors = lazyPage(() => import("@/pages/juniors"));
+const Store = lazyPage(() => import("@/pages/store"));
+const StoreCheckout = lazyPage(() => import("@/pages/store-checkout"));
+const StoreThankYou = lazyPage(() => import("@/pages/store-result").then((m) => ({ default: m.StoreThankYou })));
+const StoreCancelled = lazyPage(() => import("@/pages/store-result").then((m) => ({ default: m.StoreCancelled })));
+const Contact = lazyPage(() => import("@/pages/contact"));
+const CoachesBoard = lazyPage(() => import("@/pages/coaches-board"));
 // Pages the club creates themselves in Admin → Pages, served at /p/<slug>
-const CustomPage = lazy(() => import("@/pages/custom-page"));
-const Committee = lazy(() => import("@/pages/committee"));
-const AdminLogin = lazy(() => import("@/pages/admin/login"));
-const AdminDashboard = lazy(() => import("@/pages/admin/index"));
-const NotFound = lazy(() => import("@/pages/not-found"));
+const CustomPage = lazyPage(() => import("@/pages/custom-page"));
+const Committee = lazyPage(() => import("@/pages/committee"));
+const News = lazyPage(() => import("@/pages/news"));
+const AdminLogin = lazyPage(() => import("@/pages/admin/login"));
+const AdminDashboard = lazyPage(() => import("@/pages/admin/index"));
+const NotFound = lazyPage(() => import("@/pages/not-found"));
 
 // Shown for the brief moment a lazy page's code is being downloaded.
 function PageLoading() {
@@ -71,6 +98,12 @@ function Router() {
   const isAdmin = location.startsWith(ADMIN_PATH);
   // The Coaches Board is a full-screen tool — no footer / edit banner there.
   const isBoard = location === "/coaches-board";
+
+  // A page switched off under Admin -> Settings -> Page Visibility shows "page
+  // not found" (the server also answers 404 for it), rather than staying
+  // reachable to anyone who knows or bookmarked the address.
+  const { pageEnabled } = useSettings();
+  const gated = (visibility: string, Page: ComponentType<any>) => (pageEnabled(visibility) ? Page : NotFound);
 
   // Tell search engines never to index the admin area, even if its URL is found.
   useEffect(() => {
@@ -102,28 +135,33 @@ function Router() {
       </a>
 
       <main id="main-content" className="flex-1">
+        {/* One page failing shows the error in place of that page only, with
+            the menu still there, and clears when the visitor moves on. */}
+        <ErrorBoundary key={location}>
         <Suspense fallback={<PageLoading />}>
           <Switch>
             <Route path="/" component={Home} />
             <Route path="/about" component={About} />
             <Route path="/calendar" component={Calendar} />
-            <Route path="/fixtures" component={Fixtures} />
-            <Route path="/gallery" component={Gallery} />
+            <Route path="/fixtures" component={gated("fixtures", Fixtures)} />
+            <Route path="/gallery" component={gated("gallery", Gallery)} />
             <Route path="/sign-up" component={SignUp} />
-            <Route path="/juniors" component={Juniors} />
-            <Route path="/store" component={Store} />
-            <Route path="/store/checkout" component={StoreCheckout} />
+            <Route path="/juniors" component={gated("juniors", Juniors)} />
+            <Route path="/store" component={gated("store", Store)} />
+            <Route path="/store/checkout" component={gated("store", StoreCheckout)} />
             <Route path="/store/thank-you" component={StoreThankYou} />
             <Route path="/store/cancelled" component={StoreCancelled} />
             <Route path="/contact" component={Contact} />
-            <Route path="/coaches-board" component={CoachesBoard} />
-            <Route path="/committee" component={Committee} />
+            <Route path="/coaches-board" component={gated("coaches_board", CoachesBoard)} />
+            <Route path="/committee" component={gated("committee", Committee)} />
+            <Route path="/news" component={News} />
             <Route path="/p/:slug" component={CustomPage} />
             <Route path={ADMIN_LOGIN_PATH} component={AdminLogin} />
             <Route path={ADMIN_PATH} component={AdminDashboard} />
             <Route component={NotFound} />
           </Switch>
         </Suspense>
+        </ErrorBoundary>
       </main>
       {!isBoard && <Footer />}
       <Toaster />

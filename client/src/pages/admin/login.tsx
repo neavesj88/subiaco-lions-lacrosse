@@ -45,7 +45,9 @@ export default function AdminLogin() {
     queryFn: () => apiRequest("GET", "/api/auth/google/available"),
   });
 
-  const googleError = new URLSearchParams(location.split("?")[1] ?? "").get("error") === "google";
+  // Read from the real address bar: wouter's location leaves the "?error=…"
+  // part off, so this never noticed a failed Google sign-in.
+  const googleError = new URLSearchParams(window.location.search).get("error") === "google";
 
   useEffect(() => {
     if (user) navigate(ADMIN_PATH);

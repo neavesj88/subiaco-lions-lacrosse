@@ -594,11 +594,15 @@ export async function registerRoutes(app: Express) {
   });
 
   // ── Announcements ───────────────────────────────────────────────────
-  app.get("/api/announcements", async (_req: Request, res: Response) => {
+  // The latest 10 by default (the home page); the News page asks for more
+  // with ?limit=, up to 200.
+  app.get("/api/announcements", async (req: Request, res: Response) => {
+    const asked = parseInt(String(req.query.limit ?? ""), 10);
+    const limit = Number.isInteger(asked) ? Math.min(Math.max(asked, 1), 200) : 10;
     const rows = await db.select().from(announcements)
       .where(eq(announcements.isPublished, true))
       .orderBy(desc(announcements.isPinned), desc(announcements.createdAt))
-      .limit(10);
+      .limit(limit);
     res.json(rows);
   });
 

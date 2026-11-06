@@ -114,7 +114,10 @@ export default function RichTextEditor({
       const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) throw new Error("Upload failed");
       const { url } = await res.json() as { url: string };
-      editor.chain().focus().setImage({ src: url }).run();
+      // A short description is what a screen reader reads out in place of the
+      // photo (and what shows if it fails to load). Optional, but asked for.
+      const alt = window.prompt("Describe this photo in a few words, for people who can't see it (optional):", "") ?? "";
+      editor.chain().focus().setImage({ src: url, alt: alt.trim() }).run();
     } catch {
       alert("Image upload failed. Please try again.");
     }

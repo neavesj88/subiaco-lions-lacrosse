@@ -19,6 +19,8 @@
 import { useEffect } from "react";
 import { getSeoForPath, getSiteName } from "@shared/seo";
 import { useSettings } from "@/hooks/use-settings";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface SEOProps {
   path: string;
@@ -48,17 +50,39 @@ function setCanonical(href: string) {
   el.setAttribute("href", href);
 }
 
+/** Remove a meta tag (used when there's no share picture to point at). */
+function removeMeta(attr: "name" | "property", key: string) {
+  document.head.querySelector(`meta[${attr}="${key}"]`)?.remove();
+}
+
 export default function SEO({ path, title, description, image }: SEOProps) {
   const { settings } = useSettings();
 
+  // A page the club made (/p/<slug>) uses its own title and subtitle, the
+  // same as the server gives it (server/seo-inject.ts), instead of the home
+  // page's. Same query as the page itself, so it costs no extra request.
+  const slug = /^\/p\/([^/?#]+)/.exec(path)?.[1] ?? "";
+  const { data: custom } = useQuery<{ title: string; subtitle: string | null }>({
+    queryKey: [`/api/pages/${slug}`],
+    queryFn: () => apiRequest("GET", `/api/pages/${slug}`),
+    enabled: !!slug,
+    retry: false,
+  });
+
   useEffect(() => {
     const base = getSeoForPath(path, settings);
-    const finalTitle = title ?? base.title;
-    const finalDesc = description ?? base.description;
-    const url = window.location.origin + path;
-    const ogImage = image
-      ? (image.startsWith("http") ? image : window.location.origin + image)
-      : window.location.origin + "/og-image.jpg";
+    const siteName = getSiteName(settings);
+    const customTitle = slug && custom ? (siteName ? `${custom.title} | ${siteName}` : custom.title) : undefined;
+    const finalTitle = title ?? customTitle ?? base.title;
+    const finalDesc = description ?? (slug && custom?.subtitle) ?? base.description;
+    // One address per page: no trailing slash.
+    const cleanPath = path !== "/" ? path.replace(/\/+$/, "") || "/" : "/";
+    const url = window.location.origin + cleanPath;
+    // The share picture: the home page photo, else the logo, else none at all
+    // (rather than a picture that doesn't exist). Matches the server.
+    const absolute = (u: string) => (u.startsWith("http") ? u : u.startsWith("/") ? window.location.origin + u : "");
+    const shareImage = absolute(image ?? settings?.hero_image_url ?? "") || absolute(settings?.club_logo_url ?? "");
+    const largeCard = !!(image || settings?.hero_image_url);
 
     document.title = finalTitle;
     setMeta("name", "description", finalDesc);
@@ -69,17 +93,19 @@ export default function SEO({ path, title, description, image }: SEOProps) {
     setMeta("property", "og:description", finalDesc);
     setMeta("property", "og:url", url);
     setMeta("property", "og:type", "website");
-    setMeta("property", "og:site_name", getSiteName(settings));
-    setMeta("property", "og:image", ogImage);
+    setMeta("property", "og:site_name", siteName);
+    if (shareImage) setMeta("property", "og:image", shareImage);
+    else removeMeta("property", "og:image");
 
     // Twitter card
-    setMeta("name", "twitter:card", "summary_large_image");
+    setMeta("name", "twitter:card", largeCard ? "summary_large_image" : "summary");
     setMeta("name", "twitter:title", finalTitle);
     setMeta("name", "twitter:description", finalDesc);
-    setMeta("name", "twitter:image", ogImage);
+    if (shareImage) setMeta("name", "twitter:image", shareImage);
+    else removeMeta("name", "twitter:image");
 
     setCanonical(url);
-  }, [path, title, description, image, settings]);
+  }, [path, title, description, image, settings, custom, slug]);
 
   return null;
 }

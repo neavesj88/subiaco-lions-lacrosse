@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/utils";
+import { formatDate, parseDate } from "@/lib/utils";
 import { CalendarDays, MapPin, Clock, ExternalLink } from "lucide-react";
 import { useSiteText } from "@/hooks/use-site-text";
 import type { Event } from "@shared/schema";
@@ -79,7 +79,7 @@ export default function Calendar() {
   });
 
   const grouped = filtered.reduce<Record<string, Event[]>>((acc, e) => {
-    const month = new Date(e.startDate).toLocaleDateString("en-AU", { month: "long", year: "numeric" });
+    const month = parseDate(e.startDate).toLocaleDateString("en-AU", { month: "long", year: "numeric" });
     acc[month] = [...(acc[month] ?? []), e];
     return acc;
   }, {});
@@ -186,10 +186,10 @@ export default function Calendar() {
                           <div className="flex items-start gap-4">
                             <div className="bg-maroon-700 text-white rounded-lg px-3 py-2 text-center min-w-[60px] shrink-0">
                               <div className="text-xs uppercase tracking-wide font-medium">
-                                {new Date(e.startDate).toLocaleDateString("en-AU", { weekday: "short" })}
+                                {parseDate(e.startDate).toLocaleDateString("en-AU", { weekday: "short" })}
                               </div>
                               <div className="text-2xl font-bold leading-none">
-                                {new Date(e.startDate).getDate()}
+                                {parseDate(e.startDate).getDate()}
                               </div>
                             </div>
                             <div className="flex-1 min-w-0">
