@@ -329,6 +329,8 @@ function StoreSettings({ status, onSaved }: { status?: { canPay: boolean; testMo
                 <li>In Stripe: Developers → API keys. Copy the <strong>Secret key</strong> below.</li>
                 <li>In Stripe: Developers → Webhooks → Add endpoint. Paste the address below,
                     choose the events <code>checkout.session.completed</code>,
+                    <code>checkout.session.async_payment_succeeded</code>,
+                    <code>checkout.session.async_payment_failed</code>,
                     <code>checkout.session.expired</code> and <code>charge.refunded</code>,
                     then copy its <strong>Signing secret</strong> below.</li>
                 <li>Start with Stripe's <strong>test</strong> keys and place a test order first.</li>

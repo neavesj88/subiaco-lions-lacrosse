@@ -1,6 +1,6 @@
 # Subiaco Lions Lacrosse — club website + CMS
 
-React 18 + Vite SPA (wouter routing, TanStack Query, shadcn/Radix, TipTap editor) served by a single Express server. SQLite via better-sqlite3 + Drizzle ORM. Sessions in SQLite (connect-sqlite3), auth via bcrypt + optional Google OAuth (passport). Email via nodemailer/Mailgun. Everything self-contained — no external DB.
+React 18 + Vite SPA (wouter routing, TanStack Query, shadcn/Radix, TipTap editor) served by a single Express server. SQLite via better-sqlite3 + Drizzle ORM. Sessions in their own SQLite file next to the database (`server/session-store.ts`, a small custom store), auth via bcrypt + optional Google OAuth (passport). Email via nodemailer/Mailgun. Everything self-contained — no external DB.
 
 ## Commands
 
@@ -22,7 +22,10 @@ React 18 + Vite SPA (wouter routing, TanStack Query, shadcn/Radix, TipTap editor
 6. This codebase is maintained by non-developers after handover — keep the existing heavily-commented file-header style when editing `server/` and `shared/` files, and keep code boring and explicit.
 7. Config comes from `.env` (see `.env.example` for every variable and setup instructions). Email, Google OAuth, Stripe, and Cloudflare Tunnel are all optional — code must degrade gracefully when their vars are blank (existing patterns do this; follow them). `.env` is loaded by `dotenv` at the top of `server/index.ts`; nothing else reads it.
 8. **Shop money rules.** Prices are stored in whole cents, never decimals. The browser may only send product/variant IDs and quantities — `server/store.ts` re-prices every cart from the database, so never trust a price from a request. An order becomes `paid` ONLY via the signature-verified Stripe webhook, never from the browser returning to the success page. The webhook needs the raw request body, which `server/index.ts` captures via `express.json({ verify })` for that one path — do not parse or re-serialise it.
-9. Secrets (`mail_pass`, `stripe_secret_key`, `stripe_webhook_secret`) are write-only: stripped from `/api/settings`, masked as `********` in `/api/settings/secure`, and a submitted `********` is ignored so re-saving a form can't blank them.
+9. Secrets (`mail_pass`, `stripe_secret_key`, `stripe_webhook_secret`) are write-only: stripped from `/api/settings`, masked as `********` in `/api/settings/secure`, and a submitted `********` is ignored so re-saving a form can't blank them. The full list of settings kept out of browsers is `PRIVATE_SETTING_KEYS` in `server/site-settings.ts`; public settings are also embedded in every page (`server/runtime-config.ts`), so anything private must be on that list.
+10. **Settings saves send only changed keys** (admin Settings and Shop forms diff against the loaded copy). Never PUT a whole stale settings object — it silently reverts changes made in other tabs.
+11. **The menu is one setting** (`nav_menu`, model in `shared/nav.ts`). Pages, Menu and the server (`server/menu.ts`) all edit it; a custom page's `nav_location` column is legacy, read once on upgrade by `placePagesFromOldSettings()`.
+12. **No club-specific facts in code defaults.** `shared/club-config.ts` defaults must suit any club; a value that only made sense for the first club belongs in its database (see migrate.mjs v10, which wrote Subiaco's old built-in values into existing installs only).
 
 ## Layout
 

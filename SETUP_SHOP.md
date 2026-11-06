@@ -66,6 +66,8 @@ In Stripe: **Developers → Webhooks → Add endpoint**.
   like `https://yourclub.org.au/api/store/webhook`
 - **Events to send:** select these three
   - `checkout.session.completed`
+  - `checkout.session.async_payment_succeeded`
+  - `checkout.session.async_payment_failed`
   - `checkout.session.expired`
   - `charge.refunded`
 - Save, then click into the endpoint and copy its **Signing secret**
@@ -103,7 +105,10 @@ Under Admin → Shop:
 - **Collection at the club** — they pick it up at training. Free.
 - **Postage** — a flat rate you set, with an optional "free over $X".
 
-At least one must be on, or nobody can check out.
+At least one must be on, or nobody can check out. If only one is on, the
+checkout simply tells the customer which it is rather than asking. Items with
+**Needs posting** unticked (a raffle ticket, a membership) never add postage
+and are always "collected".
 
 ### 6. Do a test purchase
 
@@ -124,6 +129,10 @@ Then check that:
 If the order stays on **Pending**, the webhook (step 3) isn't working. In
 Stripe, open **Developers → Webhooks**, click your endpoint, and look at recent
 deliveries — it will show you exactly what went wrong.
+
+Test orders are marked **TEST** in Admin → Orders. They aren't counted in
+"Total taken" or included in the Export, and each has a **Delete** button,
+which also puts its items back in stock — so your testing leaves no trace.
 
 ### 7. Go live
 
@@ -203,11 +212,26 @@ something you normally stock.
 ## Common questions
 
 **Can two people buy the last one?**
-Stock is only reduced once a payment is actually confirmed, so in theory two
-people could pay for the last jersey seconds apart. In practice this is rare at
-club volumes, and the alternative — holding stock for anyone who opens a
-checkout page — means abandoned carts quietly make sizes unbuyable. If it
-happens, refund one of them in Stripe.
+No, in normal use. When someone goes to the payment page, the items in their
+cart are held for them while it's open, and the payment page closes after 30
+minutes. Anyone else trying to buy the last one in that time is told it's in
+someone else's checkout and to try again shortly. An abandoned cart therefore
+holds stock for half an hour at most.
+
+It can still happen if an admin lowers the stock by hand while someone is
+paying. Then the order is flagged with a warning in Admin → Orders (and the
+order email) saying which size ran short, so you can contact the customer.
+
+**Someone paid after I cancelled their order.**
+Cancelling an unpaid order doesn't stop the customer finishing on Stripe's
+payment page if it's still open. If they pay, the order comes back as **Paid**
+with a warning note, and the stock is taken. Contact them to sort it out.
+
+**Refunds**
+Make refunds in your Stripe dashboard; the order updates itself. A partial
+refund (one item of two) adds a note to the order rather than marking it all
+refunded. To also put items back on the shelf, use **Mark as refunded** or
+**Cancel order** on the order, which asks whether to restock.
 
 **Someone says the price was wrong.**
 The price charged always comes from what's in Admin → Shop at that moment, never

@@ -279,7 +279,7 @@ Both take effect immediately and lose nothing.
 cd ~/club-website
 ./scripts/backup.sh
 git pull
-npm ci --omit=optional
+npm ci
 node scripts/migrate.mjs
 npm run build
 sudo systemctl restart club-website
@@ -296,8 +296,12 @@ The sign-up form collects children's names, dates of birth, and their parents'
 contact details. That carries real obligations:
 
 - The form shows people what you collect and why, and will not submit until
-  they tick to confirm they have read it. **Edit that wording to match your own
-  club policy** — Admin → Settings, "privacy" fields.
+  they tick to confirm they have read it (the server checks this too). **Edit
+  that wording to match your own club policy** — Admin → Settings → Wording &
+  club details, the three "privacy" boxes.
+- If someone asks what the club holds about them, Admin → Sign-Ups → **Export
+  CSV** gives you everything. If they ask you to delete it, each sign-up,
+  message and newsletter address has a delete button that removes it for good.
 - Sign-up details are only ever visible to logged-in admins with the Sign-Ups
   permission. They never appear on a public page, in the sitemap, or in Google.
 - The committee page **is public** — names, photos, roles and any email you

@@ -8,7 +8,9 @@ Keep this document somewhere safe (and share it with at least two committee memb
 ## 1. Logging in
 
 - Go to **https://YOUR-DOMAIN/SECRET-PATH/login**
-  (the admin area is at a private path, not the obvious "/admin", to keep bots
+  (the admin area is at a private path, not the obvious "/admin", which keeps it
+  out of the way of casual bots — though anyone reading the page's code can find it,
+  so the password is what really protects it
   out — the exact address was provided at handover. Bookmark it.)
 - Username and password were provided at handover.
 - **First thing to do:** if you see a yellow "Security warning" bar at the top,
@@ -32,11 +34,14 @@ Almost everything is editable without code:
 | News / announcements | Admin → **News** |
 | Games & events | Admin → **Events** |
 | Match results & ladders | Admin → **Results** (or they link out to GameDay) |
-| Photos | Admin → **Media** (upload), shown on **Gallery** |
+| Photos | Admin → **Photos** (upload), shown on **Gallery** |
 | Junior program info | Admin → **Juniors** |
 | Sponsors | Admin → **Sponsors** |
 | Page text (headings, intros) | Log in, then **hover any text** on the page → click the pencil |
+| Your own extra pages (Life Members, Policies…) | Admin → **Pages** |
+| The top menu, dropdowns and footer links | Admin → **Menu** |
 | Logo, hero image, social links, club email | Admin → **Settings** |
+| Team names, privacy wording, About page facts | Admin → **Settings → Wording & club details** |
 | Turn a whole page on/off | Admin → **Settings → Page Visibility** |
 
 Changes are live instantly — no "publish site" step.
@@ -45,14 +50,15 @@ Changes are live instantly — no "publish site" step.
 
 ## 3. Managing who has access (admins)
 
-Admin → **Users** (Super Admins only). There are four permission levels:
+Admin → **Admin Users** (Super Admins only). There are five roles:
 
 | Role | Can do |
 |------|--------|
-| **Super Admin** | Everything, including managing users & settings |
-| **Club Admin** | Events, results, sign-ups, sponsors, newsletter, messages |
-| **Juniors Coordinator** | Junior page content |
+| **Super Admin** | Everything, including managing admins and security |
+| **Club Admin** | All content, settings, the shop, sign-ups and messages — not admins or security |
+| **Juniors Coordinator** | The Juniors page, plus news and photos |
 | **Content Manager** | News posts & photos |
+| **Social Media Manager** | News posts & photos only |
 
 **Golden rules so you never get locked out:**
 - Always keep **at least two Super Admins** (e.g. President + Secretary).
@@ -65,13 +71,18 @@ Admin → **Users** (Super Admins only). There are four permission levels:
 ## 4. Login protection (automatic)
 
 The admin login automatically protects itself against password-guessing:
-after a few wrong passwords from the same device, that device is temporarily
-locked out (5 minutes, increasing if it keeps trying). Legitimate admins on
-other devices are never affected.
+after three wrong passwords from the same internet connection, that connection
+is locked out for 5 minutes, then longer if it keeps trying. Other connections
+are not affected — but note that every device on the clubhouse Wi-Fi shares
+one connection, so a lock-out there applies to all of them.
 
-Super Admins can see any locked-out addresses — and clear them — under
-**Settings → Login Security**. If *you* get locked out by mistake, just wait a
-few minutes, or use a different device, or do the emergency reset below.
+Super Admins can see any locked-out connections — and clear them — under
+**Security** in the admin panel. If *you* get locked out by mistake, wait for
+it to pass, use your phone's mobile data instead of the Wi-Fi, ask another
+Super Admin to clear it, or have whoever manages the computer restart the
+website (lock-outs are forgotten on a restart:
+`sudo systemctl restart club-website` on the clubhouse PC,
+`pm2 restart club-website` on a rented server).
 
 ---
 
@@ -86,7 +97,9 @@ node scripts/reset-admin.mjs
 
 This prints a new temporary password for the `admin` account (and restores it
 to Super Admin). Log in with it, then change it. This works even with no email
-set up — it's the guaranteed way back in.
+set up — it's the guaranteed way back in. If the reason nobody could log in was
+a lock-out after wrong guesses, also restart the website (see above), which
+clears it.
 
 ---
 

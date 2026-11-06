@@ -6,7 +6,8 @@ almost certainly publishes one that takes precedence.
 
 **How to use it:** replace every `[BLANK]`, delete any section that doesn't
 apply to your club, then paste the result into the website under
-**Admin → Pages → Add page**, titled "Privacy". Link it from your footer.
+**Admin → Pages → New Page**, titled "Privacy", and set "Where in the menu?"
+to **In the footer only**.
 
 ---
 
@@ -136,5 +137,6 @@ the date at the top.
   Privacy Act may not strictly apply to you. Publishing a policy anyway is
   still the right thing to do, and parents increasingly expect it.
 - The website's sign-up form shows a short privacy notice and requires people to
-  tick that they've read it. Edit that wording under **Admin → Settings** so it
-  matches this policy — the two disagreeing is worse than either alone.
+  tick that they've read it. Edit that wording under **Admin → Settings →
+  Wording & club details** so it matches this policy — the two disagreeing is
+  worse than either alone.

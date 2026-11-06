@@ -7,8 +7,14 @@ But setting them up gives you **"Sign in with Google"** and **automatic email
 notifications**.
 
 Both are configured by editing the `.env` file in the project root, then
-restarting the app (`pm2 restart club-website`, or just re-run `npm run dev`
-in development).
+restarting the website so it reads the change:
+
+- clubhouse PC: `sudo systemctl restart club-website`
+- rented server: `pm2 restart club-website`
+- development: stop and re-run `npm run dev`
+
+(Email can also be set up without touching `.env`, under Admin → Settings →
+Email, which needs no restart.)
 
 ---
 
@@ -53,7 +59,7 @@ GOOGLE_CALLBACK_URL=https://YOURDOMAIN.com.au/api/auth/google/callback
 (Use the `http://localhost:5000/...` callback when testing locally.)
 
 ### Step 5: Restart and match emails
-1. Restart the app: `pm2 restart club-website`
+1. Restart the website: `sudo systemctl restart club-website` (clubhouse PC) or `pm2 restart club-website` (rented server)
 2. The **"Sign in with Google"** button now appears on the admin login page
 3. **Important:** an admin can only log in with Google if their Google email
    matches the email on their admin account. In **Admin → Users**, make sure
@@ -98,14 +104,14 @@ You need a domain to send from (e.g. `mail.subiacolions.com.au`).
 ```env
 CONTACT_EMAIL_USER=postmaster@mail.yourdomain.com.au
 CONTACT_EMAIL_PASS=your-mailgun-smtp-password
-CLUB_NOTIFY_EMAIL=subiacolacrosseclub@outlook.com
+CLUB_NOTIFY_EMAIL=secretary@yourclub.org.au
 ```
 - `CONTACT_EMAIL_USER` / `CONTACT_EMAIL_PASS` — the SMTP login from Step 3
 - `CLUB_NOTIFY_EMAIL` — where the club wants to *receive* notifications
   (can be any inbox, e.g. your existing Outlook address)
 
 ### Step 5: Restart and test
-1. Restart the app: `pm2 restart club-website`
+1. Restart the website: `sudo systemctl restart club-website` (clubhouse PC) or `pm2 restart club-website` (rented server)
 2. Go to the **Contact** page on the site and send a test message
 3. Check the `CLUB_NOTIFY_EMAIL` inbox — you should get the message
 4. Submit a test **Sign Up** — you'll get a notification, and the email you
@@ -151,5 +157,5 @@ GOOGLE_CALLBACK_URL=https://yourdomain.com.au/api/auth/google/callback
 # Email (optional)
 CONTACT_EMAIL_USER=
 CONTACT_EMAIL_PASS=
-CLUB_NOTIFY_EMAIL=subiacolacrosseclub@outlook.com
+CLUB_NOTIFY_EMAIL=secretary@yourclub.org.au
 ```

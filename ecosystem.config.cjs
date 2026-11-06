@@ -9,9 +9,14 @@
 // systemd instead, and this file is ignored. See CLUBHOUSE_SETUP.md.
 //
 // SHOULD A CLUB EDIT THIS FILE?
-// Only the PORT, and only if something else on the same server is already
-// using it. Everything else can be left alone.
+// No. The port is set in .env (PORT=). Everything else can be left alone.
 // =============================================================================
+
+// The port comes from .env, the one place a club sets it (the site, PM2 and
+// the tunnel scripts all read it there). A number written here instead would
+// override .env and quietly put the site on a different port from the one
+// nginx or the tunnel was pointed at.
+require("dotenv").config({ path: __dirname + "/.env", quiet: true });
 
 module.exports = {
   apps: [
@@ -28,11 +33,10 @@ module.exports = {
       env_production: {
         NODE_ENV: "production",
 
-        // The port the site listens on. 5000 is the default and is fine unless
-        // something else on this server already uses it — if the site refuses
-        // to start with an "address in use" error, change this to 5001, 5002
-        // and so on, then update your nginx or tunnel settings to match.
-        PORT: 5000,
+        // PORT in .env, else 5000. If the site refuses to start with an
+        // "address in use" error, set PORT=5001 (or another free number) in
+        // .env, then update your nginx or tunnel settings to match.
+        PORT: Number(process.env.PORT) || 5000,
       },
 
       log_file: "/var/log/pm2/club-website.log",

@@ -184,15 +184,17 @@ systemctl status cloudflared
 
 1. Go to your site's address followed by the admin path the installer printed,
    plus `/login` — for example `https://yourclub.org.au/manage-a3f9c2/login`
-2. Sign in with **`admin`** and the password shown at the end of the install
-   (default `changeme123!`)
-3. **Change that password immediately** — Admin → My Account. A red warning
-   banner sits across the admin panel until you do.
+2. Sign in with **`admin`** and the starting password shown at the end of the
+   install. (It is random, made up by the installer; it's also kept in `.env`
+   as `SEED_ADMIN_PASSWORD` if you didn't write it down.)
+3. **Change that password straight away** — the **Password** button at the top
+   of the admin panel. A yellow warning banner sits across the panel until you
+   do.
 4. Work through the setup wizard: club name, sport, ground, contact details and
    colours. It only appears on a brand new site.
 
-Then add a real account for each committee member (Admin → Admins) and give
-each the least access they need:
+Then add a real account for each committee member (Admin → Admin Users) and
+give each the least access they need:
 
 | Role | Can do |
 |---|---|
@@ -263,6 +265,10 @@ Change the backup line to include a destination:
 0 2 * * * BACKUP_DIR=/media/usb-backup /home/club/club-website/scripts/backup.sh >> /home/club/club-website/data/backup.log 2>&1
 ```
 
+Or, simpler, put `BACKUP_DIR=/media/usb-backup` in `.env`: the backup script,
+and `./scripts/restore.sh` when you need it, both read it from there, so you
+can't end up restoring from the wrong place.
+
 Better still, have someone copy a backup folder to a laptop or cloud drive at
 the start of each season. It takes two minutes and it is the difference between
 an annoyance and losing the club's website.
@@ -312,11 +318,14 @@ install, and it's the update that matters most.
 cd ~/club-website
 ./scripts/backup.sh
 git pull
-npm ci --omit=optional
+npm ci
 node scripts/migrate.mjs
 npm run build
 sudo systemctl restart club-website
 ```
+
+(`npm ci`, nothing added: the build tools' Linux engines come as "optional"
+packages, so `--omit=optional` makes the build step fail.)
 
 Always take the backup first. If an update ever goes wrong, `./scripts/restore.sh`
 puts you back.
@@ -324,7 +333,7 @@ puts you back.
 **Checking for security problems in the site's building blocks:**
 
 ```bash
-npm audit --omit=optional --omit=dev
+npm audit --omit=dev
 ```
 
 `found 0 vulnerabilities` is what you want. If it reports something, that's a
@@ -380,7 +389,14 @@ df -h                        # how full is the disk?
 du -sh public/uploads        # photos are usually the culprit
 ```
 
-Delete unused photos in Admin → Photos. Old backups prune themselves.
+Delete unused photos in Admin → Photos (it warns you if a photo is still used
+somewhere on the site). Two things to know about freeing space:
+
+- Nightly backups on the same disk share each photo with the live site, so a
+  deleted photo's space only comes back once the last backup holding it has
+  aged out (30 nights by default). Pointing `BACKUP_DIR` at a USB stick (see
+  section 6) keeps backups off the PC's own disk altogether.
+- Old backups prune themselves; `BACKUP_KEEP` in `.env` sets how many are kept.
 
 ---
 

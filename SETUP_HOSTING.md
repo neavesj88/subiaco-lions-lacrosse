@@ -1,4 +1,9 @@
-# Hosting Guide — Subiaco Lions Lacrosse Club
+# Hosting Guide — on a rented server
+
+This guide puts the club website on a small rented server (a "VPS" or virtual
+machine) running Ubuntu or Debian, kept running by PM2. If the club would
+rather run it on a PC in the clubhouse, follow [CLUBHOUSE_SETUP.md](CLUBHOUSE_SETUP.md)
+instead — that is simpler and needs no server.
 
 ## What to order
 
@@ -19,150 +24,136 @@ Photos are automatically shrunk on upload (roughly 300 KB each), and nightly
 backups share disk space with the existing photos rather than duplicating them,
 so a club with a thousand photos and years of history stays under about 2 GB.
 
+---
 
-You already run **neaves.au on an Ubuntu server VM** (PM2 + nginx + Cloudflare).
-This site is built the same way, so the easiest option by far is to **run it
-alongside neaves.au on that same VM**. No new server, no Docker needed.
+## The one thing to check: the port
 
-This guide is written specifically for that. (A Docker/Cloudflare-Tunnel option
-also exists if you ever want it — see the end.)
+The site listens on the `PORT` set in `.env` (5000 unless you change it). If
+the server already runs another website on port 5000, set `PORT=5001` (or any
+free number) in `.env`. That one setting is used by the site, by PM2 and by the
+tunnel scripts, so there is nowhere else to change.
 
 ---
 
-## The one thing that matters: ports
+## Step 1 — Get the code onto the server
 
-Your VM already runs neaves.au on **port 5000**. Two apps can't share a port,
-so the Lions site is configured to run on **port 5001** (already set in
-`ecosystem.config.cjs`). nginx then routes each domain to the right port:
-
-```
-lions-domain.com   → Cloudflare → nginx → localhost:5001  (Lions)
-neaves.au          → Cloudflare → nginx → localhost:5000  (existing)
-```
-
-Everything else (PM2, the HTTP-only nginx + Cloudflare SSL pattern) is identical
-to what you already do.
-
----
-
-## Step 1 — Get the code onto the VM
-
-SSH into your VM (the same one running neaves.au), then:
+SSH in, then:
 
 ```bash
 cd ~
-git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git
-cd subiaco-lions-lacrosse
+git clone https://github.com/neavesj88/subiaco-lions-lacrosse.git club-website
+cd club-website
 ```
 
-## Step 2 — Configure secrets
+## Step 2 — First-time setup (one command)
 
 ```bash
-cp .env.example .env
-nano .env
+bash scripts/setup.sh
 ```
 
-Set at minimum:
+This installs Node.js and PM2 if they are missing, creates `.env` with a random
+session secret, a hard-to-guess admin address and a random first admin
+password, pauses so you can look over `.env`, then installs, builds, creates the
+database and starts the site under PM2.
 
-```env
-NODE_ENV=production
-PORT=5001
-SESSION_SECRET=paste-a-long-random-string
-ADMIN_PATH=/pick-a-secret-path        # admin login lives here, not /admin
-```
-
-Generate the secret with: `openssl rand -hex 32`
-Pick a private `ADMIN_PATH` (e.g. `/lions-office-7y2x`) so the login isn't at the
-obvious `/admin`. You'll log in at `https://your-domain.com<ADMIN_PATH>/login`.
-(Email + Google login are optional — see `SETUP_INTEGRATIONS.md`. Leave blank for now.)
-
-Save: `Ctrl+O`, `Enter`, `Ctrl+X`.
-
-## Step 3 — Install, build, seed, start
-
-Node and PM2 are already on your VM from neaves.au, so:
-
-```bash
-npm ci                      # install dependencies
-npm run build               # build frontend + backend
-node scripts/migrate.mjs    # create database tables
-npm run db:seed             # create default admin + starter content
-pm2 start ecosystem.config.cjs --env production
-pm2 save                    # remember it across reboots
-```
+**At the end it prints the admin login address, `admin`, and the starting
+password. Write them down.** (They are also in `.env`, as `ADMIN_PATH` and
+`SEED_ADMIN_PASSWORD`.)
 
 Check it's up:
-```bash
-pm2 status                          # should list lions-lacrosse, online
-curl -I http://localhost:5001       # should return HTTP 200
-```
-
-At this point the Lions site is running on the VM — we just need to point a
-domain at it.
-
-## Step 4 — Add the nginx server block
-
-You already have an nginx config for neaves.au. We **add a second server block**
-for the Lions domain — it doesn't touch your existing one.
 
 ```bash
-sudo nano /etc/nginx/sites-available/lions-lacrosse
+pm2 status                          # should list club-website, online
+curl -I http://localhost:5000       # use your PORT if you changed it; expect HTTP 200
 ```
 
-Paste this (replace `lions-domain.com` with the real domain):
+## Step 3 — Put it on the internet
 
-```nginx
-server {
-    listen 80;
-    server_name lions-domain.com www.lions-domain.com;
+### Recommended: Cloudflare Tunnel
 
-    location / {
-        proxy_pass http://localhost:5001;   # Lions app port
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-Enable it and reload nginx:
+The tunnel gives the site HTTPS on the club's domain without opening any port
+on the server, and the connection from Cloudflare to the server is encrypted
+all the way. It needs the domain added to a free Cloudflare account (Cloudflare
+walks you through pointing the nameservers, a one-time step).
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/lions-lacrosse /etc/nginx/sites-enabled/
-sudo nginx -t          # test config — should say "syntax is ok"
-sudo systemctl reload nginx
+./scripts/tunnel-setup.sh yourclub.org.au
+pm2 restart club-website            # picks up SITE_URL, which the script sets
 ```
 
-> **Note:** if your neaves.au config is the default `sites-enabled/default` with
-> a catch-all `server_name _;`, adding `server_name lions-domain.com` here means
-> nginx now routes by domain name — neaves.au keeps working, Lions gets its own.
+The script installs cloudflared, opens a Cloudflare login (copy the URL into a
+browser if the server has no screen), creates the tunnel and the DNS records for
+both `yourclub.org.au` and `www.`, and installs it as a service that starts on
+boot. If a DNS record from earlier hosting is in the way, it says so and stops:
+delete that record in the Cloudflare dashboard and run it again.
 
-## Step 5 — Point the domain at the VM in Cloudflare
+No domain yet? `./scripts/tunnel-quick.sh` gives a free temporary address
+(`https://something.trycloudflare.com`) for showing the committee. It changes
+every time and is for testing only.
 
-Same as you did for neaves.au:
+### Alternative: nginx in front, with Cloudflare
 
-1. In Cloudflare, add the Lions domain (or use a subdomain of an existing one).
-2. **DNS → Add record:**
-   - Type `A`, Name `@`, IPv4 = **your VM's IP**, Proxy status **Proxied** (orange cloud)
-   - Type `A`, Name `www`, IPv4 = **your VM's IP**, Proxied
-3. **SSL/TLS → Overview** → set to **Full** (matches your neaves.au setup —
-   Cloudflare does HTTPS, nginx stays HTTP-only).
+Only if the server already uses nginx for other sites. Cloudflare must talk to
+nginx over **HTTPS**, or admin passwords would cross the internet unencrypted
+between Cloudflare and the server. So:
 
-Give DNS a minute, then open `https://lions-domain.com` — it's live with HTTPS.
+1. In Cloudflare: **SSL/TLS → Origin Server → Create Certificate**. Save the
+   certificate and key on the server, e.g. `/etc/ssl/club-website.pem` and
+   `/etc/ssl/club-website.key`.
+2. Add an nginx site (replace the domain, and the port if you changed it):
 
-## Step 6 — Log in and lock down
+   ```nginx
+   server {
+       listen 443 ssl;
+       server_name yourclub.org.au www.yourclub.org.au;
+       ssl_certificate     /etc/ssl/club-website.pem;
+       ssl_certificate_key /etc/ssl/club-website.key;
 
-1. Go to your secret admin path: `https://lions-domain.com<ADMIN_PATH>/login`
-   (e.g. `/pick-a-secret-path/login` — whatever you set in `.env`).
-2. Log in: **`admin` / `changeme123!`** (or your `SEED_ADMIN_PASSWORD`)
-3. **Change the password immediately** — a yellow warning banner will prompt you,
-   or use the **Password** button in the admin top bar. Then set club details in
-   Settings.
+       client_max_body_size 10m;            # photo uploads (8 MB limit)
+
+       location / {
+           proxy_pass http://127.0.0.1:5000;
+           proxy_http_version 1.1;
+           proxy_set_header Host $host;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto https;
+       }
+   }
+   ```
+
+   Save it as `/etc/nginx/sites-available/club-website`, then:
+
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/club-website /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+3. In Cloudflare **DNS**, add `A` records for `@` and `www` pointing at the
+   server's IP, **Proxied** (orange cloud). Set **SSL/TLS → Overview → Full
+   (strict)**.
+4. Add `SITE_URL=https://yourclub.org.au` to `.env`, then `pm2 restart club-website`.
+5. Firewall: let the internet reach only SSH and 443, and ideally only
+   Cloudflare's addresses on 443. The site's own port (5000) should never be
+   reachable from outside:
+
+   ```bash
+   sudo ufw allow OpenSSH
+   sudo ufw allow 443/tcp
+   sudo ufw enable
+   ```
+
+## Step 4 — Log in and lock down
+
+1. Go to `https://yourclub.org.au<ADMIN_PATH>/login` (the admin address
+   printed by setup, also in `.env`).
+2. Log in as `admin` with the starting password.
+3. **Change the password straight away** — a yellow banner reminds you until
+   you do, or use the **Password** button in the admin top bar. The setup
+   wizard then walks you through the club's details.
+
+The admin address being hard to guess is a small extra, not a lock: it is
+visible to anyone who looks at the page's code. The password, and the
+automatic lock-out after repeated wrong guesses, are what keep people out.
 
 ---
 
@@ -170,22 +161,18 @@ Give DNS a minute, then open `https://lions-domain.com` — it's live with HTTPS
 
 ```bash
 cd ~/club-website
-git pull
-npm ci
-npm run build
-node scripts/migrate.mjs
-pm2 restart club-website
+./scripts/deploy.sh
 ```
 
-(Or just run `./scripts/deploy.sh`, which does all of that.) Your database and
-uploaded photos live in `data/` and `public/uploads/` and are untouched by updates.
+That pulls the latest code, installs, **backs up**, updates the database,
+rebuilds and restarts the site. If the database update fails it stops before
+restarting, and the backup it just took is what you'd restore from. Your
+database and photos live in `data/` and `public/uploads/` and are untouched by
+updates.
 
 ---
 
 ## Backups
-
-Same idea as neaves.au, but this site's data is just two folders (SQLite +
-uploads). Quick manual backup:
 
 ```bash
 cd ~/club-website
@@ -193,82 +180,43 @@ cd ~/club-website
 ```
 
 Automatic nightly backup — `crontab -e` and add:
+
 ```
-0 3 * * * cd /home/YOURUSER/subiaco-lions-lacrosse && ./scripts/backup.sh
+0 3 * * * cd /home/YOURUSER/club-website && ./scripts/backup.sh
 ```
-(Use 3am so it doesn't clash with your neaves.au 2am job.)
+
+Backups on the same disk protect against mistakes, not a dead disk. Set
+`BACKUP_DIR` in `.env` to somewhere else (another disk, a mounted network
+share) so a failed disk doesn't take the backups with it. To restore, see
+`./scripts/restore.sh` (it lists the backups and asks before changing
+anything).
 
 ---
 
-## Running both sites — quick reference
+## Quick reference
 
 ```bash
-pm2 status                       # see both apps (portfolio-website + lions-lacrosse)
-pm2 logs club-website          # Lions logs only
-pm2 restart club-website       # restart just the Lions site
+pm2 status                       # is it running?
+pm2 logs club-website            # what is it doing?
+pm2 restart club-website         # restart it (after editing .env, say)
 ```
 
-The two sites are fully independent: separate ports, separate PM2 processes,
-separate databases, separate nginx blocks. Restarting or updating one never
-affects the other.
+If the server also runs other sites, they are fully independent: separate
+ports, separate PM2 processes, separate databases.
 
 ---
 
-## Cloudflare Tunnel — no domain, no nginx, no open ports
+## Docker instead
 
-If you'd rather not set up the nginx server block and DNS above (or you don't
-have the club's domain yet), a **Cloudflare Tunnel** puts the site online with
-automatic HTTPS and nothing exposed on your server or router.
-
-### Option A — No domain yet (free temporary address)
-
-Great for showing the committee before anything is official:
+The repo also includes a `Dockerfile` and `docker-compose.yml` that run the site
+next to a Cloudflare Tunnel (automatic HTTPS, no nginx, no open ports). Set
+`CLOUDFLARE_TUNNEL_TOKEN` in `.env` (from Cloudflare Zero Trust → Networks →
+Tunnels), then:
 
 ```bash
-cd ~/club-website
-pm2 start ecosystem.config.cjs --env production   # make sure the site is running
-./scripts/tunnel-quick.sh                          # tunnels port 5001
+docker compose up -d --build
+docker compose logs web          # the first admin's starting password is printed here, once
 ```
 
-Cloudflare prints a free public address like
-`https://shiny-otter-lamp-verb.trycloudflare.com` — open it on any phone or
-share it with the club.
-
-⚠️ **Testing only.** The address changes every restart, it's rate-limited, and
-you can't use your own domain. When the club has a domain, use Option B.
-
-### Option B — With a domain (permanent, production)
-
-Needs the domain added to a free Cloudflare account (Cloudflare walks you
-through pointing the nameservers, a one-time step).
-
-```bash
-cd ~/club-website
-./scripts/tunnel-setup.sh subiacolions.com.au
-```
-
-The script installs cloudflared, opens a Cloudflare login (copy the URL into a
-browser if the VM is headless), creates the tunnel, **creates the DNS records
-for both `yourdomain.com` and `www.`**, and installs it as a systemd service so
-it starts on boot.
-
-With this you do **not** need the nginx server block or the DNS A records from
-Steps 4–5 above — the tunnel replaces both.
-
-```bash
-sudo systemctl status cloudflared    # is it running?
-sudo journalctl -u cloudflared -f    # live logs
-```
-
-> Running the Lions site behind a tunnel does **not** affect neaves.au — it
-> keeps using nginx on port 5000 exactly as before.
-
----
-
-## If you ever want zero-server hosting instead (Docker + Cloudflare Tunnel)
-
-The repo also includes a `Dockerfile` and `docker-compose.yml` that bundle the
-app with a Cloudflare Tunnel (automatic HTTPS, no nginx, no ports). That's
-useful on a fresh machine, but since you already have a working VM, **Steps 1–6
-above are the simpler path for you.** If you do want the Docker route, run
-`docker compose up -d --build` after setting `CLOUDFLARE_TUNNEL_TOKEN` in `.env`.
+The first admin account is only created when there are no accounts at all, so
+restarting the container never brings back a deleted one.

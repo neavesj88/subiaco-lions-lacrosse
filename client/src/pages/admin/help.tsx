@@ -12,7 +12,7 @@
 import {
   Rocket, Pencil, Megaphone, ImageIcon, Calendar, ClipboardList, Trophy,
   ListChecks, Settings, Users, ShieldAlert, LifeBuoy, PenTool, Palette, FilePlus, UserCheck,
-  ShoppingBag, CreditCard, Receipt, Boxes,
+  ShoppingBag, CreditCard, Receipt, Boxes, Menu,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -67,11 +67,11 @@ const GUIDE: GuideSection[] = [
   },
   {
     icon: ImageIcon,
-    title: "Photos, the Media library and the Gallery",
+    title: "Photos and the Gallery",
     intro:
-      "The Media tab is the club's photo library. Upload once, use anywhere — every uploaded photo automatically appears on the public Gallery page too.",
+      "The Photos tab is the club's photo library. Upload once, use anywhere — every uploaded photo automatically appears on the public Gallery page too.",
     steps: [
-      "Go to Media and drag photos onto the upload box (or click it to browse). Up to 8 MB each.",
+      "Go to Photos and drag photos onto the upload box (or click it to choose them). You can add several at once. Up to 8 MB each; big phone photos are shrunk automatically.",
       "Add a caption under any photo — captions show in the public gallery.",
       "Use the Search, 'Date added' and 'Sort by' boxes to find an old photo quickly.",
       "Wherever you see 'Choose image' (logo, hero background, sponsor logos, post thumbnails), you can pick from this library or upload on the spot.",
@@ -79,7 +79,7 @@ const GUIDE: GuideSection[] = [
     tips: [
       "Photos appear exactly as uploaded — there's no cropping or re-ordering in the library, and the gallery always shows newest first. Edit a photo on your phone/computer BEFORE uploading if you need it framed differently.",
       "'Link' copies a photo's web address, handy if you need to paste it somewhere.",
-      "Deleting a photo removes it from the gallery AND from any post using it — delete carefully.",
+      "If a photo is still in use (the club logo, a sponsor, a shop item, a news post…), deleting it first tells you where, and those places would show a broken image if you go ahead.",
       "Don't want a public gallery? Turn the page off under Settings → Page Visibility.",
     ],
   },
@@ -93,13 +93,14 @@ const GUIDE: GuideSection[] = [
       "Pick the template closest to what you need (Simple Information, Questions & Answers, People/Committee, Links & Resources, Schedule, or Blank).",
       "Give it a title — the web address fills in automatically.",
       "Overwrite the example content with your own. It's the same editor as news posts, so you can add headings, lists, links and photos.",
-      "Choose where it appears: the Club menu, the main menu bar, the footer, or nowhere.",
+      "Choose 'Where in the menu?': the top bar, one of your dropdowns, the footer, or not in any menu. This puts the page straight into the menu (the same menu as the Menu tab).",
       "Untick 'Visible to visitors' if you want to keep working on it privately, then Create Page.",
     ],
     tips: [
       "The template only fills in a starting layout — you can change or delete anything in it afterwards.",
       "Every page lives at /p/its-name, so it can never clash with the built-in pages.",
-      "Changing the web address of a live page breaks any links people have saved — best to leave it alone once published.",
+      "Changing the web address of a live page breaks any links people have saved — best to leave it alone once published. (The menu follows the change by itself.)",
+      "To change the order of menu items, rename a link, or make a new dropdown, use the Menu tab under Club Setup.",
     ],
   },
   {
@@ -227,10 +228,12 @@ const GUIDE: GuideSection[] = [
       "Click 'Mark as handed over'. It moves to 'Fulfilled' and drops off your to-do count.",
     ],
     tips: [
-      "'Pending' means someone started paying and didn't finish. Nothing was charged and there's nothing to do — those tidy themselves up.",
+      "'Pending' means someone is on the payment page or gave up. Nothing has been charged yet; the payment page closes after 30 minutes and the order is then marked cancelled by itself.",
       "Stock comes down by itself when a payment succeeds. You don't need to adjust it after a sale.",
-      "To refund someone, do it in your Stripe dashboard. This page updates itself once Stripe confirms it.",
-      "The club and the customer both get an email the moment an order is paid for.",
+      "An amber 'Club note' on an order is a warning from the site — for example a size that ran out before the payment arrived. Contact the customer.",
+      "To refund someone, do it in your Stripe dashboard; this page updates itself (a part refund adds a note). 'Mark as refunded' or 'Cancel order' here can also put the items back in stock.",
+      "Orders marked TEST were made with Stripe's test keys: no real money, not counted in Total taken, and they can be deleted.",
+      "Once email is set up (Settings → Email), the club and the customer both get an email the moment an order is paid for.",
       "Use the search box to find an order by its reference, the member's name or their email — handy when someone rings up asking about theirs.",
       "'Export' downloads every order as a spreadsheet, one row per item. That's the file to hand the treasurer for reconciling against the Stripe payouts.",
     ],
@@ -274,10 +277,27 @@ const GUIDE: GuideSection[] = [
     icon: Settings,
     title: "Settings & turning pages on/off",
     intro:
-      "The Settings tab (Super Admins only) holds the club-wide options: logo, hero photo, club colours, Instagram feed, GameDay links, and the email (SMTP) server. Each field explains itself.",
+      "The Settings tab (Super Admins and Club Admins) holds the club-wide options: logo, hero photo, contact details and links, the club's wording (team names, privacy notices, About page facts), club colours, page visibility, and the email server. Each field explains itself.",
     tips: [
-      "Page Visibility switches let you hide whole pages (Store, Gallery, etc.) until you're ready — flip the switch and it vanishes from the menu instantly, flip it back anytime.",
-      "The club logo and hero image use 'Choose image' — upload via the Media library, no web addresses needed.",
+      "Page Visibility switches turn whole pages off (Store, Gallery, etc.) until you're ready — the page leaves the menu, footer and search engines, and its address shows 'page not found'. Flip it back anytime.",
+      "The club logo and hero image use 'Choose image' — pick from the Photos library or upload on the spot, no web addresses needed.",
+      "Changing the club colours changes the whole site — menu bar, footer, buttons, links — not just the banners. If a colour would make text hard to read, you'll see a warning.",
+    ],
+  },
+  {
+    icon: Menu,
+    title: "The menu",
+    intro:
+      "The Menu tab (under Club Setup) decides what appears in the top menu bar, what goes in a dropdown, what sits in the footer, and what's hidden.",
+    steps: [
+      "Rename any link in 'Name shown to visitors' — call Fixtures 'Draw' if that's your word for it.",
+      "To make a dropdown, type the same name in the 'Where' box on two or more rows, e.g. 'Teams'.",
+      "Use the arrows to change the order, then press Save menu.",
+    ],
+    tips: [
+      "Pages you make under Pages appear here automatically. A deleted page shows a Remove button.",
+      "Home can't be hidden — every page links back to it.",
+      "'Start again' puts the menu back to how it started. Your pages aren't deleted.",
     ],
   },
   {
@@ -300,10 +320,11 @@ const GUIDE: GuideSection[] = [
     icon: Users,
     title: "Admin accounts & roles",
     intro:
-      "The Users tab (Super Admins only) controls who can log in and what they can touch. Four roles: Super Admin (everything), Club Admin (events, results, sign-ups, sponsors), Juniors Coordinator (juniors page), Content Manager (news & photos).",
+      "The Admin Users tab (Super Admins only) controls who can log in and what they can touch. Five roles: Super Admin (everything), Club Admin (all content, settings, the shop, sign-ups and messages — not admins or security), Juniors Coordinator (the Juniors page, news and photos), Content Manager (news and photos) and Social Media Manager (news and photos only).",
     steps: [
       "Give each committee member their OWN login — don't share one password around.",
-      "When someone leaves the committee, delete their account.",
+      "Use the pencil to change someone's name, email or role. Passwords are reset from the Security tab.",
+      "When someone leaves the committee, delete their account. Their posts and photos stay on the site.",
     ],
     tips: [
       "GOLDEN RULE: always keep at least TWO Super Admins (e.g. President + Secretary). The site refuses to remove the last one — that's deliberate, so you can never lock yourselves out.",
