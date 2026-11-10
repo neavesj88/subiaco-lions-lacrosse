@@ -10,3 +10,5 @@ data/
 # on the server (and in the nightly backup alongside data/), so they must never
 # be committed — otherwise the repo bloats and test images end up public.
 public/uploads/
+# Claude Code local permissions can capture secrets from approved commands
+**/.claude/settings.local.json
